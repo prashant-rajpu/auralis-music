@@ -108,13 +108,11 @@ fun HomeScreen(
                 },
                 singleLine = true,
                 shape = RoundedCornerShape(12.dp),
-                colors = OutlinedTextFieldDefaults.colors(
+                colors = TextFieldDefaults.outlinedTextFieldColors(
                     focusedBorderColor = NeonCyan,
                     unfocusedBorderColor = DarkGrey,
-                    focusedContainerColor = DarkGrey,
-                    unfocusedContainerColor = DarkGrey,
-                    focusedTextColor = Color.White,
-                    unfocusedTextColor = Color.White
+                    containerColor = DarkGrey,
+                    textColor = Color.White
                 ),
                 modifier = Modifier
                     .fillMaxWidth()
