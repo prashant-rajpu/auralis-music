@@ -151,6 +151,7 @@ fun FullPlayerScreen(
                         .fillMaxSize()
                         .padding(horizontal = 24.dp, vertical = 8.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
+                ) {
                     // Live Jam Action Announcement (e.g. "Sneha played Kesariya")
                     AnimatedVisibility(
                         visible = lastJamAction != null,
