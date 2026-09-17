@@ -42,6 +42,20 @@ class PlayerViewModel @Inject constructor(
     val jamSession = playbackManager.jamSession
     val jamState = playbackManager.jamState
     val lastJamAction = playbackManager.lastJamAction
+    val lastReaction = playbackManager.lastReaction
+    val lastMemoryQuote = playbackManager.lastMemoryQuote
+
+    fun sendJamReaction(emoji: String) {
+        playbackManager.sendJamReaction(emoji)
+    }
+
+    fun sendMemoryQuote(quote: String = "I love you jaanaa 💋") {
+        playbackManager.sendMemoryQuote(quote)
+    }
+
+    fun clearMemoryQuote() {
+        playbackManager.clearMemoryQuote()
+    }
 
     private val _lyrics = MutableStateFlow<List<LyricLine>>(emptyList())
     val lyrics = _lyrics.asStateFlow()

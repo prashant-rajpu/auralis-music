@@ -31,7 +31,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.auralis.app.domain.model.Track
-import com.auralis.app.presentation.jam.SpotifyJamBottomSheet
+import com.auralis.app.presentation.together.*
 import com.auralis.app.ui.theme.*
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -123,20 +123,11 @@ fun HomeScreen(
                             )
                         }
 
-                        IconButton(
+                        TogetherModeButton(
                             onClick = { showJamDialog = true },
-                            modifier = Modifier
-                                .size(38.dp)
-                                .glassPill(borderWidth = 1.dp)
-                                .hapticPress(scaleDown = 0.88f)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Share,
-                                contentDescription = "Live Jam",
-                                tint = if (jamSession != null) BabyPinkPrimary else BabyPinkTextPrimary,
-                                modifier = Modifier.size(18.dp)
-                            )
-                        }
+                            isTogetherActive = jamSession != null,
+                            partnerName = jamSession?.participants?.firstOrNull { it != jamSession?.username } ?: "Laddu"
+                        )
 
                         IconButton(
                             onClick = { isSearchExpanded = !isSearchExpanded },
@@ -302,8 +293,9 @@ fun HomeScreen(
                     }
                 }
 
-                // Live Active Spotify Jam Frosted Banner
+                // Live Active Together Mode Frosted Banner (Section 11.2 & 11.3)
                 if (jamSession != null) {
+                    val partner = jamSession!!.participants.firstOrNull { it != jamSession!!.username } ?: "Laddu"
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -325,13 +317,13 @@ fun HomeScreen(
                             Spacer(modifier = Modifier.width(10.dp))
                             Column {
                                 Text(
-                                    text = "🎧 Spotify Jam Active: ${jamSession!!.jamId}",
+                                    text = "💗 Together with $partner • Laddu Sync",
                                     color = BabyPinkTextPrimary,
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 13.sp
                                 )
                                 Text(
-                                    text = lastJamAction ?: "${jamSession!!.participants.size} listening together in sync",
+                                    text = lastJamAction ?: "Listening together in real-time sync",
                                     color = BabyPinkPrimary,
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.SemiBold
@@ -339,7 +331,7 @@ fun HomeScreen(
                             }
                         }
                         Text(
-                            text = "Manage",
+                            text = "Manage 💗",
                             color = BabyPinkTextPrimary,
                             fontWeight = FontWeight.Bold,
                             fontSize = 12.sp
@@ -347,19 +339,19 @@ fun HomeScreen(
                     }
                 }
 
-                // Spotify Jam Bottom Sheet
+                // Together Mode Bottom Sheet Modal
                 if (showJamDialog) {
-                    SpotifyJamBottomSheet(
+                    TogetherModeBottomSheet(
                         session = jamSession,
-                        onStartJam = { code, name ->
+                        onStartTogether = { code, name ->
                             viewModel.startJam(code, name)
                             showJamDialog = false
                         },
-                        onJoinJam = { code, name ->
+                        onJoinTogether = { code, name ->
                             viewModel.joinJam(code, name)
                             showJamDialog = false
                         },
-                        onLeaveJam = {
+                        onLeaveTogether = {
                             viewModel.leaveJam()
                         },
                         onDismiss = { showJamDialog = false }

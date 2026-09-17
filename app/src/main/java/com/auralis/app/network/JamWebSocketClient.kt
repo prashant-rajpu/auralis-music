@@ -37,6 +37,8 @@ sealed class JamState {
     data class RequestSync(val sender: String) : JamState()
     data class UserLeft(val username: String) : JamState()
     data class QueueTrack(val track: Track, val sender: String) : JamState()
+    data class ReactionReceived(val emoji: String, val sender: String) : JamState()
+    data class MemoryQuoteReceived(val quote: String, val sender: String) : JamState()
     object Disconnected : JamState()
     data class Error(val message: String) : JamState()
 }
@@ -197,9 +199,53 @@ class JamWebSocketClient @Inject constructor(
                     }
                     _jamState.value = JamState.UserLeft(leftUser)
                 }
+
+                "reaction" -> {
+                    val emoji = json.optString("emoji", "❤️")
+                    val reactionSender = json.optString("sender", "Partner")
+                    _jamState.value = JamState.ReactionReceived(emoji, reactionSender)
+                }
+
+                "memory_quote" -> {
+                    val quote = json.optString("quote", "I love you jaanaa 💋")
+                    val quoteSender = json.optString("sender", "Partner")
+                    _jamState.value = JamState.MemoryQuoteReceived(quote, quoteSender)
+                }
             }
         } catch (e: Exception) {
             Log.e("JamClient", "Failed to deserialize jam payload", e)
+        }
+    }
+
+    fun broadcastReaction(emoji: String) {
+        val session = _currentSession.value ?: return
+        scope.launch {
+            try {
+                val json = JSONObject().apply {
+                    put("type", "reaction")
+                    put("sender", session.username)
+                    put("emoji", emoji)
+                }
+                publishToTopic(session.jamId, json.toString())
+            } catch (e: Exception) {
+                Log.e("JamClient", "Failed to broadcast reaction", e)
+            }
+        }
+    }
+
+    fun broadcastMemoryQuote(quote: String = "I love you jaanaa 💋") {
+        val session = _currentSession.value ?: return
+        scope.launch {
+            try {
+                val json = JSONObject().apply {
+                    put("type", "memory_quote")
+                    put("sender", session.username)
+                    put("quote", quote)
+                }
+                publishToTopic(session.jamId, json.toString())
+            } catch (e: Exception) {
+                Log.e("JamClient", "Failed to broadcast memory quote", e)
+            }
         }
     }
 

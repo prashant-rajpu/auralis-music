@@ -96,19 +96,39 @@ private fun MiniPlayerContent(
                     .padding(horizontal = 12.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Miniature rounded album art with smooth crossfade
-                AsyncImage(
-                    model = ImageRequest.Builder(LocalContext.current)
-                        .data(track.albumArtUrl)
-                        .crossfade(300)
-                        .build(),
-                    contentDescription = "Album Art",
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier
-                        .size(48.dp)
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(BabyPinkBgMiddle)
-                )
+                // Miniature rounded album art with smooth crossfade and Together badge
+                Box(contentAlignment = Alignment.BottomEnd) {
+                    AsyncImage(
+                        model = ImageRequest.Builder(LocalContext.current)
+                            .data(track.albumArtUrl)
+                            .crossfade(300)
+                            .build(),
+                        contentDescription = "Album Art",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier
+                            .size(48.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(BabyPinkBgMiddle)
+                    )
+
+                    if (isJamActive) {
+                        Box(
+                            modifier = Modifier
+                                .offset(x = 4.dp, y = 4.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(BabyPinkPrimary)
+                                .border(1.dp, Color.White, RoundedCornerShape(8.dp))
+                                .padding(horizontal = 4.dp, vertical = 1.dp)
+                        ) {
+                            Text(
+                                text = "💗 Together",
+                                color = Color.White,
+                                fontSize = 8.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
 
                 Spacer(modifier = Modifier.width(12.dp))
 
@@ -129,7 +149,7 @@ private fun MiniPlayerContent(
                     )
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
-                        text = if (lastJamAction != null) "💖 $lastJamAction" else if (isJamActive) "🎧 Jam with ${jamParticipants.ifEmpty { "Partner" }}" else "${track.artist} • ${track.qualityBadge}",
+                        text = if (lastJamAction != null) "💖 $lastJamAction" else if (isJamActive) "Together with ${jamParticipants.ifEmpty { "Laddu" }} 💗 • Synced" else "${track.artist} • ${track.qualityBadge}",
                         style = MaterialTheme.typography.bodySmall.copy(
                             fontSize = 12.sp,
                             fontWeight = if (isJamActive || lastJamAction != null) FontWeight.Bold else FontWeight.Medium

@@ -32,7 +32,7 @@ import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.auralis.app.domain.model.Track
 import com.auralis.app.playback.RepeatMode
-import com.auralis.app.presentation.jam.SpotifyJamBottomSheet
+import com.auralis.app.presentation.together.*
 import com.auralis.app.ui.theme.*
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -56,6 +56,8 @@ fun FullPlayerScreen(
     val jamSession by viewModel.jamSession.collectAsState()
     val isJamSheetVisible by viewModel.isJamSheetVisible.collectAsState()
     val lastJamAction by viewModel.lastJamAction.collectAsState()
+    val lastReaction by viewModel.lastReaction.collectAsState()
+    val lastMemoryQuote by viewModel.lastMemoryQuote.collectAsState()
 
     val track = currentTrack
 
@@ -113,8 +115,8 @@ fun FullPlayerScreen(
                 actions = {
                     IconButton(onClick = { viewModel.setJamSheetVisible(true) }) {
                         Icon(
-                            Icons.Default.Share,
-                            contentDescription = "Spotify Jam",
+                            Icons.Default.Favorite,
+                            contentDescription = "Together Mode 💗",
                             tint = if (jamSession != null) BabyPinkPrimary else BabyPinkTextSecondary,
                             modifier = Modifier.size(22.dp)
                         )
@@ -187,32 +189,15 @@ fun FullPlayerScreen(
                         }
                     }
 
-                    // Active Spotify Jam Beacon
+                    // Together Mode Top Glass Strip (Section 11.3 C)
                     if (jamSession != null) {
-                        Row(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(16.dp))
-                                .background(GlassSurfaceStrong)
-                                .border(1.dp, GlassBorder, RoundedCornerShape(16.dp))
-                                .clickable { viewModel.setJamSheetVisible(true) }
-                                .padding(horizontal = 14.dp, vertical = 6.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                .size(8.dp)
-                                .clip(CircleShape)
-                                .background(BabyPinkPrimary)
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = "🎧 Jamming with ${jamSession!!.participants.filter { it != jamSession!!.username }.joinToString().ifEmpty { "Partner" }}",
-                                color = BabyPinkTextPrimary,
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                        Spacer(modifier = Modifier.height(8.dp))
+                        val partnerName = jamSession!!.participants.firstOrNull { it != jamSession!!.username } ?: "Laddu"
+                        TogetherTopGlassStrip(
+                            partnerName = partnerName,
+                            userName = jamSession!!.username,
+                            onClick = { viewModel.setJamSheetVisible(true) },
+                            modifier = Modifier.padding(bottom = 8.dp)
+                        )
                     }
 
                     // Center Content: Artwork vs Up Next vs Lyrics vs Related
@@ -472,6 +457,10 @@ fun FullPlayerScreen(
                                         fontWeight = FontWeight.Bold
                                     )
                                 }
+                                if (jamSession != null && isLiked) {
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    OurSongBadge()
+                                }
                             }
                         }
 
@@ -550,32 +539,60 @@ fun FullPlayerScreen(
                         }
 
                         // Primary Play/Pause Button with Soft Pink Glow and Specular Rim
-                        FilledIconButton(
-                            onClick = { viewModel.togglePlayPause() },
+                        val infiniteTransition = rememberInfiniteTransition(label = "play_pulse")
+                        val breathingScale by infiniteTransition.animateFloat(
+                            initialValue = 1.0f,
+                            targetValue = if (isPlaying) 1.04f else 1.01f,
+                            animationSpec = infiniteRepeatable(
+                                animation = tween(1100, easing = FastOutSlowInEasing),
+                                repeatMode = androidx.compose.animation.core.RepeatMode.Reverse
+                            ),
+                            label = "play_scale"
+                        )
+
+                        Box(
                             modifier = Modifier
-                                .size(72.dp)
-                                .border(
-                                    width = 2.dp,
-                                    brush = Brush.verticalGradient(
-                                        listOf(
-                                            Color.White.copy(alpha = 0.90f),
-                                            BabyPinkSoftRose.copy(alpha = 0.30f)
-                                        )
-                                    ),
-                                    shape = CircleShape
-                                )
-                                .hapticPress(scaleDown = 0.90f),
-                            colors = IconButtonDefaults.filledIconButtonColors(
-                                containerColor = BabyPinkPrimary,
-                                contentColor = Color.White
-                            )
+                                .size(82.dp)
+                                .scale(breathingScale),
+                            contentAlignment = Alignment.Center
                         ) {
-                            Icon(
-                                imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                                contentDescription = if (isPlaying) "Pause" else "Play",
-                                modifier = Modifier.size(40.dp),
-                                tint = Color.White
-                            )
+                            if (jamSession != null) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(82.dp)
+                                        .clip(CircleShape)
+                                        .background(Color(0x40FFB6C1))
+                                        .border(1.dp, BabyPinkPrimary.copy(alpha = 0.5f), CircleShape)
+                                )
+                            }
+
+                            FilledIconButton(
+                                onClick = { viewModel.togglePlayPause() },
+                                modifier = Modifier
+                                    .size(72.dp)
+                                    .border(
+                                        width = 2.dp,
+                                        brush = Brush.verticalGradient(
+                                            listOf(
+                                                Color.White.copy(alpha = 0.90f),
+                                                BabyPinkSoftRose.copy(alpha = 0.30f)
+                                            )
+                                        ),
+                                        shape = CircleShape
+                                    )
+                                    .hapticPress(scaleDown = 0.90f),
+                                colors = IconButtonDefaults.filledIconButtonColors(
+                                    containerColor = BabyPinkPrimary,
+                                    contentColor = Color.White
+                                )
+                            ) {
+                                Icon(
+                                    imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                                    contentDescription = if (isPlaying) "Pause" else "Play",
+                                    modifier = Modifier.size(40.dp),
+                                    tint = Color.White
+                                )
+                            }
                         }
 
                         // Skip Next
@@ -610,6 +627,22 @@ fun FullPlayerScreen(
                                 modifier = Modifier.size(26.dp)
                             )
                         }
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    // Together Mode Live Reaction Bar or Start Button (Section 11.3 E & 11.3 A)
+                    if (jamSession != null) {
+                        TogetherLiveReactionsTray(
+                            onSendReaction = { emoji -> viewModel.sendJamReaction(emoji) },
+                            onTriggerQuote = { viewModel.sendMemoryQuote("I love you jaanaa 💋") },
+                            modifier = Modifier.padding(bottom = 6.dp)
+                        )
+                    } else {
+                        TogetherModeButton(
+                            onClick = { viewModel.setJamSheetVisible(true) },
+                            modifier = Modifier.padding(bottom = 6.dp)
+                        )
                     }
 
                     Spacer(modifier = Modifier.height(18.dp))
@@ -648,6 +681,17 @@ fun FullPlayerScreen(
 
                     Spacer(modifier = Modifier.height(6.dp))
                 }
+
+                // Floating Reaction Particles & Memory Quote Overlay (Section 11.3 E & 11.4)
+                FloatingReactionParticles(triggerReaction = lastReaction)
+                MemoryQuoteOverlay(
+                    quote = lastMemoryQuote?.first,
+                    sender = lastMemoryQuote?.second,
+                    onDismiss = { viewModel.clearMemoryQuote() },
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .padding(top = 16.dp)
+                )
             }
         }
     }
@@ -661,18 +705,24 @@ fun FullPlayerScreen(
     }
 
     if (isJamSheetVisible) {
-        SpotifyJamBottomSheet(
+        TogetherModeBottomSheet(
             session = jamSession,
-            onStartJam = { code, name ->
+            onStartTogether = { code, name ->
                 viewModel.startJam(code, name)
                 viewModel.setJamSheetVisible(false)
             },
-            onJoinJam = { code, name ->
+            onJoinTogether = { code, name ->
                 viewModel.joinJam(code, name)
                 viewModel.setJamSheetVisible(false)
             },
-            onLeaveJam = {
+            onLeaveTogether = {
                 viewModel.leaveJam()
+            },
+            onSendReaction = { emoji ->
+                viewModel.sendJamReaction(emoji)
+            },
+            onSendMemoryQuote = { quote ->
+                viewModel.sendMemoryQuote(quote)
             },
             onDismiss = { viewModel.setJamSheetVisible(false) }
         )

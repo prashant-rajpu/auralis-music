@@ -9,6 +9,7 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.session.MediaSession
 import com.auralis.app.domain.model.SoundProfile
 import com.auralis.app.domain.model.Track
 import com.auralis.app.network.JamState
@@ -81,9 +82,17 @@ class PlaybackManager @Inject constructor(
     private val _repeatMode = MutableStateFlow(RepeatMode.OFF)
     val repeatMode = _repeatMode.asStateFlow()
 
-    // Live Jam Action notification banner (e.g. "Sneha changed track to Kesariya")
+    // Live Jam / Together Mode Action notification banner
     private val _lastJamAction = MutableStateFlow<String?>(null)
     val lastJamAction = _lastJamAction.asStateFlow()
+
+    // Real-time live emoji reactions (emoji, sender)
+    private val _lastReaction = MutableStateFlow<Pair<String, String>?>(null)
+    val lastReaction = _lastReaction.asStateFlow()
+
+    // Romantic memory quote overlay (quote, sender)
+    private val _lastMemoryQuote = MutableStateFlow<Pair<String, String>?>(null)
+    val lastMemoryQuote = _lastMemoryQuote.asStateFlow()
 
     val jamSession = jamClient.currentSession
     val jamState = jamClient.jamState
@@ -95,6 +104,7 @@ class PlaybackManager @Inject constructor(
     private var crossfadeJob: Job? = null
     private var dismissJob: Job? = null
     private var tickCounter = 0
+    private var mediaSession: MediaSession? = null
 
     init {
         setupPlayer(playerA)
@@ -102,6 +112,37 @@ class PlaybackManager @Inject constructor(
         startPositionTicker()
         observeJamState()
         audioEffectManager.attachAudioSession(activePlayer.audioSessionId)
+        try {
+            mediaSession = MediaSession.Builder(context, activePlayer)
+                .setId("AuralisTogetherMediaSession")
+                .build()
+        } catch (e: Exception) {
+            Log.e("PlaybackManager", "Failed to build MediaSession", e)
+        }
+    }
+
+    fun sendJamReaction(emoji: String) {
+        jamClient.broadcastReaction(emoji)
+        val myName = jamSession.value?.username ?: "You"
+        _lastReaction.value = Pair(emoji, myName)
+        _lastJamAction.value = "$myName sent $emoji 💖"
+        scheduleActionDismiss()
+    }
+
+    fun sendMemoryQuote(quote: String = "I love you jaanaa 💋") {
+        jamClient.broadcastMemoryQuote(quote)
+        val myName = jamSession.value?.username ?: "You"
+        _lastMemoryQuote.value = Pair(quote, myName)
+        _lastJamAction.value = "$myName: \"$quote\" 💌"
+        scheduleActionDismiss()
+    }
+
+    fun clearMemoryQuote() {
+        _lastMemoryQuote.value = null
+    }
+
+    fun clearReaction() {
+        _lastReaction.value = null
     }
 
     private fun setupPlayer(player: ExoPlayer) {
@@ -267,6 +308,18 @@ class PlaybackManager @Inject constructor(
                             _queue.value = currentList + state.track
                         }
                         _lastJamAction.value = "${state.sender} queued ${state.track.title}"
+                        scheduleActionDismiss()
+                    }
+
+                    is JamState.ReactionReceived -> {
+                        _lastReaction.value = Pair(state.emoji, state.sender)
+                        _lastJamAction.value = "${state.sender} sent ${state.emoji} 💖"
+                        scheduleActionDismiss()
+                    }
+
+                    is JamState.MemoryQuoteReceived -> {
+                        _lastMemoryQuote.value = Pair(state.quote, state.sender)
+                        _lastJamAction.value = "${state.sender}: \"${state.quote}\" 💌"
                         scheduleActionDismiss()
                     }
 
