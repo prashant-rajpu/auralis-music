@@ -4,6 +4,7 @@ import android.content.Context
 import android.util.Log
 import com.auralis.app.domain.model.Track
 import com.auralis.app.lyrics.LyricsRepository
+import com.auralis.app.network.YouTubeStreamResolver
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -19,11 +20,17 @@ class OfflineDownloader @Inject constructor(
     @ApplicationContext private val context: Context,
     private val trackDao: TrackDao,
     private val okHttpClient: OkHttpClient,
-    private val lyricsRepository: LyricsRepository
+    private val lyricsRepository: LyricsRepository,
+    private val streamResolver: YouTubeStreamResolver
 ) {
     suspend fun downloadTrack(track: Track): Boolean = withContext(Dispatchers.IO) {
         try {
-            val request = Request.Builder().url(track.mediaUrl).build()
+            val downloadUrl = if (track.isYouTubeTrack() || !track.mediaUrl.startsWith("http")) {
+                streamResolver.resolveStreamUrl(track)
+            } else {
+                track.mediaUrl
+            }
+            val request = Request.Builder().url(downloadUrl).build()
             val response = okHttpClient.newCall(request).execute()
 
             if (response.isSuccessful) {
@@ -34,7 +41,7 @@ class OfflineDownloader @Inject constructor(
                         musicDir.mkdirs()
                     }
 
-                    val ext = if (track.mediaUrl.contains(".mp4")) "mp4" else "mp3"
+                    val ext = if (downloadUrl.contains(".mp4") || downloadUrl.contains("audio/mp4")) "mp4" else if (downloadUrl.contains("webm") || downloadUrl.contains("opus")) "webm" else "mp3"
                     val safeFilename = "${track.id}_${track.title.replace(Regex("[^a-zA-Z0-9.-]"), "_")}.$ext"
                     val file = File(musicDir, safeFilename)
 

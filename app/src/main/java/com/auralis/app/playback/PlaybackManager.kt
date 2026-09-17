@@ -12,7 +12,7 @@ import androidx.media3.exoplayer.ExoPlayer
 import com.auralis.app.domain.model.SoundProfile
 import com.auralis.app.domain.model.Track
 import com.auralis.app.network.JamState
-import com.auralis.app.network.JamWebSocketClient
+import com.auralis.app.network.YouTubeStreamResolver
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -30,7 +30,8 @@ enum class RepeatMode {
 class PlaybackManager @Inject constructor(
     @ApplicationContext private val context: Context,
     val jamClient: JamWebSocketClient,
-    val audioEffectManager: AudioEffectManager
+    val audioEffectManager: AudioEffectManager,
+    val streamResolver: YouTubeStreamResolver
 ) {
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
@@ -115,6 +116,29 @@ class PlaybackManager @Inject constructor(
                             activePlayer.play()
                         } else {
                             skipNext()
+                        }
+                    }
+                }
+            }
+
+            override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+                Log.e("PlaybackManager", "Player error on active=${player == activePlayer}: ${error.errorCodeName}", error)
+                if (player == activePlayer) {
+                    val current = _currentTrack.value
+                    if (current != null && current.isYouTubeTrack()) {
+                        scope.launch {
+                            try {
+                                val freshUrl = streamResolver.resolveStreamUrl(current, forceRefresh = true)
+                                if (freshUrl != current.mediaUrl) {
+                                    val recovered = current.copy(mediaUrl = freshUrl)
+                                    _currentTrack.value = recovered
+                                    loadMediaToPlayer(activePlayer, recovered)
+                                    activePlayer.prepare()
+                                    activePlayer.play()
+                                }
+                            } catch (e: Exception) {
+                                Log.e("PlaybackManager", "Stream recovery failed", e)
+                            }
                         }
                     }
                 }
@@ -245,21 +269,6 @@ class PlaybackManager @Inject constructor(
         crossfadeJob?.cancel()
         isCrossfading = false
 
-        standbyPlayer.stop()
-        standbyPlayer.volume = 1.0f
-
-        activePlayer.stop()
-        activePlayer.volume = 1.0f
-
-        loadMediaToPlayer(activePlayer, track)
-        activePlayer.prepare()
-        activePlayer.seekTo(position)
-        if (isPlaying) {
-            activePlayer.play()
-        } else {
-            activePlayer.pause()
-        }
-
         _currentTrack.value = track
         _isPlaying.value = isPlaying
         _currentPositionMs.value = position
@@ -270,7 +279,31 @@ class PlaybackManager @Inject constructor(
         }
         currentIndex = _queue.value.indexOfFirst { it.id == track.id }
 
-        audioEffectManager.attachAudioSession(activePlayer.audioSessionId)
+        scope.launch {
+            val resolvedTrack = if (track.isYouTubeTrack() || !track.mediaUrl.startsWith("http")) {
+                val resolvedUrl = streamResolver.resolveStreamUrl(track)
+                track.copy(mediaUrl = resolvedUrl)
+            } else {
+                track
+            }
+
+            standbyPlayer.stop()
+            standbyPlayer.volume = 1.0f
+
+            activePlayer.stop()
+            activePlayer.volume = 1.0f
+
+            loadMediaToPlayer(activePlayer, resolvedTrack)
+            activePlayer.prepare()
+            activePlayer.seekTo(position)
+            if (isPlaying) {
+                activePlayer.play()
+            } else {
+                activePlayer.pause()
+            }
+
+            audioEffectManager.attachAudioSession(activePlayer.audioSessionId)
+        }
     }
 
     fun playTrack(track: Track, newQueue: List<Track> = listOf(track)) {
@@ -280,24 +313,33 @@ class PlaybackManager @Inject constructor(
         crossfadeJob?.cancel()
         isCrossfading = false
 
-        standbyPlayer.stop()
-        standbyPlayer.volume = 1.0f
-
-        activePlayer.stop()
-        activePlayer.volume = 1.0f
-
-        loadMediaToPlayer(activePlayer, track)
-        activePlayer.prepare()
-        activePlayer.play()
-
         _currentTrack.value = track
         _isPlaying.value = true
         _currentPositionMs.value = 0L
         _durationMs.value = track.durationMs
 
-        audioEffectManager.attachAudioSession(activePlayer.audioSessionId)
-        // Instant broadcast so partner's phone changes to this song immediately
-        jamClient.broadcastPlaybackState(track, 0L, true, action = "change_track")
+        scope.launch {
+            val resolvedTrack = if (track.isYouTubeTrack() || !track.mediaUrl.startsWith("http")) {
+                val resolvedUrl = streamResolver.resolveStreamUrl(track)
+                track.copy(mediaUrl = resolvedUrl)
+            } else {
+                track
+            }
+
+            standbyPlayer.stop()
+            standbyPlayer.volume = 1.0f
+
+            activePlayer.stop()
+            activePlayer.volume = 1.0f
+
+            loadMediaToPlayer(activePlayer, resolvedTrack)
+            activePlayer.prepare()
+            activePlayer.play()
+
+            audioEffectManager.attachAudioSession(activePlayer.audioSessionId)
+            // Instant broadcast so partner's phone changes to this song immediately
+            jamClient.broadcastPlaybackState(resolvedTrack, 0L, true, action = "change_track")
+        }
     }
 
     fun playTrackAtIndex(index: Int) {
@@ -386,14 +428,21 @@ class PlaybackManager @Inject constructor(
         crossfadeJob = scope.launch {
             isCrossfading = true
 
+            val resolvedNext = if (nextTrack.isYouTubeTrack() || !nextTrack.mediaUrl.startsWith("http")) {
+                val resolvedUrl = streamResolver.resolveStreamUrl(nextTrack)
+                nextTrack.copy(mediaUrl = resolvedUrl)
+            } else {
+                nextTrack
+            }
+
             // Prepare standby player with next song at 0 volume
             standbyPlayer.stop()
             standbyPlayer.volume = 0.0f
-            loadMediaToPlayer(standbyPlayer, nextTrack)
+            loadMediaToPlayer(standbyPlayer, resolvedNext)
             standbyPlayer.prepare()
             standbyPlayer.play()
 
-            _currentTrack.value = nextTrack
+            _currentTrack.value = resolvedNext
 
             // Simultaneous cross-mixing volume interpolation
             val stepInterval = 50L

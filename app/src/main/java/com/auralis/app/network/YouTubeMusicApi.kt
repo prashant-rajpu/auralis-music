@@ -1,5 +1,6 @@
 package com.auralis.app.network
 
+import android.util.Log
 import com.auralis.app.domain.model.Track
 import com.google.gson.Gson
 import com.google.gson.JsonElement
@@ -13,17 +14,9 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import javax.inject.Inject
 import javax.inject.Singleton
 
-private data class RawYtTrack(
-    val videoId: String,
-    val title: String,
-    val artist: String,
-    val albumArtUrl: String?
-)
-
 @Singleton
 class YouTubeMusicApi @Inject constructor(
-    private val client: OkHttpClient,
-    private val jioSaavnApi: JioSaavnApi
+    private val client: OkHttpClient
 ) {
     private val gson = Gson()
 
@@ -44,7 +37,7 @@ class YouTubeMusicApi @Inject constructor(
 
         val request = Request.Builder()
             .url("https://music.youtube.com/youtubei/v1/search")
-            .addHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+            .addHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
             .addHeader("Content-Type", "application/json")
             .addHeader("X-YouTube-Client-Name", "67")
             .addHeader("X-YouTube-Client-Version", "1.20231204.01.00")
@@ -53,67 +46,30 @@ class YouTubeMusicApi @Inject constructor(
 
         try {
             val response = client.newCall(request).execute()
-            if (!response.isSuccessful) return@withContext emptyList()
-            val responseBody = response.body?.string() ?: return@withContext emptyList()
-            val rawTracks = parseSearchResponse(responseBody)
-
-            val playableTracks = mutableListOf<Track>()
-            for (raw in rawTracks.take(15)) {
-                val resolved = resolvePlayableTrack(raw)
-                if (resolved != null) {
-                    playableTracks.add(resolved)
-                }
+            if (!response.isSuccessful) {
+                Log.w("YouTubeMusicApi", "Search request failed with HTTP ${response.code}")
+                return@withContext emptyList()
             }
-            playableTracks
+            val responseBody = response.body?.string() ?: return@withContext emptyList()
+            parseSearchResponse(responseBody)
         } catch (e: Exception) {
+            Log.e("YouTubeMusicApi", "Search failed for query: $query", e)
             emptyList()
         }
     }
 
-    private suspend fun resolvePlayableTrack(raw: RawYtTrack): Track? {
-        try {
-            val cleanTitle = raw.title.replace(Regex("(?i)\\(.*\\)|\\[.*\\]|official|video|audio|lyrics"), "").trim()
-            val searchQuery = "$cleanTitle ${raw.artist}".trim()
-            val resp = jioSaavnApi.searchSongs(query = searchQuery, count = 1)
-            val first = resp.results?.firstOrNull()
-
-            if (first != null) {
-                val mediaUrl = JioSaavnDecryptor.decryptMediaUrl(first.moreInfo?.encryptedMediaUrl)
-                if (!mediaUrl.isNullOrBlank()) {
-                    val durationSec = first.moreInfo?.duration?.toLongOrNull() ?: 210L
-                    val art = raw.albumArtUrl ?: first.image?.replace("150x150", "500x500")
-
-                    return Track(
-                        id = "yt_${raw.videoId}",
-                        title = raw.title,
-                        artist = raw.artist,
-                        albumArtUrl = art,
-                        mediaUrl = mediaUrl,
-                        durationMs = durationSec * 1000L,
-                        source = "Auralis Master",
-                        qualityBadge = "320 kbps Master",
-                        isDownloaded = false
-                    )
-                }
-            }
-        } catch (e: Exception) {
-            // Resolution fallback failed
-        }
-        return null
-    }
-
-    private fun parseSearchResponse(jsonString: String): List<RawYtTrack> {
-        val tracks = mutableListOf<RawYtTrack>()
+    private fun parseSearchResponse(jsonString: String): List<Track> {
+        val tracks = mutableListOf<Track>()
         try {
             val root = gson.fromJson(jsonString, JsonObject::class.java)
             extractMusicItems(root, tracks)
         } catch (e: Exception) {
-            // Ignore parse errors
+            Log.w("YouTubeMusicApi", "JSON parsing error", e)
         }
         return tracks
     }
 
-    private fun extractMusicItems(element: JsonElement, result: MutableList<RawYtTrack>) {
+    private fun extractMusicItems(element: JsonElement, result: MutableList<Track>) {
         if (element.isJsonObject) {
             val obj = element.asJsonObject
             if (obj.has("musicResponsiveListItemRenderer")) {
@@ -131,7 +87,7 @@ class YouTubeMusicApi @Inject constructor(
         }
     }
 
-    private fun parseItem(item: JsonObject): RawYtTrack? {
+    private fun parseItem(item: JsonObject): Track? {
         try {
             val videoId = item.getAsJsonObject("playlistItemData")?.get("videoId")?.asString
                 ?: return null
@@ -147,16 +103,35 @@ class YouTubeMusicApi @Inject constructor(
             val title = col0Runs?.get(0)?.asJsonObject?.get("text")?.asString ?: "Unknown Title"
 
             var artist = "Artist"
+            var durationMs = 210000L
+
             if (flexColumns.size() > 1) {
                 val col1Runs = flexColumns[1].asJsonObject
                     .getAsJsonObject("musicResponsiveListItemFlexColumnRenderer")
                     ?.getAsJsonObject("text")
                     ?.getAsJsonArray("runs")
 
-                if (col1Runs != null && col1Runs.size() > 0) {
-                    val firstArtist = col1Runs.get(0).asJsonObject.get("text")?.asString
-                    if (!firstArtist.isNullOrBlank()) {
-                        artist = firstArtist
+                if (col1Runs != null) {
+                    for (i in 0 until col1Runs.size()) {
+                        val txt = col1Runs.get(i).asJsonObject.get("text")?.asString?.trim() ?: continue
+                        if (txt.matches(Regex("""\d+:\d+(?::\d+)?"""))) {
+                            val parts = txt.split(":").mapNotNull { it.toLongOrNull() }
+                            if (parts.size == 2) {
+                                durationMs = (parts[0] * 60 + parts[1]) * 1000L
+                            } else if (parts.size == 3) {
+                                durationMs = (parts[0] * 3600 + parts[1] * 60 + parts[2]) * 1000L
+                            }
+                        } else if (artist == "Artist" &&
+                            !txt.equals("Song", true) &&
+                            !txt.equals("Video", true) &&
+                            !txt.equals("Album", true) &&
+                            !txt.equals("Single", true) &&
+                            !txt.equals("EP", true) &&
+                            !txt.contains("•") &&
+                            txt.isNotEmpty()
+                        ) {
+                            artist = txt
+                        }
                     }
                 }
             }
@@ -168,14 +143,20 @@ class YouTubeMusicApi @Inject constructor(
                 ?.getAsJsonArray("thumbnails")
 
             if (thumbnails != null && thumbnails.size() > 0) {
-                thumbUrl = thumbnails.get(thumbnails.size() - 1).asJsonObject.get("url")?.asString
+                val rawUrl = thumbnails.get(thumbnails.size() - 1).asJsonObject.get("url")?.asString
+                thumbUrl = rawUrl?.replace(Regex("""=w\d+-h\d+.*"""), "=w500-h500-l90-rj")
             }
 
-            return RawYtTrack(
-                videoId = videoId,
+            return Track(
+                id = "yt_$videoId",
                 title = title,
                 artist = artist,
-                albumArtUrl = thumbUrl
+                albumArtUrl = thumbUrl,
+                mediaUrl = "https://www.youtube.com/watch?v=$videoId",
+                durationMs = durationMs,
+                source = "Auralis Master",
+                qualityBadge = "320 kbps Master",
+                isDownloaded = false
             )
         } catch (e: Exception) {
             return null

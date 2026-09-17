@@ -76,24 +76,24 @@ class NetworkMusicRepository @Inject constructor(
         if (query.isBlank()) return@withContext emptyList()
         val results = mutableListOf<Track>()
 
-        // 1. Search primary 320 kbps master audio catalog (immediate high-fidelity direct CDN streams)
-        try {
-            val masterResults = searchMasterCatalog(query)
-            results.addAll(masterResults)
-        } catch (e: Exception) {
-            Log.w("NetworkMusicRepository", "Master audio search failed for query: $query", e)
-        }
-
-        // 2. Discover tracks via YouTube Music and resolve to 320 kbps streams
+        // 1. YouTube Music search (vast global catalog, live covers, singles, remixes)
         try {
             val ytResults = youTubeMusicApi.searchTracks(query)
-            for (ytTrack in ytResults) {
-                if (results.none { it.title.equals(ytTrack.title, ignoreCase = true) }) {
-                    results.add(ytTrack)
+            results.addAll(ytResults)
+        } catch (e: Exception) {
+            Log.w("NetworkMusicRepository", "YouTube search failed for query: $query", e)
+        }
+
+        // 2. Search 320 kbps master audio catalog
+        try {
+            val masterResults = searchMasterCatalog(query)
+            for (mTrack in masterResults) {
+                if (results.none { it.id == mTrack.id }) {
+                    results.add(mTrack)
                 }
             }
         } catch (e: Exception) {
-            Log.w("NetworkMusicRepository", "YouTube search failed for query: $query", e)
+            Log.w("NetworkMusicRepository", "Master audio search failed for query: $query", e)
         }
 
         // 3. Search local offline matches
@@ -106,8 +106,29 @@ class NetworkMusicRepository @Inject constructor(
     }
 
     private suspend fun fetchMasterTrending(): List<Track> {
-        val response = jioSaavnApi.getTrendingPlaylist()
-        return response.list?.mapNotNull { mapDtoToTrack(it) } ?: emptyList()
+        val list = mutableListOf<Track>()
+        try {
+            val response = jioSaavnApi.getTrendingPlaylist()
+            response.list?.mapNotNull { mapDtoToTrack(it) }?.let { list.addAll(it) }
+        } catch (e: Exception) {
+            Log.w("NetworkMusicRepository", "Trending playlist failed", e)
+        }
+
+        if (list.size < 10) {
+            try {
+                val topHits = jioSaavnApi.searchSongs("Top Hits", count = 25)
+                topHits.results?.mapNotNull { mapDtoToTrack(it) }?.let { topSongs ->
+                    for (song in topSongs) {
+                        if (list.none { it.id == song.id }) {
+                            list.add(song)
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                Log.w("NetworkMusicRepository", "Top Hits search fallback failed", e)
+            }
+        }
+        return list
     }
 
     private suspend fun searchMasterCatalog(query: String): List<Track> {
