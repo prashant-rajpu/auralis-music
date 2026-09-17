@@ -15,8 +15,7 @@ import javax.inject.Singleton
 @InstallIn(SingletonComponent::class)
 object NetworkModule {
 
-    // Base URL can be configured to point to a Piped instance, Jamendo API, or a custom backend.
-    private const val BASE_URL = "https://api.auralis.opensource/"
+    private const val BASE_URL = "https://api.deezer.com/"
 
     @Provides
     @Singleton

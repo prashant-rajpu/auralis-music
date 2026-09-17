@@ -4,29 +4,34 @@ import com.google.gson.annotations.SerializedName
 import retrofit2.http.GET
 import retrofit2.http.Query
 
-// Using a generic open-source music API structure. 
-// Can be mapped to Jamendo, Piped API, or JioSaavn wrappers.
-
 interface OpenSourceMusicApi {
-    @GET("search")
+    @GET("search/track")
     suspend fun searchTracks(
-        @Query("query") query: String,
+        @Query("q") query: String,
         @Query("limit") limit: Int = 20
-    ): SearchResponse
+    ): DeezerResponse
 
-    @GET("trending")
-    suspend fun getTrendingTracks(): SearchResponse
+    @GET("chart/0/tracks")
+    suspend fun getTrendingTracks(): DeezerResponse
 }
 
-data class SearchResponse(
-    @SerializedName("results") val results: List<ApiTrackDto>
+data class DeezerResponse(
+    @SerializedName("data") val data: List<DeezerTrackDto>
 )
 
-data class ApiTrackDto(
-    @SerializedName("id") val id: String,
+data class DeezerTrackDto(
+    @SerializedName("id") val id: Long,
     @SerializedName("title") val title: String,
-    @SerializedName("artist_name") val artistName: String,
-    @SerializedName("album_image") val albumImage: String?,
-    @SerializedName("audio_url") val audioUrl: String,
-    @SerializedName("duration") val duration: Long
+    @SerializedName("preview") val preview: String?,
+    @SerializedName("duration") val duration: Long,
+    @SerializedName("artist") val artist: DeezerArtist,
+    @SerializedName("album") val album: DeezerAlbum
+)
+
+data class DeezerArtist(
+    @SerializedName("name") val name: String
+)
+
+data class DeezerAlbum(
+    @SerializedName("cover_xl") val coverXl: String?
 )

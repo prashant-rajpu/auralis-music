@@ -1,9 +1,12 @@
 package com.auralis.app.network
 
+import android.util.Log
 import com.auralis.app.domain.model.Track
 import com.auralis.app.domain.repository.MusicRepository
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.Dispatchers
 
 @Singleton
 class NetworkMusicRepository @Inject constructor(
@@ -12,7 +15,7 @@ class NetworkMusicRepository @Inject constructor(
     private val downloader: com.auralis.app.data.local.OfflineDownloader
 ) : MusicRepository {
 
-    override suspend fun fetchLocalTracks(): List<Track> = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+    override suspend fun fetchLocalTracks(): List<Track> = withContext(Dispatchers.IO) {
         trackDao.getAllTracks().map { it.toDomainModel() }
     }
 
@@ -23,28 +26,19 @@ class NetworkMusicRepository @Inject constructor(
     override suspend fun fetchServerTracks(): List<Track> {
         return try {
             val response = api.getTrendingTracks()
-            response.results.map { dto ->
+            response.data.filter { !it.preview.isNullOrBlank() }.map { dto ->
                 Track(
-                    id = dto.id,
+                    id = dto.id.toString(),
                     title = dto.title,
-                    artist = dto.artistName,
-                    albumArtUrl = dto.albumImage,
-                    mediaUrl = dto.audioUrl,
-                    durationMs = dto.duration * 1000L // Convert sec to ms if needed
+                    artist = dto.artist.name,
+                    albumArtUrl = dto.album.coverXl ?: "",
+                    mediaUrl = dto.preview!!,
+                    durationMs = 30000L // Deezer previews are 30 seconds
                 )
             }
         } catch (e: Exception) {
-            // Mock fallback if the API endpoint is a dummy URL
-            listOf(
-                Track(
-                    id = "demo_1",
-                    title = "Open Source Jam",
-                    artist = "Auralis Demo",
-                    albumArtUrl = "https://picsum.photos/300/300",
-                    mediaUrl = "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3",
-                    durationMs = 372000L
-                )
-            )
+            Log.e("NetworkMusicRepository", "Failed to fetch tracks", e)
+            emptyList()
         }
     }
 }

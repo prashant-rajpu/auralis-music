@@ -31,7 +31,11 @@ class HomeViewModel @Inject constructor(
             _uiState.value = HomeUiState.Loading
             try {
                 val tracks = repository.fetchServerTracks()
-                _uiState.value = HomeUiState.Success(tracks)
+                if (tracks.isEmpty()) {
+                    _uiState.value = HomeUiState.Error("No tracks found. Please check your internet connection.")
+                } else {
+                    _uiState.value = HomeUiState.Success(tracks)
+                }
             } catch (e: Exception) {
                 _uiState.value = HomeUiState.Error(e.message ?: "Unknown error")
             }
