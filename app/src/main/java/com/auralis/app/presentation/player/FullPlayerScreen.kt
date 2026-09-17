@@ -1,13 +1,15 @@
 package com.auralis.app.presentation.player
 
+import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Download
-import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.Lyrics
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.SkipNext
@@ -27,7 +29,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
-import com.auralis.app.ui.theme.NeonCyan
 import com.auralis.app.ui.theme.SpotifyGreen
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -38,6 +39,12 @@ fun FullPlayerScreen(
 ) {
     val currentTrack by viewModel.currentTrack.collectAsState()
     val isPlaying by viewModel.isPlaying.collectAsState()
+    val currentPositionMs by viewModel.currentPositionMs.collectAsState()
+    val durationMs by viewModel.durationMs.collectAsState()
+    val lyrics by viewModel.lyrics.collectAsState()
+    val isLyricsVisible by viewModel.isLyricsVisible.collectAsState()
+    val isSoundProfilesVisible by viewModel.isSoundProfilesVisible.collectAsState()
+    val soundProfile by viewModel.soundProfile.collectAsState()
 
     Scaffold(
         topBar = {
@@ -46,6 +53,22 @@ fun FullPlayerScreen(
                 navigationIcon = {
                     IconButton(onClick = onNavigateUp) {
                         Icon(Icons.Default.KeyboardArrowDown, contentDescription = "Close Player")
+                    }
+                },
+                actions = {
+                    IconButton(onClick = { viewModel.toggleLyrics() }) {
+                        Icon(
+                            Icons.Default.Lyrics,
+                            contentDescription = "Synced Lyrics",
+                            tint = if (isLyricsVisible) SpotifyGreen else MaterialTheme.colorScheme.onBackground
+                        )
+                    }
+                    IconButton(onClick = { viewModel.setSoundProfilesVisible(true) }) {
+                        Icon(
+                            Icons.Default.GraphicEq,
+                            contentDescription = "Audio FX & Equalizer",
+                            tint = SpotifyGreen
+                        )
                     }
                 },
                 colors = TopAppBarDefaults.smallTopAppBarColors(
@@ -62,22 +85,41 @@ fun FullPlayerScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(paddingValues)
-                    .padding(horizontal = 24.dp, vertical = 16.dp),
+                    .padding(horizontal = 24.dp, vertical = 8.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                AsyncImage(
-                    model = currentTrack!!.albumArtUrl,
-                    contentDescription = "Album Art",
-                    contentScale = ContentScale.Crop,
+                // Crossfade between Artwork view and Synced Lyrics view
+                Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .aspectRatio(1f)
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(Color.DarkGray)
-                )
+                        .weight(1f),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Crossfade(targetState = isLyricsVisible, label = "artwork_vs_lyrics") { showLyrics ->
+                        if (showLyrics) {
+                            SyncedLyricsView(
+                                lyrics = lyrics,
+                                currentPositionMs = currentPositionMs,
+                                onSeekTo = { seekMs -> viewModel.seekTo(seekMs) }
+                            )
+                        } else {
+                            AsyncImage(
+                                model = currentTrack!!.albumArtUrl,
+                                contentDescription = "Album Art",
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .aspectRatio(1f)
+                                    .clip(RoundedCornerShape(16.dp))
+                                    .background(Color.DarkGray)
+                            )
+                        }
+                    }
+                }
 
-                Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(16.dp))
 
+                // Track Metadata & Source Chip
                 Column(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalAlignment = Alignment.Start
@@ -97,7 +139,7 @@ fun FullPlayerScreen(
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
-                    Spacer(modifier = Modifier.height(10.dp))
+                    Spacer(modifier = Modifier.height(8.dp))
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -115,19 +157,23 @@ fun FullPlayerScreen(
                             )
                         }
                         Text(
-                            text = "Streamed via ${currentTrack!!.source}",
+                            text = "Source: ${currentTrack!!.source}",
                             color = Color.Gray,
                             fontSize = 11.sp
                         )
                     }
                 }
 
-                Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(16.dp))
 
-                // Seek bar placeholder
+                // Live interactive Seek bar
+                val totalDuration = if (durationMs > 0L) durationMs else currentTrack!!.durationMs.coerceAtLeast(30000L)
+                val sliderPos = currentPositionMs.toFloat().coerceIn(0f, totalDuration.toFloat())
+
                 Slider(
-                    value = 0f,
-                    onValueChange = {},
+                    value = sliderPos,
+                    onValueChange = { newPos -> viewModel.seekTo(newPos.toLong()) },
+                    valueRange = 0f..totalDuration.toFloat(),
                     modifier = Modifier.fillMaxWidth(),
                     colors = SliderDefaults.colors(
                         thumbColor = MaterialTheme.colorScheme.primary,
@@ -140,16 +186,21 @@ fun FullPlayerScreen(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Text("0:00", style = MaterialTheme.typography.labelMedium)
-                    val durationSec = (currentTrack!!.durationMs / 1000).coerceAtLeast(30)
-                    val min = durationSec / 60
-                    val sec = durationSec % 60
-                    Text(String.format("%d:%02d", min, sec), style = MaterialTheme.typography.labelMedium)
+                    val currentSec = currentPositionMs / 1000L
+                    val totalSec = totalDuration / 1000L
+                    Text(
+                        text = String.format("%d:%02d", currentSec / 60, currentSec % 60),
+                        style = MaterialTheme.typography.labelMedium
+                    )
+                    Text(
+                        text = String.format("%d:%02d", totalSec / 60, totalSec % 60),
+                        style = MaterialTheme.typography.labelMedium
+                    )
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Playback controls
+                // Playback Controls
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceEvenly,
@@ -173,7 +224,7 @@ fun FullPlayerScreen(
                         }
                     }
 
-                    IconButton(onClick = { /* Previous */ }, modifier = Modifier.size(48.dp)) {
+                    IconButton(onClick = { viewModel.skipPrevious() }, modifier = Modifier.size(48.dp)) {
                         Icon(Icons.Default.SkipPrevious, contentDescription = "Previous", modifier = Modifier.size(36.dp))
                     }
 
@@ -192,15 +243,30 @@ fun FullPlayerScreen(
                         )
                     }
 
-                    IconButton(onClick = { /* Next */ }, modifier = Modifier.size(48.dp)) {
+                    IconButton(onClick = { viewModel.skipNext() }, modifier = Modifier.size(48.dp)) {
                         Icon(Icons.Default.SkipNext, contentDescription = "Next", modifier = Modifier.size(36.dp))
                     }
 
-                    IconButton(onClick = { /* Favorite */ }, modifier = Modifier.size(48.dp)) {
-                        Icon(Icons.Default.FavoriteBorder, contentDescription = "Favorite", modifier = Modifier.size(24.dp))
+                    IconButton(onClick = { viewModel.toggleLyrics() }, modifier = Modifier.size(48.dp)) {
+                        Icon(
+                            Icons.Default.Lyrics,
+                            contentDescription = "Toggle Lyrics",
+                            tint = if (isLyricsVisible) SpotifyGreen else MaterialTheme.colorScheme.onBackground,
+                            modifier = Modifier.size(26.dp)
+                        )
                     }
                 }
+
+                Spacer(modifier = Modifier.height(8.dp))
             }
         }
+    }
+
+    if (isSoundProfilesVisible) {
+        SoundProfilesBottomSheet(
+            profile = soundProfile,
+            onProfileChange = { viewModel.updateSoundProfile(it) },
+            onDismiss = { viewModel.setSoundProfilesVisible(false) }
+        )
     }
 }
