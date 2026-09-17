@@ -64,15 +64,11 @@ fun AuralisNavGraph() {
                         )
 
                         // Floating Frosted Glass Pill Bottom Navigation Bar (Section 7 Spec)
-                        Surface(
+                        Box(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(start = 24.dp, end = 24.dp, bottom = 12.dp, top = 2.dp)
-                                .shadow(elevation = 8.dp, shape = RoundedCornerShape(28.dp), ambientColor = PlayButtonGlowPink)
-                                .clip(RoundedCornerShape(28.dp))
-                                .background(GlassSurfaceStrong)
-                                .border(1.2.dp, GlassBorder, RoundedCornerShape(28.dp)),
-                            color = Color.Transparent
+                                .glassPanel(cornerRadius = 28.dp)
                         ) {
                             Row(
                                 modifier = Modifier
@@ -190,6 +186,7 @@ private fun NavPillItem(
     Column(
         modifier = Modifier
             .clip(RoundedCornerShape(16.dp))
+            .hapticPress(scaleDown = 0.90f)
             .clickable(onClick = onClick)
             .padding(horizontal = 14.dp, vertical = 4.dp),
         horizontalAlignment = Alignment.CenterHorizontally,

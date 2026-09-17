@@ -15,18 +15,21 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.animation.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
+import coil.request.ImageRequest
 import com.auralis.app.domain.model.Track
 import com.auralis.app.presentation.jam.SpotifyJamBottomSheet
 import com.auralis.app.ui.theme.*
@@ -78,8 +81,7 @@ fun HomeScreen(
                         Box(
                             modifier = Modifier
                                 .size(36.dp)
-                                .shadow(elevation = 6.dp, shape = CircleShape, ambientColor = PlayButtonGlowPink)
-                                .clip(CircleShape)
+                                .glassPill(borderWidth = 1.dp)
                                 .background(BabyPinkPrimary),
                             contentAlignment = Alignment.Center
                         ) {
@@ -99,7 +101,7 @@ fun HomeScreen(
                         )
                     }
 
-                    // Action Buttons: Jam Session & Search Toggle (Glass Pills)
+                    // Action Buttons: Jam Session & Search Toggle (Glass Pills with tactile bounce)
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalAlignment = Alignment.CenterVertically
@@ -108,9 +110,8 @@ fun HomeScreen(
                             onClick = { showJamDialog = true },
                             modifier = Modifier
                                 .size(38.dp)
-                                .clip(CircleShape)
-                                .background(GlassSurfaceStrong)
-                                .border(1.dp, GlassBorder, CircleShape)
+                                .glassPill(borderWidth = 1.dp)
+                                .hapticPress(scaleDown = 0.88f)
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Share,
@@ -126,7 +127,14 @@ fun HomeScreen(
                                 .size(38.dp)
                                 .clip(CircleShape)
                                 .background(if (isSearchExpanded) BabyPinkPrimary else GlassSurfaceStrong)
-                                .border(1.dp, GlassBorder, CircleShape)
+                                .border(
+                                    1.dp,
+                                    Brush.verticalGradient(
+                                        listOf(Color.White.copy(0.85f), Color.White.copy(0.25f))
+                                    ),
+                                    CircleShape
+                                )
+                                .hapticPress(scaleDown = 0.88f)
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Search,
@@ -138,7 +146,7 @@ fun HomeScreen(
                     }
                 }
 
-                // Mood Filter Pills Bar (Horizontally scrollable glass pills)
+                // Mood Filter Pills Bar (Horizontally scrollable glass pills with fluid tactile squeeze)
                 val moodList = listOf("All", "Energize", "Workout", "Relax", "Focus", "Party", "Romance")
                 Row(
                     modifier = Modifier
@@ -151,20 +159,28 @@ fun HomeScreen(
                         val isSelected = selectedMood == mood
                         Box(
                             modifier = Modifier
-                                .shadow(
-                                    elevation = if (isSelected) 4.dp else 0.dp,
-                                    shape = RoundedCornerShape(18.dp),
-                                    ambientColor = PlayButtonGlowPink
-                                )
+                                .hapticPress(scaleDown = 0.93f)
                                 .clip(RoundedCornerShape(18.dp))
-                                .background(if (isSelected) BabyPinkPrimary else GlassSurfaceStrong)
+                                .background(
+                                    if (isSelected) {
+                                        Brush.horizontalGradient(listOf(BabyPinkPrimary, BabyPinkAccent))
+                                    } else {
+                                        Brush.linearGradient(listOf(GlassSurfaceStrong, GlassSurface))
+                                    }
+                                )
                                 .border(
                                     width = 1.dp,
-                                    color = if (isSelected) BabyPinkPrimary else GlassBorder,
+                                    brush = Brush.verticalGradient(
+                                        if (isSelected) {
+                                            listOf(Color.White.copy(0.85f), BabyPinkPrimary)
+                                        } else {
+                                            listOf(Color.White.copy(0.70f), Color.White.copy(0.15f))
+                                        }
+                                    ),
                                     shape = RoundedCornerShape(18.dp)
                                 )
                                 .clickable { viewModel.selectMood(mood) }
-                                .padding(horizontal = 14.dp, vertical = 7.dp)
+                                .padding(horizontal = 16.dp, vertical = 7.dp)
                         ) {
                             Text(
                                 text = mood,
@@ -176,8 +192,12 @@ fun HomeScreen(
                     }
                 }
 
-                // Frosted Glass Search Bar & Filters (Pill Shape)
-                if (isSearchExpanded || searchQuery.isNotBlank()) {
+                // Frosted Glass Search Bar & Filters (Smooth animated expansion)
+                AnimatedVisibility(
+                    visible = isSearchExpanded || searchQuery.isNotBlank(),
+                    enter = fadeIn() + expandVertically(),
+                    exit = fadeOut() + shrinkVertically()
+                ) {
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -187,14 +207,17 @@ fun HomeScreen(
                             value = searchQuery,
                             onValueChange = { viewModel.onSearchQueryChange(it) },
                             placeholder = {
-                                Text("Search songs, albums, artists...", color = BabyPinkTextSecondary, fontSize = 14.sp)
+                                Text("Search songs, albums, artists, YouTube...", color = BabyPinkTextSecondary, fontSize = 14.sp)
                             },
                             leadingIcon = {
                                 Icon(Icons.Default.Search, contentDescription = null, tint = BabyPinkPrimary)
                             },
                             trailingIcon = {
                                 if (searchQuery.isNotEmpty()) {
-                                    IconButton(onClick = { viewModel.onSearchQueryChange("") }) {
+                                    IconButton(
+                                        onClick = { viewModel.onSearchQueryChange("") },
+                                        modifier = Modifier.hapticPress(scaleDown = 0.88f)
+                                    ) {
                                         Icon(Icons.Default.Close, contentDescription = "Clear", tint = BabyPinkTextSecondary)
                                     }
                                 }
@@ -205,9 +228,18 @@ fun HomeScreen(
                                 focusedBorderColor = BabyPinkPrimary,
                                 unfocusedBorderColor = GlassBorder,
                                 containerColor = GlassSurfaceStrong,
+                                cursorColor = BabyPinkPrimary,
                                 textColor = BabyPinkTextPrimary
                             ),
-                            modifier = Modifier.fillMaxWidth()
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .border(
+                                    width = 1.dp,
+                                    brush = Brush.verticalGradient(
+                                        listOf(Color.White.copy(0.85f), Color.White.copy(0.20f))
+                                    ),
+                                    shape = RoundedCornerShape(24.dp)
+                                )
                         )
 
                         Spacer(modifier = Modifier.height(8.dp))
@@ -224,11 +256,22 @@ fun HomeScreen(
                                 val isSelected = sourceFilter.equals(source, ignoreCase = true)
                                 Box(
                                     modifier = Modifier
+                                        .hapticPress(scaleDown = 0.92f)
                                         .clip(RoundedCornerShape(14.dp))
-                                        .background(if (isSelected) BabyPinkPrimary else GlassSurface)
-                                        .border(1.dp, GlassBorder, RoundedCornerShape(14.dp))
+                                        .background(
+                                            if (isSelected) {
+                                                Brush.horizontalGradient(listOf(BabyPinkPrimary, BabyPinkAccent))
+                                            } else {
+                                                Brush.linearGradient(listOf(GlassSurfaceStrong, GlassSurface))
+                                            }
+                                        )
+                                        .border(
+                                            1.dp,
+                                            if (isSelected) Color.White.copy(0.85f) else GlassBorder,
+                                            RoundedCornerShape(14.dp)
+                                        )
                                         .clickable { viewModel.selectSourceFilter(source) }
-                                        .padding(horizontal = 10.dp, vertical = 5.dp)
+                                        .padding(horizontal = 12.dp, vertical = 6.dp)
                                 ) {
                                     Text(
                                         text = source,
@@ -248,10 +291,8 @@ fun HomeScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(horizontal = 16.dp, vertical = 6.dp)
-                            .shadow(elevation = 6.dp, shape = RoundedCornerShape(18.dp), ambientColor = PlayButtonGlowPink)
-                            .clip(RoundedCornerShape(18.dp))
-                            .background(GlassSurfaceStrong)
-                            .border(1.2.dp, GlassBorder, RoundedCornerShape(18.dp))
+                            .glassCard(cornerRadius = 18.dp)
+                            .hapticPress(scaleDown = 0.98f)
                             .clickable { showJamDialog = true }
                             .padding(horizontal = 14.dp, vertical = 10.dp),
                         verticalAlignment = Alignment.CenterVertically,
@@ -484,19 +525,21 @@ fun GlassTrackListItem(
     onClick: () -> Unit,
     onDownloadClick: () -> Unit
 ) {
+    val context = LocalContext.current
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .shadow(elevation = 4.dp, shape = RoundedCornerShape(16.dp), ambientColor = PlayButtonGlowPink)
-            .clip(RoundedCornerShape(16.dp))
-            .background(GlassSurfaceStrong)
-            .border(1.dp, GlassBorder, RoundedCornerShape(16.dp))
+            .glassCard(cornerRadius = 16.dp)
+            .hapticPress(scaleDown = 0.98f)
             .clickable { onClick() }
             .padding(vertical = 8.dp, horizontal = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         AsyncImage(
-            model = track.albumArtUrl,
+            model = ImageRequest.Builder(context)
+                .data(track.albumArtUrl)
+                .crossfade(250)
+                .build(),
             contentDescription = "Album Art",
             contentScale = ContentScale.Crop,
             modifier = Modifier
@@ -534,7 +577,10 @@ fun GlassTrackListItem(
             }
         }
 
-        IconButton(onClick = onDownloadClick) {
+        IconButton(
+            onClick = onDownloadClick,
+            modifier = Modifier.hapticPress(scaleDown = 0.85f)
+        ) {
             if (track.isDownloaded) {
                 Icon(
                     imageVector = Icons.Default.CheckCircle,
@@ -559,34 +605,44 @@ fun GlassMusicCardItem(
     track: Track,
     onClick: () -> Unit
 ) {
+    val context = LocalContext.current
     Column(
         modifier = Modifier
             .width(140.dp)
+            .hapticPress(scaleDown = 0.96f)
             .clickable { onClick() }
     ) {
         Box(
             modifier = Modifier
                 .size(140.dp)
-                .shadow(elevation = 6.dp, shape = RoundedCornerShape(18.dp), ambientColor = PlayButtonGlowPink)
-                .clip(RoundedCornerShape(18.dp))
-                .background(GlassSurfaceStrong)
-                .border(1.2.dp, GlassBorder, RoundedCornerShape(18.dp))
+                .doubleBezelCard(outerRadius = 20.dp)
         ) {
             AsyncImage(
-                model = track.albumArtUrl,
+                model = ImageRequest.Builder(context)
+                    .data(track.albumArtUrl)
+                    .crossfade(250)
+                    .build(),
                 contentDescription = track.title,
                 contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize()
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clip(RoundedCornerShape(20.dp))
             )
-            // Subtle quality chip overlay
+            // Subtle frosted glass quality chip overlay
             Box(
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
-                    .padding(6.dp)
-                    .clip(RoundedCornerShape(6.dp))
-                    .background(Color(0xCCFFFFFF))
-                    .border(1.dp, GlassBorder, RoundedCornerShape(6.dp))
-                    .padding(horizontal = 5.dp, vertical = 2.dp)
+                    .padding(8.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(Color(0xD9FFFFFF))
+                    .border(
+                        1.dp,
+                        Brush.verticalGradient(
+                            listOf(Color.White, BabyPinkSoftRose.copy(0.4f))
+                        ),
+                        RoundedCornerShape(8.dp)
+                    )
+                    .padding(horizontal = 6.dp, vertical = 2.dp)
             ) {
                 Text(
                     text = track.qualityBadge,
@@ -596,7 +652,7 @@ fun GlassMusicCardItem(
                 )
             }
         }
-        Spacer(modifier = Modifier.height(6.dp))
+        Spacer(modifier = Modifier.height(8.dp))
         Text(
             text = track.title,
             color = BabyPinkTextPrimary,

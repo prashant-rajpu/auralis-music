@@ -10,6 +10,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -23,6 +24,23 @@ import com.auralis.app.domain.model.LyricLine
 import com.auralis.app.ui.theme.BabyPinkPrimary
 import com.auralis.app.ui.theme.BabyPinkTextPrimary
 import com.auralis.app.ui.theme.BabyPinkTextSecondary
+import kotlinx.coroutines.flow.StateFlow
+
+@Composable
+fun SyncedLyricsView(
+    lyrics: List<LyricLine>,
+    currentPositionFlow: StateFlow<Long>,
+    onSeekTo: (Long) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val currentPositionMs by currentPositionFlow.collectAsState()
+    SyncedLyricsView(
+        lyrics = lyrics,
+        currentPositionMs = currentPositionMs,
+        onSeekTo = onSeekTo,
+        modifier = modifier
+    )
+}
 
 @Composable
 fun SyncedLyricsView(

@@ -26,8 +26,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.platform.LocalContext
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
+import coil.request.ImageRequest
 import com.auralis.app.domain.model.Track
 import com.auralis.app.playback.RepeatMode
 import com.auralis.app.presentation.jam.SpotifyJamBottomSheet
@@ -41,8 +43,6 @@ fun FullPlayerScreen(
 ) {
     val currentTrack by viewModel.currentTrack.collectAsState()
     val isPlaying by viewModel.isPlaying.collectAsState()
-    val currentPositionMs by viewModel.currentPositionMs.collectAsState()
-    val durationMs by viewModel.durationMs.collectAsState()
     val lyrics by viewModel.lyrics.collectAsState()
     val queue by viewModel.queue.collectAsState()
     val isShuffle by viewModel.isShuffleEnabled.collectAsState()
@@ -55,9 +55,6 @@ fun FullPlayerScreen(
     val jamSession by viewModel.jamSession.collectAsState()
     val isJamSheetVisible by viewModel.isJamSheetVisible.collectAsState()
     val lastJamAction by viewModel.lastJamAction.collectAsState()
-
-    var isDraggingSlider by remember { mutableStateOf(false) }
-    var dragSliderValue by remember { mutableStateOf(0f) }
 
     val track = currentTrack
 
@@ -161,9 +158,15 @@ fun FullPlayerScreen(
                         Row(
                             modifier = Modifier
                                 .padding(bottom = 6.dp)
-                                .shadow(elevation = 6.dp, shape = RoundedCornerShape(18.dp), ambientColor = PlayButtonGlowPink)
                                 .clip(RoundedCornerShape(18.dp))
                                 .background(BabyPinkPrimary)
+                                .border(
+                                    1.dp,
+                                    Brush.verticalGradient(
+                                        listOf(Color.White.copy(0.85f), Color.White.copy(0.2f))
+                                    ),
+                                    RoundedCornerShape(18.dp)
+                                )
                                 .padding(horizontal = 14.dp, vertical = 6.dp),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(6.dp)
@@ -196,9 +199,9 @@ fun FullPlayerScreen(
                         ) {
                             Box(
                                 modifier = Modifier
-                                    .size(8.dp)
-                                    .clip(CircleShape)
-                                    .background(BabyPinkPrimary)
+                                .size(8.dp)
+                                .clip(CircleShape)
+                                .background(BabyPinkPrimary)
                             )
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
@@ -225,17 +228,19 @@ fun FullPlayerScreen(
                                         modifier = Modifier
                                             .fillMaxWidth()
                                             .aspectRatio(1f)
-                                            .shadow(elevation = 14.dp, shape = RoundedCornerShape(28.dp))
-                                            .clip(RoundedCornerShape(28.dp))
-                                            .border(1.5.dp, GlassBorder, RoundedCornerShape(28.dp))
-                                            .background(GlassSurfaceStrong),
+                                            .doubleBezelCard(outerRadius = 28.dp),
                                         contentAlignment = Alignment.Center
                                     ) {
                                         AsyncImage(
-                                            model = track.albumArtUrl,
+                                            model = ImageRequest.Builder(LocalContext.current)
+                                                .data(track.albumArtUrl)
+                                                .crossfade(300)
+                                                .build(),
                                             contentDescription = "Album Artwork",
                                             contentScale = ContentScale.Crop,
-                                            modifier = Modifier.fillMaxSize()
+                                            modifier = Modifier
+                                                .fillMaxSize()
+                                                .clip(RoundedCornerShape(28.dp))
                                         )
                                     }
                                 }
@@ -336,7 +341,7 @@ fun FullPlayerScreen(
                                     ) {
                                         SyncedLyricsView(
                                             lyrics = lyrics,
-                                            currentPositionMs = currentPositionMs,
+                                            currentPositionFlow = viewModel.currentPositionMs,
                                             onSeekTo = { viewModel.seekTo(it) }
                                         )
                                     }
@@ -437,12 +442,15 @@ fun FullPlayerScreen(
                             }
                         }
 
-                        // Heart (Like) & Dislike Pill Buttons
+                        // Heart (Like) & Dislike Pill Buttons with spring bounce
                         Row(
                             horizontalArrangement = Arrangement.spacedBy(4.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            IconButton(onClick = { viewModel.toggleDislike(track.id) }) {
+                            IconButton(
+                                onClick = { viewModel.toggleDislike(track.id) },
+                                modifier = Modifier.hapticPress(scaleDown = 0.85f)
+                            ) {
                                 Icon(
                                     imageVector = if (isDisliked) Icons.Default.ThumbDown else Icons.Outlined.ThumbDown,
                                     contentDescription = "Dislike",
@@ -450,7 +458,10 @@ fun FullPlayerScreen(
                                     modifier = Modifier.size(24.dp)
                                 )
                             }
-                            IconButton(onClick = { viewModel.toggleLike(track.id) }) {
+                            IconButton(
+                                onClick = { viewModel.toggleLike(track.id) },
+                                modifier = Modifier.hapticPress(scaleDown = 0.85f)
+                            ) {
                                 Icon(
                                     imageVector = if (isLiked) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
                                     contentDescription = "Like",
@@ -463,51 +474,11 @@ fun FullPlayerScreen(
 
                     Spacer(modifier = Modifier.height(14.dp))
 
-                    // Progress Scrubber (Track: #FFD6E0, Fill: #FFB6C1, Thumb: White with Pink border)
-                    val totalDuration = if (durationMs > 0L) durationMs else track.durationMs.coerceAtLeast(30000L)
-                    val currentPos = if (isDraggingSlider) dragSliderValue.toLong() else currentPositionMs
-                    val sliderPos = currentPos.toFloat().coerceIn(0f, totalDuration.toFloat())
-
-                    Slider(
-                        value = sliderPos,
-                        onValueChange = {
-                            isDraggingSlider = true
-                            dragSliderValue = it
-                        },
-                        onValueChangeFinished = {
-                            isDraggingSlider = false
-                            viewModel.seekTo(dragSliderValue.toLong())
-                        },
-                        valueRange = 0f..totalDuration.toFloat(),
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = SliderDefaults.colors(
-                            thumbColor = Color.White,
-                            activeTrackColor = BabyPinkPrimary,
-                            inactiveTrackColor = ProgressBarTrackPink
-                        )
+                    // Isolated Progress Scrubber (Only this re-renders on position ticks)
+                    PlayerScrubberSection(
+                        viewModel = viewModel,
+                        track = track
                     )
-
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 4.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        val currentSec = currentPos / 1000L
-                        val totalSec = totalDuration / 1000L
-                        Text(
-                            text = String.format("%d:%02d", currentSec / 60, currentSec % 60),
-                            color = BabyPinkTextSecondary,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Medium
-                        )
-                        Text(
-                            text = String.format("%d:%02d", totalSec / 60, totalSec % 60),
-                            color = BabyPinkTextSecondary,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Medium
-                        )
-                    }
 
                     Spacer(modifier = Modifier.height(12.dp))
 
@@ -518,7 +489,10 @@ fun FullPlayerScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         // Shuffle Button
-                        IconButton(onClick = { viewModel.toggleShuffle() }) {
+                        IconButton(
+                            onClick = { viewModel.toggleShuffle() },
+                            modifier = Modifier.hapticPress(scaleDown = 0.85f)
+                        ) {
                             Icon(
                                 Icons.Default.Shuffle,
                                 contentDescription = "Shuffle",
@@ -530,7 +504,9 @@ fun FullPlayerScreen(
                         // Skip Previous
                         IconButton(
                             onClick = { viewModel.skipPrevious() },
-                            modifier = Modifier.size(48.dp)
+                            modifier = Modifier
+                                .size(48.dp)
+                                .hapticPress(scaleDown = 0.88f)
                         ) {
                             Icon(
                                 Icons.Default.SkipPrevious,
@@ -540,29 +516,41 @@ fun FullPlayerScreen(
                             )
                         }
 
-                        // Primary Play/Pause Button with Soft Pink Glow
+                        // Primary Play/Pause Button with Soft Pink Glow and Specular Rim
                         FilledIconButton(
                             onClick = { viewModel.togglePlayPause() },
                             modifier = Modifier
                                 .size(72.dp)
-                                .shadow(elevation = 14.dp, shape = CircleShape, ambientColor = PlayButtonGlowPink),
+                                .border(
+                                    width = 2.dp,
+                                    brush = Brush.verticalGradient(
+                                        listOf(
+                                            Color.White.copy(alpha = 0.90f),
+                                            BabyPinkSoftRose.copy(alpha = 0.30f)
+                                        )
+                                    ),
+                                    shape = CircleShape
+                                )
+                                .hapticPress(scaleDown = 0.90f),
                             colors = IconButtonDefaults.filledIconButtonColors(
                                 containerColor = BabyPinkPrimary,
-                                contentColor = BabyPinkTextPrimary
+                                contentColor = Color.White
                             )
                         ) {
                             Icon(
                                 imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
                                 contentDescription = if (isPlaying) "Pause" else "Play",
-                                modifier = Modifier.size(42.dp),
-                                tint = BabyPinkTextPrimary
+                                modifier = Modifier.size(40.dp),
+                                tint = Color.White
                             )
                         }
 
                         // Skip Next
                         IconButton(
                             onClick = { viewModel.skipNext() },
-                            modifier = Modifier.size(48.dp)
+                            modifier = Modifier
+                                .size(48.dp)
+                                .hapticPress(scaleDown = 0.88f)
                         ) {
                             Icon(
                                 Icons.Default.SkipNext,
@@ -573,7 +561,10 @@ fun FullPlayerScreen(
                         }
 
                         // Repeat Mode Button
-                        IconButton(onClick = { viewModel.toggleRepeat() }) {
+                        IconButton(
+                            onClick = { viewModel.toggleRepeat() },
+                            modifier = Modifier.hapticPress(scaleDown = 0.85f)
+                        ) {
                             val (repeatIcon, repeatTint) = when (repeatMode) {
                                 RepeatMode.OFF -> Pair(Icons.Default.Repeat, BabyPinkTextSecondary)
                                 RepeatMode.ALL -> Pair(Icons.Default.Repeat, BabyPinkPrimary)
@@ -666,6 +657,7 @@ private fun PlayerSegmentPill(
         modifier = modifier
             .clip(RoundedCornerShape(20.dp))
             .background(if (isSelected) BabyPinkPrimary else Color.Transparent)
+            .hapticPress(scaleDown = 0.95f)
             .clickable { onClick() }
             .padding(vertical = 8.dp),
         contentAlignment = Alignment.Center
@@ -677,5 +669,68 @@ private fun PlayerSegmentPill(
             fontSize = 12.sp,
             letterSpacing = 0.5.sp
         )
+    }
+}
+
+/**
+ * Isolated progress scrubber: only this micro-composable recomposes as playback position advances,
+ * ensuring the rest of FullPlayerScreen remains silky smooth at 120 FPS.
+ */
+@Composable
+private fun PlayerScrubberSection(
+    viewModel: PlayerViewModel,
+    track: Track
+) {
+    val currentPositionMs by viewModel.currentPositionMs.collectAsState()
+    val durationMs by viewModel.durationMs.collectAsState()
+
+    var isDraggingSlider by remember { mutableStateOf(false) }
+    var dragSliderValue by remember { mutableStateOf(0f) }
+
+    val totalDuration = if (durationMs > 0L) durationMs else track.durationMs.coerceAtLeast(30000L)
+    val currentPos = if (isDraggingSlider) dragSliderValue.toLong() else currentPositionMs
+    val sliderPos = currentPos.toFloat().coerceIn(0f, totalDuration.toFloat())
+
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Slider(
+            value = sliderPos,
+            onValueChange = {
+                isDraggingSlider = true
+                dragSliderValue = it
+            },
+            onValueChangeFinished = {
+                isDraggingSlider = false
+                viewModel.seekTo(dragSliderValue.toLong())
+            },
+            valueRange = 0f..totalDuration.toFloat(),
+            modifier = Modifier.fillMaxWidth(),
+            colors = SliderDefaults.colors(
+                thumbColor = Color.White,
+                activeTrackColor = BabyPinkPrimary,
+                inactiveTrackColor = ProgressBarTrackPink
+            )
+        )
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 4.dp),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            val currentSec = currentPos / 1000L
+            val totalSec = totalDuration / 1000L
+            Text(
+                text = String.format("%d:%02d", currentSec / 60, currentSec % 60),
+                color = BabyPinkTextSecondary,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Medium
+            )
+            Text(
+                text = String.format("%d:%02d", totalSec / 60, totalSec % 60),
+                color = BabyPinkTextSecondary,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Medium
+            )
+        }
     }
 }

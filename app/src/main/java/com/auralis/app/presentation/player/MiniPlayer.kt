@@ -1,7 +1,9 @@
 package com.auralis.app.presentation.player
 
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.Spring
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -18,15 +20,16 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
+import coil.request.ImageRequest
 import com.auralis.app.domain.model.Track
 import com.auralis.app.ui.theme.*
 
@@ -37,19 +40,12 @@ fun MiniPlayer(
 ) {
     val currentTrack by viewModel.currentTrack.collectAsState()
     val isPlaying by viewModel.isPlaying.collectAsState()
-    val currentPositionMs by viewModel.currentPositionMs.collectAsState()
-    val durationMs by viewModel.durationMs.collectAsState()
     val likedTrackIds by viewModel.likedTrackIds.collectAsState()
     val jamSession by viewModel.jamSession.collectAsState()
     val lastJamAction by viewModel.lastJamAction.collectAsState()
 
     if (currentTrack != null) {
         val isLiked = likedTrackIds.contains(currentTrack!!.id)
-        val progress = if (durationMs > 0L) {
-            (currentPositionMs.toFloat() / durationMs.toFloat()).coerceIn(0f, 1f)
-        } else {
-            0f
-        }
 
         MiniPlayerContent(
             track = currentTrack!!,
@@ -58,7 +54,7 @@ fun MiniPlayer(
             isJamActive = jamSession != null,
             lastJamAction = lastJamAction,
             jamParticipants = jamSession?.participants?.filter { it != jamSession?.username }?.joinToString().orEmpty(),
-            progress = progress,
+            viewModel = viewModel,
             onPlayPauseClick = { viewModel.togglePlayPause() },
             onSkipNextClick = { viewModel.skipNext() },
             onLikeClick = { viewModel.toggleLike(currentTrack!!.id) },
@@ -75,7 +71,7 @@ private fun MiniPlayerContent(
     isJamActive: Boolean,
     lastJamAction: String?,
     jamParticipants: String,
-    progress: Float,
+    viewModel: PlayerViewModel,
     onPlayPauseClick: () -> Unit,
     onSkipNextClick: () -> Unit,
     onLikeClick: () -> Unit,
@@ -85,38 +81,32 @@ private fun MiniPlayerContent(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 12.dp, vertical = 6.dp)
-            .shadow(elevation = 10.dp, shape = RoundedCornerShape(20.dp), ambientColor = PlayButtonGlowPink)
-            .clip(RoundedCornerShape(20.dp))
-            .background(GlassSurfaceStrong)
-            .border(1.2.dp, GlassBorder, RoundedCornerShape(20.dp))
+            .hapticPress(scaleDown = 0.985f)
+            .glassPanel(cornerRadius = 22.dp)
             .clickable { onClick() }
     ) {
         Column {
-            // Soft pink progress line at the top of the mini player (per spec)
-            LinearProgressIndicator(
-                progress = progress,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(2.5.dp),
-                color = BabyPinkPrimary,
-                trackColor = ProgressBarTrackPink
-            )
+            // Decoupled Progress Bar to isolate 200ms recompositions from the rest of the MiniPlayer
+            IsolatedMiniProgressBar(viewModel = viewModel)
 
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(62.dp)
-                    .padding(horizontal = 10.dp, vertical = 6.dp),
+                    .height(64.dp)
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Miniature rounded album art
+                // Miniature rounded album art with smooth crossfade
                 AsyncImage(
-                    model = track.albumArtUrl,
+                    model = ImageRequest.Builder(LocalContext.current)
+                        .data(track.albumArtUrl)
+                        .crossfade(300)
+                        .build(),
                     contentDescription = "Album Art",
                     contentScale = ContentScale.Crop,
                     modifier = Modifier
-                        .size(46.dp)
-                        .clip(RoundedCornerShape(10.dp))
+                        .size(48.dp)
+                        .clip(RoundedCornerShape(12.dp))
                         .background(BabyPinkBgMiddle)
                 )
 
@@ -150,10 +140,12 @@ private fun MiniPlayerContent(
                     )
                 }
 
-                // Heart (Like) Shortcut
+                // Heart (Like) Shortcut with haptic bounce
                 IconButton(
                     onClick = onLikeClick,
-                    modifier = Modifier.size(36.dp)
+                    modifier = Modifier
+                        .size(38.dp)
+                        .hapticPress(scaleDown = 0.88f)
                 ) {
                     Icon(
                         imageVector = if (isLiked) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
@@ -163,23 +155,37 @@ private fun MiniPlayerContent(
                     )
                 }
 
-                // Play / Pause Button
+                // Play / Pause Button with tactile kinetic scale
+                val playButtonScale by animateFloatAsState(
+                    targetValue = if (isPlaying) 1.05f else 1.0f,
+                    animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
+                    label = "play_button_scale"
+                )
+
                 IconButton(
                     onClick = onPlayPauseClick,
-                    modifier = Modifier.size(40.dp)
+                    modifier = Modifier
+                        .size(42.dp)
+                        .graphicsLayer {
+                            scaleX = playButtonScale
+                            scaleY = playButtonScale
+                        }
+                        .hapticPress(scaleDown = 0.88f)
                 ) {
                     Icon(
                         imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
                         contentDescription = if (isPlaying) "Pause" else "Play",
-                        tint = BabyPinkTextPrimary,
-                        modifier = Modifier.size(28.dp)
+                        tint = BabyPinkPrimary,
+                        modifier = Modifier.size(30.dp)
                     )
                 }
 
-                // Skip Next Button
+                // Skip Next Button with haptic bounce
                 IconButton(
                     onClick = onSkipNextClick,
-                    modifier = Modifier.size(36.dp)
+                    modifier = Modifier
+                        .size(38.dp)
+                        .hapticPress(scaleDown = 0.88f)
                 ) {
                     Icon(
                         imageVector = Icons.Default.SkipNext,
@@ -191,4 +197,29 @@ private fun MiniPlayerContent(
             }
         }
     }
+}
+
+/**
+ * Isolated progress bar: only this micro-composable re-evaluates when current position ticks,
+ * completely eliminating full-card recomposition jank.
+ */
+@Composable
+private fun IsolatedMiniProgressBar(viewModel: PlayerViewModel) {
+    val currentPositionMs by viewModel.currentPositionMs.collectAsState()
+    val durationMs by viewModel.durationMs.collectAsState()
+
+    val progress = if (durationMs > 0L) {
+        (currentPositionMs.toFloat() / durationMs.toFloat()).coerceIn(0f, 1f)
+    } else {
+        0f
+    }
+
+    LinearProgressIndicator(
+        progress = progress,
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(2.5.dp),
+        color = BabyPinkPrimary,
+        trackColor = ProgressBarTrackPink
+    )
 }

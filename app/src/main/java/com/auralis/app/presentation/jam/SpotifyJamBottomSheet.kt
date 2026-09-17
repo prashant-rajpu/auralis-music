@@ -56,8 +56,13 @@ fun SpotifyJamBottomSheet(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(vertical = 16.dp)
-                .shadow(elevation = 16.dp, shape = RoundedCornerShape(28.dp), ambientColor = PlayButtonGlowPink)
-                .border(1.2.dp, GlassBorder, RoundedCornerShape(28.dp))
+                .border(
+                    1.2.dp,
+                    Brush.verticalGradient(
+                        listOf(Color.White.copy(alpha = 0.90f), BabyPinkSoftRose.copy(alpha = 0.30f))
+                    ),
+                    RoundedCornerShape(28.dp)
+                )
         ) {
             Column(
                 modifier = Modifier
@@ -69,12 +74,18 @@ fun SpotifyJamBottomSheet(
                 Box(
                     modifier = Modifier
                         .size(56.dp)
-                        .shadow(elevation = 6.dp, shape = CircleShape, ambientColor = PlayButtonGlowPink)
                         .clip(CircleShape)
                         .background(
                             Brush.linearGradient(
                                 listOf(BabyPinkPrimary, BabyPinkSoftRose)
                             )
+                        )
+                        .border(
+                            1.dp,
+                            Brush.verticalGradient(
+                                listOf(Color.White.copy(alpha = 0.85f), Color.White.copy(alpha = 0.20f))
+                            ),
+                            CircleShape
                         ),
                     contentAlignment = Alignment.Center
                 ) {
@@ -285,9 +296,14 @@ fun SpotifyJamBottomSheet(
                         Box(
                             modifier = Modifier
                                 .weight(1f)
-                                .shadow(elevation = if (isHostTab) 4.dp else 0.dp, shape = RoundedCornerShape(16.dp), ambientColor = PlayButtonGlowPink)
+                                .hapticPress(scaleDown = 0.94f)
                                 .clip(RoundedCornerShape(16.dp))
                                 .background(if (isHostTab) BabyPinkPrimary else Color.Transparent)
+                                .border(
+                                    1.dp,
+                                    if (isHostTab) Color.White.copy(alpha = 0.80f) else Color.Transparent,
+                                    RoundedCornerShape(16.dp)
+                                )
                                 .clickable { isHostTab = true }
                                 .padding(vertical = 8.dp),
                             contentAlignment = Alignment.Center
@@ -303,9 +319,14 @@ fun SpotifyJamBottomSheet(
                         Box(
                             modifier = Modifier
                                 .weight(1f)
-                                .shadow(elevation = if (!isHostTab) 4.dp else 0.dp, shape = RoundedCornerShape(16.dp), ambientColor = PlayButtonGlowPink)
+                                .hapticPress(scaleDown = 0.94f)
                                 .clip(RoundedCornerShape(16.dp))
                                 .background(if (!isHostTab) BabyPinkPrimary else Color.Transparent)
+                                .border(
+                                    1.dp,
+                                    if (!isHostTab) Color.White.copy(alpha = 0.80f) else Color.Transparent,
+                                    RoundedCornerShape(16.dp)
+                                )
                                 .clickable { isHostTab = false }
                                 .padding(vertical = 8.dp),
                             contentAlignment = Alignment.Center
@@ -361,7 +382,10 @@ fun SpotifyJamBottomSheet(
                                         fontFamily = FontFamily.Monospace
                                     )
                                 }
-                                IconButton(onClick = { generatedCode = "JAM-${Random.nextInt(1000, 9999)}" }) {
+                                IconButton(
+                                    onClick = { generatedCode = "JAM-${Random.nextInt(1000, 9999)}" },
+                                    modifier = Modifier.hapticPress(scaleDown = 0.88f)
+                                ) {
                                     Icon(Icons.Default.Refresh, contentDescription = "Regenerate", tint = BabyPinkPrimary)
                                 }
                             }
@@ -378,7 +402,14 @@ fun SpotifyJamBottomSheet(
                             shape = RoundedCornerShape(24.dp),
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .shadow(elevation = 6.dp, shape = RoundedCornerShape(24.dp), ambientColor = PlayButtonGlowPink)
+                                .border(
+                                    1.dp,
+                                    Brush.verticalGradient(
+                                        listOf(Color.White.copy(alpha = 0.85f), BabyPinkSoftRose.copy(alpha = 0.30f))
+                                    ),
+                                    RoundedCornerShape(24.dp)
+                                )
+                                .hapticPress(scaleDown = 0.94f)
                         ) {
                             Text("Start Jam & Invite Partner", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
                         }
@@ -434,7 +465,14 @@ fun SpotifyJamBottomSheet(
                             shape = RoundedCornerShape(24.dp),
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .shadow(elevation = 6.dp, shape = RoundedCornerShape(24.dp), ambientColor = PlayButtonGlowPink)
+                                .border(
+                                    1.dp,
+                                    Brush.verticalGradient(
+                                        listOf(Color.White.copy(alpha = 0.85f), BabyPinkSoftRose.copy(alpha = 0.30f))
+                                    ),
+                                    RoundedCornerShape(24.dp)
+                                )
+                                .hapticPress(scaleDown = 0.94f)
                         ) {
                             Text("Join Partner's Jam", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
                         }
