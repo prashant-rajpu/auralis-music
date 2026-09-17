@@ -12,8 +12,8 @@ class NetworkMusicRepository @Inject constructor(
     private val downloader: com.auralis.app.data.local.OfflineDownloader
 ) : MusicRepository {
 
-    override suspend fun fetchLocalTracks(): List<Track> {
-        return trackDao.getAllTracks().map { it.toDomainModel() }
+    override suspend fun fetchLocalTracks(): List<Track> = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+        trackDao.getAllTracks().map { it.toDomainModel() }
     }
 
     override suspend fun downloadTrack(track: Track) {

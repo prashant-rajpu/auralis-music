@@ -67,9 +67,9 @@ dependencies {
     implementation("androidx.navigation:navigation-compose:2.7.4")
     
     // Room Database
-    implementation("androidx.room:room-runtime:2.5.2")
-    implementation("androidx.room:room-ktx:2.5.2")
-    kapt("androidx.room:room-compiler:2.5.2")
+    implementation("androidx.room:room-runtime:2.6.1")
+    implementation("androidx.room:room-ktx:2.6.1")
+    kapt("androidx.room:room-compiler:2.6.1")
     
     // Media3
     implementation("androidx.media3:media3-exoplayer:1.1.1")
