@@ -12,6 +12,7 @@ import androidx.media3.exoplayer.ExoPlayer
 import com.auralis.app.domain.model.SoundProfile
 import com.auralis.app.domain.model.Track
 import com.auralis.app.network.JamState
+import com.auralis.app.network.JamWebSocketClient
 import com.auralis.app.network.YouTubeStreamResolver
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.*
