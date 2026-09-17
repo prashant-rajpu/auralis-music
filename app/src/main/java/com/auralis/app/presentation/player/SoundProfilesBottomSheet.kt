@@ -1,6 +1,5 @@
 package com.auralis.app.presentation.player
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -13,6 +12,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
 import com.auralis.app.domain.model.SoundPreset
 import com.auralis.app.domain.model.SoundProfile
 import com.auralis.app.ui.theme.SpotifyGreen
@@ -24,142 +24,156 @@ fun SoundProfilesBottomSheet(
     onProfileChange: (SoundProfile) -> Unit,
     onDismiss: () -> Unit
 ) {
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        containerColor = MaterialTheme.colorScheme.surface,
-        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
-    ) {
-        Column(
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            shape = RoundedCornerShape(24.dp),
+            color = MaterialTheme.colorScheme.surface,
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 24.dp, vertical = 12.dp)
-                .padding(bottom = 32.dp)
+                .padding(vertical = 16.dp)
         ) {
-            Text(
-                text = "Audio FX & Sound Profiles",
-                style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
-                color = MaterialTheme.colorScheme.onSurface
-            )
-            Text(
-                text = "Tune frequency response and seamless crossfade",
-                style = MaterialTheme.typography.bodySmall,
-                color = Color.Gray
-            )
-
-            Spacer(modifier = Modifier.height(20.dp))
-
-            // Preset chips
-            Text(
-                text = "Genre Preset",
-                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
-                color = MaterialTheme.colorScheme.onSurface
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Row(
+            Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    .padding(24.dp)
             ) {
-                SoundPreset.values().forEach { preset ->
-                    val isSelected = profile.preset == preset
-                    FilterChip(
-                        selected = isSelected,
-                        onClick = { onProfileChange(profile.copy(preset = preset)) },
-                        label = { Text(preset.displayName) },
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = SpotifyGreen,
-                            selectedLabelColor = Color.Black
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text(
+                            text = "Audio FX & Equalizer",
+                            style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                            color = MaterialTheme.colorScheme.onSurface
                         )
+                        Text(
+                            text = "Sound profiles and crossfade",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color.Gray
+                        )
+                    }
+                    TextButton(onClick = onDismiss) {
+                        Text("Done", color = SpotifyGreen, fontWeight = FontWeight.Bold)
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Preset chips
+                Text(
+                    text = "Genre Preset",
+                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    SoundPreset.values().forEach { preset ->
+                        val isSelected = profile.preset == preset
+                        FilterChip(
+                            selected = isSelected,
+                            onClick = { onProfileChange(profile.copy(preset = preset)) },
+                            label = { Text(preset.displayName) },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = SpotifyGreen,
+                                selectedLabelColor = Color.Black
+                            )
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Bass Boost slider
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Bass Boost",
+                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium)
+                    )
+                    Text(
+                        text = "${(profile.bassBoostStrength / 10)}%",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = SpotifyGreen
                     )
                 }
-            }
+                Slider(
+                    value = profile.bassBoostStrength.toFloat(),
+                    onValueChange = { onProfileChange(profile.copy(bassBoostStrength = it.toInt())) },
+                    valueRange = 0f..1000f,
+                    colors = SliderDefaults.colors(
+                        thumbColor = SpotifyGreen,
+                        activeTrackColor = SpotifyGreen
+                    )
+                )
 
-            Spacer(modifier = Modifier.height(20.dp))
+                Spacer(modifier = Modifier.height(10.dp))
 
-            // Bass Boost slider
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "Bass Boost",
-                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium)
+                // Treble Boost slider
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Treble Boost",
+                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium)
+                    )
+                    Text(
+                        text = "${(profile.trebleBoostStrength / 10)}%",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = SpotifyGreen
+                    )
+                }
+                Slider(
+                    value = profile.trebleBoostStrength.toFloat(),
+                    onValueChange = { onProfileChange(profile.copy(trebleBoostStrength = it.toInt())) },
+                    valueRange = 0f..1000f,
+                    colors = SliderDefaults.colors(
+                        thumbColor = SpotifyGreen,
+                        activeTrackColor = SpotifyGreen
+                    )
                 )
-                Text(
-                    text = "${(profile.bassBoostStrength / 10)}%",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = SpotifyGreen
-                )
-            }
-            Slider(
-                value = profile.bassBoostStrength.toFloat(),
-                onValueChange = { onProfileChange(profile.copy(bassBoostStrength = it.toInt())) },
-                valueRange = 0f..1000f,
-                colors = SliderDefaults.colors(
-                    thumbColor = SpotifyGreen,
-                    activeTrackColor = SpotifyGreen
-                )
-            )
 
-            Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(10.dp))
 
-            // Treble Boost slider
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "Treble Boost",
-                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium)
-                )
-                Text(
-                    text = "${(profile.trebleBoostStrength / 10)}%",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = SpotifyGreen
-                )
-            }
-            Slider(
-                value = profile.trebleBoostStrength.toFloat(),
-                onValueChange = { onProfileChange(profile.copy(trebleBoostStrength = it.toInt())) },
-                valueRange = 0f..1000f,
-                colors = SliderDefaults.colors(
-                    thumbColor = SpotifyGreen,
-                    activeTrackColor = SpotifyGreen
-                )
-            )
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            // Crossfade Duration slider
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "Dual-Player Crossfade",
-                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium)
-                )
-                Text(
-                    text = "${profile.crossfadeDurationSec}s",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = SpotifyGreen
+                // Crossfade Duration slider
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Crossfade Duration",
+                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium)
+                    )
+                    Text(
+                        text = "${profile.crossfadeDurationSec}s",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = SpotifyGreen
+                    )
+                }
+                Slider(
+                    value = profile.crossfadeDurationSec.toFloat(),
+                    onValueChange = { onProfileChange(profile.copy(crossfadeDurationSec = it.toInt())) },
+                    valueRange = 1f..12f,
+                    steps = 10,
+                    colors = SliderDefaults.colors(
+                        thumbColor = SpotifyGreen,
+                        activeTrackColor = SpotifyGreen
+                    )
                 )
             }
-            Slider(
-                value = profile.crossfadeDurationSec.toFloat(),
-                onValueChange = { onProfileChange(profile.copy(crossfadeDurationSec = it.toInt())) },
-                valueRange = 1f..12f,
-                steps = 10,
-                colors = SliderDefaults.colors(
-                    thumbColor = SpotifyGreen,
-                    activeTrackColor = SpotifyGreen
-                )
-            )
         }
     }
 }
