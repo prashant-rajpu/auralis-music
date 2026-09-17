@@ -7,12 +7,17 @@ import javax.inject.Singleton
 
 @Singleton
 class NetworkMusicRepository @Inject constructor(
-    private val api: OpenSourceMusicApi
+    private val api: OpenSourceMusicApi,
+    private val trackDao: com.auralis.app.data.local.TrackDao,
+    private val downloader: com.auralis.app.data.local.OfflineDownloader
 ) : MusicRepository {
 
     override suspend fun fetchLocalTracks(): List<Track> {
-        // To be implemented via MediaStore / Room
-        return emptyList()
+        return trackDao.getAllTracks().map { it.toDomainModel() }
+    }
+
+    override suspend fun downloadTrack(track: Track) {
+        downloader.downloadTrack(track)
     }
 
     override suspend fun fetchServerTracks(): List<Track> {

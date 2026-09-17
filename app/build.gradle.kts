@@ -61,6 +61,16 @@ dependencies {
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.compose.material3:material3")
     
+    // Lifecycle & Navigation
+    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.6.2")
+    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.6.2")
+    implementation("androidx.navigation:navigation-compose:2.7.4")
+    
+    // Room Database
+    implementation("androidx.room:room-runtime:2.5.2")
+    implementation("androidx.room:room-ktx:2.5.2")
+    kapt("androidx.room:room-compiler:2.5.2")
+    
     // Media3
     implementation("androidx.media3:media3-exoplayer:1.1.1")
     implementation("androidx.media3:media3-session:1.1.1")
@@ -78,6 +88,9 @@ dependencies {
     
     // Coil (Image Loading)
     implementation("io.coil-kt:coil-compose:2.4.0")
+    
+    // Guava (for ListenableFuture)
+    implementation("com.google.guava:guava:32.1.2-android")
     
     testImplementation("junit:junit:4.13.2")
     androidTestImplementation("androidx.test.ext:junit:1.1.5")
