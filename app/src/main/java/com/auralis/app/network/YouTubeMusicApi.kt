@@ -13,9 +13,17 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import javax.inject.Inject
 import javax.inject.Singleton
 
+private data class RawYtTrack(
+    val videoId: String,
+    val title: String,
+    val artist: String,
+    val albumArtUrl: String?
+)
+
 @Singleton
 class YouTubeMusicApi @Inject constructor(
-    private val client: OkHttpClient
+    private val client: OkHttpClient,
+    private val jioSaavnApi: JioSaavnApi
 ) {
     private val gson = Gson()
 
@@ -47,14 +55,55 @@ class YouTubeMusicApi @Inject constructor(
             val response = client.newCall(request).execute()
             if (!response.isSuccessful) return@withContext emptyList()
             val responseBody = response.body?.string() ?: return@withContext emptyList()
-            parseSearchResponse(responseBody)
+            val rawTracks = parseSearchResponse(responseBody)
+
+            val playableTracks = mutableListOf<Track>()
+            for (raw in rawTracks.take(15)) {
+                val resolved = resolvePlayableTrack(raw)
+                if (resolved != null) {
+                    playableTracks.add(resolved)
+                }
+            }
+            playableTracks
         } catch (e: Exception) {
             emptyList()
         }
     }
 
-    private fun parseSearchResponse(jsonString: String): List<Track> {
-        val tracks = mutableListOf<Track>()
+    private suspend fun resolvePlayableTrack(raw: RawYtTrack): Track? {
+        try {
+            val cleanTitle = raw.title.replace(Regex("(?i)\\(.*\\)|\\[.*\\]|official|video|audio|lyrics"), "").trim()
+            val searchQuery = "$cleanTitle ${raw.artist}".trim()
+            val resp = jioSaavnApi.searchSongs(query = searchQuery, count = 1)
+            val first = resp.results?.firstOrNull()
+
+            if (first != null) {
+                val mediaUrl = JioSaavnDecryptor.decryptMediaUrl(first.moreInfo?.encryptedMediaUrl)
+                if (!mediaUrl.isNullOrBlank()) {
+                    val durationSec = first.moreInfo?.duration?.toLongOrNull() ?: 210L
+                    val art = raw.albumArtUrl ?: first.image?.replace("150x150", "500x500")
+
+                    return Track(
+                        id = "yt_${raw.videoId}",
+                        title = raw.title,
+                        artist = raw.artist,
+                        albumArtUrl = art,
+                        mediaUrl = mediaUrl,
+                        durationMs = durationSec * 1000L,
+                        source = "Auralis Master",
+                        qualityBadge = "320 kbps Master",
+                        isDownloaded = false
+                    )
+                }
+            }
+        } catch (e: Exception) {
+            // Resolution fallback failed
+        }
+        return null
+    }
+
+    private fun parseSearchResponse(jsonString: String): List<RawYtTrack> {
+        val tracks = mutableListOf<RawYtTrack>()
         try {
             val root = gson.fromJson(jsonString, JsonObject::class.java)
             extractMusicItems(root, tracks)
@@ -64,7 +113,7 @@ class YouTubeMusicApi @Inject constructor(
         return tracks
     }
 
-    private fun extractMusicItems(element: JsonElement, result: MutableList<Track>) {
+    private fun extractMusicItems(element: JsonElement, result: MutableList<RawYtTrack>) {
         if (element.isJsonObject) {
             val obj = element.asJsonObject
             if (obj.has("musicResponsiveListItemRenderer")) {
@@ -82,7 +131,7 @@ class YouTubeMusicApi @Inject constructor(
         }
     }
 
-    private fun parseItem(item: JsonObject): Track? {
+    private fun parseItem(item: JsonObject): RawYtTrack? {
         try {
             val videoId = item.getAsJsonObject("playlistItemData")?.get("videoId")?.asString
                 ?: return null
@@ -97,7 +146,7 @@ class YouTubeMusicApi @Inject constructor(
 
             val title = col0Runs?.get(0)?.asJsonObject?.get("text")?.asString ?: "Unknown Title"
 
-            var artist = "YouTube Artist"
+            var artist = "Artist"
             if (flexColumns.size() > 1) {
                 val col1Runs = flexColumns[1].asJsonObject
                     .getAsJsonObject("musicResponsiveListItemFlexColumnRenderer")
@@ -122,18 +171,11 @@ class YouTubeMusicApi @Inject constructor(
                 thumbUrl = thumbnails.get(thumbnails.size() - 1).asJsonObject.get("url")?.asString
             }
 
-            val streamUrl = "https://pipedapi.kavin.rocks/streams/$videoId"
-
-            return Track(
-                id = "yt_$videoId",
+            return RawYtTrack(
+                videoId = videoId,
                 title = title,
                 artist = artist,
-                albumArtUrl = thumbUrl,
-                mediaUrl = streamUrl,
-                durationMs = 210000L,
-                source = "YouTube Music",
-                qualityBadge = "Opus High 160k",
-                isDownloaded = false
+                albumArtUrl = thumbUrl
             )
         } catch (e: Exception) {
             return null

@@ -7,8 +7,8 @@ data class Track(
     val albumArtUrl: String?,
     val mediaUrl: String,
     val durationMs: Long,
-    val source: String = "JioSaavn",
-    val qualityBadge: String = "320 kbps",
+    val source: String = "Auralis Master",
+    val qualityBadge: String = "320 kbps Master",
     val isDownloaded: Boolean = false,
     val lyrics: List<LyricLine>? = null
 )

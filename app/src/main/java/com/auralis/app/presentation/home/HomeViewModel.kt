@@ -81,9 +81,19 @@ class HomeViewModel @Inject constructor(
 
     fun selectSourceFilter(source: String) {
         _sourceFilter.value = source
-        val query = if (_searchQuery.value.isNotBlank()) _searchQuery.value else if (_selectedMood.value != "All") _selectedMood.value else ""
+        val query = if (_searchQuery.value.isNotBlank()) {
+            _searchQuery.value
+        } else if (_selectedMood.value != "All") {
+            _selectedMood.value
+        } else if (source != "All" && source != "320 kbps Master" && source != "Lossless") {
+            source
+        } else {
+            ""
+        }
         if (query.isNotBlank()) {
             performSearch(query, source)
+        } else {
+            loadTrendingTracks()
         }
     }
 

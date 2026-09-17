@@ -92,7 +92,7 @@ fun FullPlayerScreen(
                             fontSize = 10.sp
                         )
                         Text(
-                            text = track?.source ?: "Auralis Music",
+                            text = "Auralis Master • " + (track?.qualityBadge ?: "320 kbps"),
                             style = MaterialTheme.typography.titleSmall.copy(
                                 fontWeight = FontWeight.Bold
                             ),

@@ -212,14 +212,14 @@ fun HomeScreen(
 
                         Spacer(modifier = Modifier.height(8.dp))
 
-                        // Source Filter Chips: All, YouTube Music, JioSaavn 320k, Audius
+                        // Filter Chips: All, Top Hits, 320 kbps Master, Lossless, Acoustic
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .horizontalScroll(rememberScrollState()),
                             horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
-                            val sources = listOf("All", "YouTube Music", "JioSaavn 320k", "Audius")
+                            val sources = listOf("All", "Top Hits", "320 kbps Master", "Lossless", "Acoustic")
                             sources.forEach { source ->
                                 val isSelected = sourceFilter.equals(source, ignoreCase = true)
                                 Box(

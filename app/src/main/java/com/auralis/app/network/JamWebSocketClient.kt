@@ -151,8 +151,8 @@ class JamWebSocketClient @Inject constructor(
                             mediaUrl = trackObj.optString("mediaUrl"),
                             albumArtUrl = trackObj.optString("albumArtUrl").ifEmpty { null },
                             durationMs = trackObj.optLong("durationMs", 0L),
-                            qualityBadge = trackObj.optString("qualityBadge", "320 kbps"),
-                            source = trackObj.optString("source", "YouTube Music")
+                            qualityBadge = trackObj.optString("qualityBadge", "320 kbps Master"),
+                            source = trackObj.optString("source", "Auralis Master")
                         )
                         _jamState.value = JamState.SyncPlayback(track, position, isPlaying, sender, action)
                     }
@@ -183,8 +183,8 @@ class JamWebSocketClient @Inject constructor(
                             mediaUrl = trackObj.optString("mediaUrl"),
                             albumArtUrl = trackObj.optString("albumArtUrl").ifEmpty { null },
                             durationMs = trackObj.optLong("durationMs", 0L),
-                            qualityBadge = trackObj.optString("qualityBadge", "320 kbps"),
-                            source = trackObj.optString("source", "YouTube Music")
+                            qualityBadge = trackObj.optString("qualityBadge", "320 kbps Master"),
+                            source = trackObj.optString("source", "Auralis Master")
                         )
                         _jamState.value = JamState.QueueTrack(track, sender)
                     }
