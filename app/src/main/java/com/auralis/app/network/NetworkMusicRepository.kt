@@ -12,6 +12,7 @@ import javax.inject.Singleton
 
 @Singleton
 class NetworkMusicRepository @Inject constructor(
+    private val youTubeMusicApi: YouTubeMusicApi,
     private val jioSaavnApi: JioSaavnApi,
     private val audiusApi: AudiusApi,
     private val deezerApi: OpenSourceMusicApi,
@@ -79,35 +80,50 @@ class NetworkMusicRepository @Inject constructor(
         throw IllegalStateException("No tracks available online or offline. Please check your connection.")
     }
 
-    override suspend fun searchTracks(query: String): List<Track> = withContext(Dispatchers.IO) {
+    override suspend fun searchTracks(query: String): List<Track> {
+        return searchTracks(query, "All")
+    }
+
+    override suspend fun searchTracks(query: String, source: String): List<Track> = withContext(Dispatchers.IO) {
         if (query.isBlank()) return@withContext emptyList()
         val results = mutableListOf<Track>()
 
-        // Search JioSaavn first
-        try {
-            val jioSaavnResults = searchJioSaavn(query)
-            results.addAll(jioSaavnResults)
-        } catch (e: Exception) {
-            Log.w("NetworkMusicRepository", "JioSaavn search failed for query: $query", e)
+        val searchAll = source.equals("All", ignoreCase = true)
+        val searchYouTube = searchAll || source.contains("YouTube", ignoreCase = true)
+        val searchJio = searchAll || source.contains("Jio", ignoreCase = true)
+        val searchAudius = searchAll || source.contains("Audius", ignoreCase = true)
+
+        // 1. YouTube Music search (huge library coverage)
+        if (searchYouTube) {
+            try {
+                val ytResults = youTubeMusicApi.searchTracks(query)
+                results.addAll(ytResults)
+            } catch (e: Exception) {
+                Log.w("NetworkMusicRepository", "YouTube search failed for query: $query", e)
+            }
         }
 
-        // Search Audius concurrently or if JioSaavn returned few results
-        try {
-            val audiusResults = searchAudius(query)
-            results.addAll(audiusResults)
-        } catch (e: Exception) {
-            Log.w("NetworkMusicRepository", "Audius search failed for query: $query", e)
+        // 2. Search JioSaavn (320kbps uncompressed stream)
+        if (searchJio) {
+            try {
+                val jioSaavnResults = searchJioSaavn(query)
+                results.addAll(jioSaavnResults)
+            } catch (e: Exception) {
+                Log.w("NetworkMusicRepository", "JioSaavn search failed for query: $query", e)
+            }
         }
 
-        // Search Deezer
-        try {
-            val deezerResults = searchDeezer(query)
-            results.addAll(deezerResults)
-        } catch (e: Exception) {
-            Log.w("NetworkMusicRepository", "Deezer search failed for query: $query", e)
+        // 3. Search Audius
+        if (searchAudius) {
+            try {
+                val audiusResults = searchAudius(query)
+                results.addAll(audiusResults)
+            } catch (e: Exception) {
+                Log.w("NetworkMusicRepository", "Audius search failed for query: $query", e)
+            }
         }
 
-        // Search offline matching tracks
+        // 4. Search local offline matches
         val localMatches = trackDao.getAllTracks()
             .filter { it.title.contains(query, ignoreCase = true) || it.artist.contains(query, ignoreCase = true) }
             .map { it.toDomainModel() }
@@ -135,7 +151,6 @@ class NetworkMusicRepository @Inject constructor(
             ?: dto.subtitle
             ?: "Unknown Artist"
 
-        // Upgrade album image to high resolution
         val art = dto.image?.replace("150x150", "500x500") ?: dto.image
 
         return Track(
@@ -180,22 +195,6 @@ class NetworkMusicRepository @Inject constructor(
 
     private suspend fun fetchDeezerTrending(): List<Track> {
         val response = deezerApi.getTrendingTracks()
-        return response.data?.filter { !it.preview.isNullOrBlank() }?.map { dto ->
-            Track(
-                id = "deezer_${dto.id}",
-                title = dto.title ?: "Unknown",
-                artist = dto.artist?.name ?: "Unknown Artist",
-                albumArtUrl = dto.album?.coverXl ?: "",
-                mediaUrl = dto.preview!!,
-                durationMs = 30000L,
-                source = "Deezer",
-                qualityBadge = "HQ Preview"
-            )
-        } ?: emptyList()
-    }
-
-    private suspend fun searchDeezer(query: String): List<Track> {
-        val response = deezerApi.searchTracks(query)
         return response.data?.filter { !it.preview.isNullOrBlank() }?.map { dto ->
             Track(
                 id = "deezer_${dto.id}",
