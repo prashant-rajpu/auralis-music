@@ -26,19 +26,19 @@ class NetworkMusicRepository @Inject constructor(
     override suspend fun fetchServerTracks(): List<Track> {
         return try {
             val response = api.getTrendingTracks()
-            response.data.filter { !it.preview.isNullOrBlank() }.map { dto ->
+            response.data?.filter { !it.preview.isNullOrBlank() }?.map { dto ->
                 Track(
                     id = dto.id.toString(),
-                    title = dto.title,
-                    artist = dto.artist.name,
-                    albumArtUrl = dto.album.coverXl ?: "",
+                    title = dto.title ?: "Unknown",
+                    artist = dto.artist?.name ?: "Unknown Artist",
+                    albumArtUrl = dto.album?.coverXl ?: "",
                     mediaUrl = dto.preview!!,
-                    durationMs = 30000L // Deezer previews are 30 seconds
+                    durationMs = 30000L
                 )
-            }
+            } ?: emptyList()
         } catch (e: Exception) {
             Log.e("NetworkMusicRepository", "Failed to fetch tracks", e)
-            emptyList()
+            throw e // Throw to let ViewModel handle the error message
         }
     }
 }
