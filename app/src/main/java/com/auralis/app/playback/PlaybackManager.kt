@@ -27,7 +27,7 @@ enum class RepeatMode {
 @Singleton
 class PlaybackManager @Inject constructor(
     @ApplicationContext private val context: Context,
-    private val jamClient: JamWebSocketClient,
+    val jamClient: JamWebSocketClient,
     val audioEffectManager: AudioEffectManager
 ) {
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
@@ -59,6 +59,9 @@ class PlaybackManager @Inject constructor(
 
     private val _repeatMode = MutableStateFlow(RepeatMode.OFF)
     val repeatMode = _repeatMode.asStateFlow()
+
+    val jamSession = jamClient.currentSession
+    val jamState = jamClient.jamState
 
     private var currentIndex = -1
     private var isCrossfading = false
@@ -131,13 +134,64 @@ class PlaybackManager @Inject constructor(
             jamClient.jamState.collect { state ->
                 when (state) {
                     is JamState.SyncPlayback -> {
-                        activePlayer.seekTo(state.position)
-                        if (state.isPlaying) activePlayer.play() else activePlayer.pause()
+                        val incomingTrack = state.track
+                        val current = _currentTrack.value
+
+                        if (current == null || current.id != incomingTrack.id) {
+                            playTrackFromJam(incomingTrack, state.position, state.isPlaying)
+                        } else {
+                            if (activePlayer.isPlaying != state.isPlaying) {
+                                if (state.isPlaying) activePlayer.play() else activePlayer.pause()
+                                _isPlaying.value = state.isPlaying
+                            }
+                            if (Math.abs(activePlayer.currentPosition - state.position) > 2000L) {
+                                activePlayer.seekTo(state.position)
+                                _currentPositionMs.value = state.position
+                            }
+                        }
+                    }
+                    is JamState.QueueTrack -> {
+                        val currentList = _queue.value
+                        if (currentList.none { it.id == state.track.id }) {
+                            _queue.value = currentList + state.track
+                        }
                     }
                     else -> {}
                 }
             }
         }
+    }
+
+    private fun playTrackFromJam(track: Track, position: Long, isPlaying: Boolean) {
+        crossfadeJob?.cancel()
+        isCrossfading = false
+
+        standbyPlayer.stop()
+        standbyPlayer.volume = 1.0f
+
+        activePlayer.stop()
+        activePlayer.volume = 1.0f
+
+        loadMediaToPlayer(activePlayer, track)
+        activePlayer.prepare()
+        activePlayer.seekTo(position)
+        if (isPlaying) {
+            activePlayer.play()
+        } else {
+            activePlayer.pause()
+        }
+
+        _currentTrack.value = track
+        _isPlaying.value = isPlaying
+        _currentPositionMs.value = position
+        _durationMs.value = track.durationMs
+
+        if (_queue.value.none { it.id == track.id }) {
+            _queue.value = _queue.value + track
+        }
+        currentIndex = _queue.value.indexOfFirst { it.id == track.id }
+
+        audioEffectManager.attachAudioSession(activePlayer.audioSessionId)
     }
 
     fun playTrack(track: Track, newQueue: List<Track> = listOf(track)) {
@@ -163,7 +217,7 @@ class PlaybackManager @Inject constructor(
         _durationMs.value = track.durationMs
 
         audioEffectManager.attachAudioSession(activePlayer.audioSessionId)
-        jamClient.broadcastPlaybackState(track.id, 0L, true)
+        jamClient.broadcastPlaybackState(track, 0L, true)
     }
 
     fun playTrackAtIndex(index: Int) {
@@ -195,6 +249,7 @@ class PlaybackManager @Inject constructor(
             activePlayer.seekTo(0L)
             activePlayer.play()
             _currentPositionMs.value = 0L
+            _currentTrack.value?.let { jamClient.broadcastPlaybackState(it, 0L, true) }
             return
         }
 
@@ -223,6 +278,7 @@ class PlaybackManager @Inject constructor(
             // Restart current track
             activePlayer.seekTo(0L)
             _currentPositionMs.value = 0L
+            _currentTrack.value?.let { jamClient.broadcastPlaybackState(it, 0L, activePlayer.isPlaying) }
             return
         }
         val prevIdx = if (currentIndex - 1 >= 0) {
@@ -281,7 +337,7 @@ class PlaybackManager @Inject constructor(
             _isPlaying.value = true
             isCrossfading = false
 
-            jamClient.broadcastPlaybackState(nextTrack.id, 0L, true)
+            jamClient.broadcastPlaybackState(nextTrack, 0L, true)
         }
     }
 
@@ -304,7 +360,7 @@ class PlaybackManager @Inject constructor(
         activePlayer.seekTo(positionMs.coerceAtLeast(0L))
         _currentPositionMs.value = positionMs
         _currentTrack.value?.let { track ->
-            jamClient.broadcastPlaybackState(track.id, positionMs, activePlayer.isPlaying)
+            jamClient.broadcastPlaybackState(track, positionMs, activePlayer.isPlaying)
         }
     }
 
@@ -313,13 +369,13 @@ class PlaybackManager @Inject constructor(
             activePlayer.pause()
             _isPlaying.value = false
             _currentTrack.value?.let { track ->
-                jamClient.broadcastPlaybackState(track.id, activePlayer.currentPosition, false)
+                jamClient.broadcastPlaybackState(track, activePlayer.currentPosition, false)
             }
         } else {
             activePlayer.play()
             _isPlaying.value = true
             _currentTrack.value?.let { track ->
-                jamClient.broadcastPlaybackState(track.id, activePlayer.currentPosition, true)
+                jamClient.broadcastPlaybackState(track, activePlayer.currentPosition, true)
             }
         }
     }

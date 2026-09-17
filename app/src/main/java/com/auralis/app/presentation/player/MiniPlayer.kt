@@ -39,6 +39,7 @@ fun MiniPlayer(
     val currentPositionMs by viewModel.currentPositionMs.collectAsState()
     val durationMs by viewModel.durationMs.collectAsState()
     val likedTrackIds by viewModel.likedTrackIds.collectAsState()
+    val jamSession by viewModel.jamSession.collectAsState()
 
     if (currentTrack != null) {
         val isLiked = likedTrackIds.contains(currentTrack!!.id)
@@ -52,6 +53,8 @@ fun MiniPlayer(
             track = currentTrack!!,
             isPlaying = isPlaying,
             isLiked = isLiked,
+            isJamActive = jamSession != null,
+            jamParticipants = jamSession?.participants?.filter { it != jamSession?.username }?.joinToString().orEmpty(),
             progress = progress,
             onPlayPauseClick = { viewModel.togglePlayPause() },
             onSkipNextClick = { viewModel.skipNext() },
@@ -66,6 +69,8 @@ private fun MiniPlayerContent(
     track: Track,
     isPlaying: Boolean,
     isLiked: Boolean,
+    isJamActive: Boolean,
+    jamParticipants: String,
     progress: Float,
     onPlayPauseClick: () -> Unit,
     onSkipNextClick: () -> Unit,
@@ -78,7 +83,7 @@ private fun MiniPlayerContent(
             .padding(horizontal = 8.dp, vertical = 4.dp)
             .clip(RoundedCornerShape(12.dp))
             .background(YtMusicGlassSurface)
-            .border(1.dp, YtMusicBorder, RoundedCornerShape(12.dp))
+            .border(1.dp, if (isJamActive) SpotifyGreen.copy(alpha = 0.4f) else YtMusicBorder, RoundedCornerShape(12.dp))
             .clickable { onClick() }
     ) {
         Column {
@@ -119,11 +124,12 @@ private fun MiniPlayerContent(
                     )
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
-                        text = "${track.artist} • ${track.source}",
+                        text = if (isJamActive) "🎧 Jam with ${jamParticipants.ifEmpty { "Partner" }}" else "${track.artist} • ${track.source}",
                         style = MaterialTheme.typography.bodySmall.copy(
-                            fontSize = 12.sp
+                            fontSize = 12.sp,
+                            fontWeight = if (isJamActive) FontWeight.Bold else FontWeight.Normal
                         ),
-                        color = YtMusicTextSecondary,
+                        color = if (isJamActive) SpotifyGreen else YtMusicTextSecondary,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
@@ -169,13 +175,13 @@ private fun MiniPlayerContent(
                 }
             }
 
-            // Live YouTube Red Progress Bar along the bottom of the MiniPlayer
+            // Live Progress Bar (Spotify Green when in Jam, YouTube Red when regular)
             LinearProgressIndicator(
                 progress = progress,
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(2.5.dp),
-                color = YtMusicRed,
+                color = if (isJamActive) SpotifyGreen else YtMusicRed,
                 trackColor = Color(0x22FFFFFF)
             )
         }

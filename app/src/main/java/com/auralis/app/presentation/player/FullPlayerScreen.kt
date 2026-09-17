@@ -34,6 +34,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
 import com.auralis.app.domain.model.Track
 import com.auralis.app.playback.RepeatMode
+import com.auralis.app.presentation.jam.SpotifyJamBottomSheet
 import com.auralis.app.ui.theme.*
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -55,6 +56,8 @@ fun FullPlayerScreen(
     val dislikedTrackIds by viewModel.dislikedTrackIds.collectAsState()
     val isSoundProfilesVisible by viewModel.isSoundProfilesVisible.collectAsState()
     val soundProfile by viewModel.soundProfile.collectAsState()
+    val jamSession by viewModel.jamSession.collectAsState()
+    val isJamSheetVisible by viewModel.isJamSheetVisible.collectAsState()
 
     var isDraggingSlider by remember { mutableStateOf(false) }
     var dragSliderValue by remember { mutableStateOf(0f) }
@@ -117,6 +120,14 @@ fun FullPlayerScreen(
                     }
                 },
                 actions = {
+                    IconButton(onClick = { viewModel.setJamSheetVisible(true) }) {
+                        Icon(
+                            Icons.Default.Share,
+                            contentDescription = "Spotify Jam",
+                            tint = if (jamSession != null) SpotifyGreen else Color.White,
+                            modifier = Modifier.size(22.dp)
+                        )
+                    }
                     IconButton(onClick = { viewModel.setSoundProfilesVisible(true) }) {
                         Icon(
                             Icons.Default.GraphicEq,
@@ -148,6 +159,33 @@ fun FullPlayerScreen(
                         .padding(horizontal = 24.dp, vertical = 8.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
+                    if (jamSession != null) {
+                        Row(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(16.dp))
+                                .background(Color(0xFF142B1A))
+                                .border(1.dp, SpotifyGreen.copy(alpha = 0.5f), RoundedCornerShape(16.dp))
+                                .clickable { viewModel.setJamSheetVisible(true) }
+                                .padding(horizontal = 14.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(8.dp)
+                                    .clip(CircleShape)
+                                    .background(SpotifyGreen)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "🎧 Jamming with ${jamSession!!.participants.filter { it != jamSession!!.username }.joinToString().ifEmpty { "Partner" }}",
+                                color = SpotifyGreen,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+                    }
+
                     // Center Content: Artwork vs Up Next vs Lyrics vs Related
                     Box(
                         modifier = Modifier
@@ -563,6 +601,24 @@ fun FullPlayerScreen(
             profile = soundProfile,
             onProfileChange = { viewModel.updateSoundProfile(it) },
             onDismiss = { viewModel.setSoundProfilesVisible(false) }
+        )
+    }
+
+    if (isJamSheetVisible) {
+        SpotifyJamBottomSheet(
+            session = jamSession,
+            onStartJam = { code, name ->
+                viewModel.startJam(code, name)
+                viewModel.setJamSheetVisible(false)
+            },
+            onJoinJam = { code, name ->
+                viewModel.joinJam(code, name)
+                viewModel.setJamSheetVisible(false)
+            },
+            onLeaveJam = {
+                viewModel.leaveJam()
+            },
+            onDismiss = { viewModel.setJamSheetVisible(false) }
         )
     }
 }

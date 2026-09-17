@@ -28,6 +28,7 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
 import com.auralis.app.domain.model.Track
+import com.auralis.app.presentation.jam.SpotifyJamBottomSheet
 import com.auralis.app.ui.theme.*
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -41,6 +42,7 @@ fun HomeScreen(
     val searchQuery by viewModel.searchQuery.collectAsState()
     val sourceFilter by viewModel.sourceFilter.collectAsState()
     val selectedMood by viewModel.selectedMood.collectAsState()
+    val jamSession by viewModel.jamSession.collectAsState()
 
     var showJamDialog by remember { mutableStateOf(false) }
     var isSearchExpanded by remember { mutableStateOf(false) }
@@ -225,62 +227,67 @@ fun HomeScreen(
                 }
             }
 
-            // Jam Session Dialog
-            if (showJamDialog) {
-                var jamId by remember { mutableStateOf("") }
-                var username by remember { mutableStateOf("") }
-
-                AlertDialog(
-                    onDismissRequest = { showJamDialog = false },
-                    containerColor = YtMusicSurface,
-                    title = {
-                        Text("Live Jam Session", color = Color.White, fontWeight = FontWeight.Bold)
-                    },
-                    text = {
+            // Live Active Jam Banner
+            if (jamSession != null) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 6.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(Color(0xFF142B1A))
+                        .border(1.dp, SpotifyGreen.copy(alpha = 0.5f), RoundedCornerShape(12.dp))
+                        .clickable { showJamDialog = true }
+                        .padding(horizontal = 14.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = Modifier
+                                .size(8.dp)
+                                .clip(CircleShape)
+                                .background(SpotifyGreen)
+                        )
+                        Spacer(modifier = Modifier.width(10.dp))
                         Column {
                             Text(
-                                "Listen synchronously with friends across devices via WebSockets",
-                                color = YtMusicTextSecondary,
+                                text = "🎧 Spotify Jam Active: ${jamSession!!.jamId}",
+                                color = Color.White,
+                                fontWeight = FontWeight.Bold,
                                 fontSize = 13.sp
                             )
-                            Spacer(modifier = Modifier.height(12.dp))
-                            OutlinedTextField(
-                                value = jamId,
-                                onValueChange = { jamId = it },
-                                label = { Text("Jam Session ID", color = YtMusicTextSecondary) },
-                                colors = TextFieldDefaults.outlinedTextFieldColors(
-                                    textColor = Color.White,
-                                    focusedBorderColor = YtMusicRed
-                                )
+                            Text(
+                                text = "${jamSession!!.participants.size} listening together in sync",
+                                color = SpotifyGreen,
+                                fontSize = 11.sp
                             )
-                            Spacer(modifier = Modifier.height(8.dp))
-                            OutlinedTextField(
-                                value = username,
-                                onValueChange = { username = it },
-                                label = { Text("Your Display Name", color = YtMusicTextSecondary) },
-                                colors = TextFieldDefaults.outlinedTextFieldColors(
-                                    textColor = Color.White,
-                                    focusedBorderColor = YtMusicRed
-                                )
-                            )
-                        }
-                    },
-                    confirmButton = {
-                        Button(
-                            onClick = {
-                                viewModel.connectToJam(jamId, username)
-                                showJamDialog = false
-                            },
-                            colors = ButtonDefaults.buttonColors(containerColor = YtMusicRed)
-                        ) {
-                            Text("Connect Jam", color = Color.White, fontWeight = FontWeight.Bold)
-                        }
-                    },
-                    dismissButton = {
-                        TextButton(onClick = { showJamDialog = false }) {
-                            Text("Cancel", color = YtMusicTextSecondary)
                         }
                     }
+                    Text(
+                        text = "Manage",
+                        color = Color.White,
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 12.sp
+                    )
+                }
+            }
+
+            // Spotify Jam Bottom Sheet
+            if (showJamDialog) {
+                SpotifyJamBottomSheet(
+                    session = jamSession,
+                    onStartJam = { code, name ->
+                        viewModel.startJam(code, name)
+                        showJamDialog = false
+                    },
+                    onJoinJam = { code, name ->
+                        viewModel.joinJam(code, name)
+                        showJamDialog = false
+                    },
+                    onLeaveJam = {
+                        viewModel.leaveJam()
+                    },
+                    onDismiss = { showJamDialog = false }
                 )
             }
 

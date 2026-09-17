@@ -191,8 +191,26 @@ class HomeViewModel @Inject constructor(
         playbackManager.playTrack(track, currentList)
     }
 
-    fun connectToJam(jamId: String, username: String) {
-        jamClient.connect(jamId, username)
+    val jamSession = playbackManager.jamSession
+    val jamState = playbackManager.jamState
+
+    fun startJam(jamId: String, username: String) {
+        playbackManager.jamClient.startJam(jamId, username)
+        playbackManager.currentTrack.value?.let { track ->
+            playbackManager.jamClient.broadcastPlaybackState(
+                track,
+                playbackManager.currentPositionMs.value,
+                playbackManager.isPlaying.value
+            )
+        }
+    }
+
+    fun joinJam(jamId: String, username: String) {
+        playbackManager.jamClient.joinJam(jamId, username)
+    }
+
+    fun leaveJam() {
+        playbackManager.jamClient.disconnect()
     }
 }
 
