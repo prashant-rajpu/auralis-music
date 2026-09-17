@@ -110,6 +110,7 @@ fun HomeScreen(
                 }
                 is HomeUiState.Success -> {
                     LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         items(state.trendingTracks) { track ->
