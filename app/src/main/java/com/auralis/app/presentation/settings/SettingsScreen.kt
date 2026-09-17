@@ -56,6 +56,8 @@ fun SettingsScreen(
     val currentQueue by viewModel.currentQueue.collectAsState()
     val importInputText by viewModel.importInputText.collectAsState()
     val toastEvent by viewModel.toastEvent.collectAsState()
+    val accentTheme by viewModel.accentTheme.collectAsState()
+    val topArtists by viewModel.topArtists.collectAsState()
 
     LaunchedEffect(toastEvent) {
         toastEvent?.let { event ->
@@ -127,6 +129,109 @@ fun SettingsScreen(
                 verticalArrangement = Arrangement.spacedBy(16.dp),
                 contentPadding = PaddingValues(bottom = 96.dp)
             ) {
+                // SECTION 0: PERSONALIZATION & GLASSMORPHISM THEME
+                item {
+                    SettingsSectionHeader(
+                        icon = Icons.Default.Palette,
+                        title = "Personalization & Pink Palette",
+                        subtitle = "Customize aesthetic accents with zero permissions required"
+                    )
+                }
+
+                item {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .glassCard(cornerRadius = 20.dp)
+                            .padding(16.dp)
+                    ) {
+                        Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                            Text(
+                                text = "Light Baby Pink Accent Tone",
+                                color = BabyPinkTextPrimary,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+
+                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                PinkAccentTheme.values().forEach { theme ->
+                                    val isSelected = accentTheme == theme
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clip(RoundedCornerShape(14.dp))
+                                            .background(if (isSelected) BabyPinkPrimary.copy(alpha = 0.2f) else GlassSurfaceStrong)
+                                            .border(
+                                                1.dp,
+                                                if (isSelected) BabyPinkPrimary else GlassBorder,
+                                                RoundedCornerShape(14.dp)
+                                            )
+                                            .clickable { viewModel.setAccentTheme(theme) }
+                                            .padding(horizontal = 14.dp, vertical = 10.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                        ) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(22.dp)
+                                                    .clip(CircleShape)
+                                                    .background(theme.color)
+                                                    .border(1.dp, Color.White, CircleShape)
+                                            )
+                                            Column {
+                                                Text(
+                                                    text = theme.displayName,
+                                                    color = BabyPinkTextPrimary,
+                                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                                    fontSize = 13.sp
+                                                )
+                                                Text(
+                                                    text = theme.hex,
+                                                    color = BabyPinkTextSecondary,
+                                                    fontSize = 11.sp
+                                                )
+                                            }
+                                        }
+
+                                        if (isSelected) {
+                                            Icon(
+                                                imageVector = Icons.Default.CheckCircle,
+                                                contentDescription = "Active",
+                                                tint = BabyPinkPrimary,
+                                                modifier = Modifier.size(20.dp)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+
+                            Divider(color = BabyPinkBorder, thickness = 0.5.dp)
+
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Lock,
+                                    contentDescription = null,
+                                    tint = BabyPinkPrimary,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Text(
+                                    text = "100% Private On-Device • Zero Permissions Needed",
+                                    color = BabyPinkTextSecondary,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+                        }
+                    }
+                }
+
                 // SECTION 1: LYRICS ADJUSTMENTS & CUSTOMIZATION (Item 4)
                 item {
                     SettingsSectionHeader(

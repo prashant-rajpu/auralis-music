@@ -223,6 +223,27 @@ class HomeViewModel @Inject constructor(
     fun leaveJam() {
         playbackManager.jamClient.disconnect()
     }
+
+    val recentTracks: StateFlow<List<Track>> = playbackManager.personalizationManager.recentTracks
+    val topArtists: StateFlow<List<String>> = playbackManager.personalizationManager.topArtists
+
+    fun getTimeOfDayGreeting(): Pair<String, String> =
+        playbackManager.personalizationManager.getTimeOfDayGreeting()
+
+    fun getTimeOfDaySuggestedMood(): String =
+        playbackManager.personalizationManager.getTimeOfDaySuggestedMood()
+
+    fun playNext(track: Track) {
+        playbackManager.playNext(track)
+    }
+
+    fun addToQueue(track: Track) {
+        playbackManager.addToQueue(track)
+    }
+
+    fun startRadio(track: Track) {
+        playbackManager.startRadio(track)
+    }
 }
 
 sealed class HomeUiState {

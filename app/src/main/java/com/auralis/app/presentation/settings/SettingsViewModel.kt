@@ -134,4 +134,12 @@ class SettingsViewModel @Inject constructor(
         playlistSharingManager.deletePlaylist(playlistId)
         _toastEvent.value = SettingsToastEvent.Success("Playlist removed.")
     }
+
+    val accentTheme = playbackManager.personalizationManager.accentTheme
+    val topArtists = playbackManager.personalizationManager.topArtists
+
+    fun setAccentTheme(theme: PinkAccentTheme) {
+        playbackManager.personalizationManager.setAccentTheme(theme)
+        _toastEvent.value = SettingsToastEvent.Success("Applied ${theme.displayName} theme! 🌸")
+    }
 }

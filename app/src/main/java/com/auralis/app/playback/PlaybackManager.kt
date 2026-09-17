@@ -7,6 +7,7 @@ import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
+import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.session.MediaSession
@@ -38,7 +39,8 @@ class PlaybackManager @Inject constructor(
     val streamResolver: YouTubeStreamResolver,
     val settingsPreferences: AuralisSettingsPreferences,
     val sponsorBlockManager: SponsorBlockManager,
-    val youTubeMusicApi: YouTubeMusicApi
+    val youTubeMusicApi: YouTubeMusicApi,
+    val personalizationManager: PersonalizationManager
 ) {
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
@@ -97,7 +99,21 @@ class PlaybackManager @Inject constructor(
     val jamSession = jamClient.currentSession
     val jamState = jamClient.jamState
 
+    private val _currentQueueIndex = MutableStateFlow(-1)
+    val currentQueueIndex = _currentQueueIndex.asStateFlow()
+
+    private val _playbackSpeed = MutableStateFlow(1.0f)
+    val playbackSpeed = _playbackSpeed.asStateFlow()
+
+    private val _sleepTimerMinutesRemaining = MutableStateFlow<Int?>(null)
+    val sleepTimerMinutesRemaining = _sleepTimerMinutesRemaining.asStateFlow()
+    private var sleepTimerJob: Job? = null
+
     private var currentIndex = -1
+        set(value) {
+            field = value
+            _currentQueueIndex.value = value
+        }
     private var isCrossfading = false
     private var isFetchingRadio = false
     private var positionTickerJob: Job? = null
@@ -158,6 +174,7 @@ class PlaybackManager @Inject constructor(
                     if (playbackState == Player.STATE_READY) {
                         _durationMs.value = player.duration.coerceAtLeast(0L)
                         audioEffectManager.attachAudioSession(player.audioSessionId)
+                        _currentTrack.value?.let { personalizationManager.recordTrackPlay(it) }
                     } else if (playbackState == Player.STATE_ENDED && !isCrossfading) {
                         if (_repeatMode.value == RepeatMode.ONE) {
                             activePlayer.seekTo(0L)
@@ -446,6 +463,100 @@ class PlaybackManager @Inject constructor(
             currentIndex = index
             jamClient.broadcastPlaybackState(target, 0L, true, action = "change_track")
             startCrossfadeTo(target)
+        }
+    }
+
+    fun playNext(track: Track) {
+        val q = _queue.value.toMutableList()
+        if (q.isEmpty() || currentIndex == -1) {
+            playTrack(track, listOf(track))
+        } else {
+            val existingIndex = q.indexOfFirst { it.id == track.id }
+            if (existingIndex > currentIndex) {
+                q.removeAt(existingIndex)
+            }
+            val insertIndex = (currentIndex + 1).coerceAtMost(q.size)
+            q.add(insertIndex, track)
+            _queue.value = q
+        }
+        _lastJamAction.value = "Playing next: ${track.title} 🎶"
+        scheduleActionDismiss()
+    }
+
+    fun addToQueue(track: Track) {
+        val q = _queue.value.toMutableList()
+        if (q.isEmpty()) {
+            playTrack(track, listOf(track))
+        } else {
+            if (q.none { it.id == track.id }) {
+                q.add(track)
+                _queue.value = q
+            }
+        }
+        _lastJamAction.value = "Added to queue: ${track.title} 🎵"
+        scheduleActionDismiss()
+    }
+
+    fun moveQueueItem(fromIndex: Int, toIndex: Int) {
+        val q = _queue.value.toMutableList()
+        if (fromIndex in q.indices && toIndex in q.indices && fromIndex != toIndex) {
+            val currentTrackId = _currentTrack.value?.id
+            val item = q.removeAt(fromIndex)
+            q.add(toIndex, item)
+            _queue.value = q
+            currentIndex = q.indexOfFirst { it.id == currentTrackId }
+        }
+    }
+
+    fun removeQueueItem(index: Int) {
+        val q = _queue.value.toMutableList()
+        if (index in q.indices && index != currentIndex) {
+            val currentTrackId = _currentTrack.value?.id
+            q.removeAt(index)
+            _queue.value = q
+            currentIndex = q.indexOfFirst { it.id == currentTrackId }
+        }
+    }
+
+    fun clearUpcomingQueue() {
+        val q = _queue.value
+        if (currentIndex in q.indices) {
+            _queue.value = q.take(currentIndex + 1)
+            _lastJamAction.value = "Upcoming queue cleared 🗑️"
+            scheduleActionDismiss()
+        }
+    }
+
+    fun setPlaybackSpeed(speed: Float) {
+        _playbackSpeed.value = speed
+        val params = PlaybackParameters(speed)
+        playerA.playbackParameters = params
+        playerB.playbackParameters = params
+    }
+
+    fun setSleepTimer(minutes: Int?) {
+        sleepTimerJob?.cancel()
+        _sleepTimerMinutesRemaining.value = minutes
+        if (minutes != null && minutes > 0) {
+            sleepTimerJob = scope.launch {
+                var remaining = minutes
+                while (remaining > 0) {
+                    _sleepTimerMinutesRemaining.value = remaining
+                    delay(60_000L)
+                    remaining--
+                }
+                _sleepTimerMinutesRemaining.value = null
+                // Gentle fade out over 10 seconds
+                for (step in 10 downTo 0) {
+                    val vol = step / 10f
+                    activePlayer.volume = vol
+                    delay(1000L)
+                }
+                pause()
+                activePlayer.volume = 1.0f
+                _lastJamAction.value = "Sleep timer finished 🌙"
+                scheduleActionDismiss()
+            }
         }
     }
 

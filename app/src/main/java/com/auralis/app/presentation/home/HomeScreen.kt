@@ -31,6 +31,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.auralis.app.domain.model.Track
+import com.auralis.app.presentation.common.TrackContextMenuBottomSheet
 import com.auralis.app.presentation.together.*
 import com.auralis.app.ui.theme.*
 
@@ -49,9 +50,13 @@ fun HomeScreen(
     val selectedMood by viewModel.selectedMood.collectAsState()
     val jamSession by viewModel.jamSession.collectAsState()
     val lastJamAction by viewModel.lastJamAction.collectAsState()
+    val recentTracks by viewModel.recentTracks.collectAsState()
+    val topArtists by viewModel.topArtists.collectAsState()
+    val (timeGreeting, timeSubtitle) = remember { viewModel.getTimeOfDayGreeting() }
 
     var showJamDialog by remember { mutableStateOf(false) }
     var isSearchExpanded by remember { mutableStateOf(false) }
+    var selectedTrackForMenu by remember { mutableStateOf<Track?>(null) }
 
     Surface(
         modifier = Modifier.fillMaxSize(),
@@ -358,6 +363,20 @@ fun HomeScreen(
                     )
                 }
 
+                // Track Context Menu (Play Next, Add to Queue, Radio, Share, Download)
+                if (selectedTrackForMenu != null) {
+                    val menuTrack = selectedTrackForMenu!!
+                    TrackContextMenuBottomSheet(
+                        track = menuTrack,
+                        onPlayNext = { viewModel.playNext(menuTrack) },
+                        onAddToQueue = { viewModel.addToQueue(menuTrack) },
+                        onStartRadio = { viewModel.startRadio(menuTrack) },
+                        onViewArtist = { onNavigateToArtist(it) },
+                        onToggleDownload = { viewModel.toggleDownload(menuTrack) },
+                        onDismiss = { selectedTrackForMenu = null }
+                    )
+                }
+
                 // Main Feed Area
                 when (val state = uiState) {
                     is HomeUiState.Loading -> {
@@ -390,7 +409,8 @@ fun HomeScreen(
                                     GlassTrackListItem(
                                         track = track,
                                         onClick = { onTrackClick(track) },
-                                        onDownloadClick = { viewModel.toggleDownload(track) }
+                                        onDownloadClick = { viewModel.toggleDownload(track) },
+                                        onMoreClick = { selectedTrackForMenu = track }
                                     )
                                 }
                             }
@@ -405,6 +425,92 @@ fun HomeScreen(
                                 verticalArrangement = Arrangement.spacedBy(20.dp),
                                 contentPadding = PaddingValues(top = 8.dp, bottom = 90.dp)
                             ) {
+                                // Section 0: Time-of-Day Personalized Greeting & Mood Vibe
+                                item {
+                                    Column(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 16.dp)
+                                            .glassCard(cornerRadius = 20.dp)
+                                            .padding(16.dp)
+                                    ) {
+                                        Text(
+                                            text = timeGreeting,
+                                            color = BabyPinkPrimary,
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 18.sp
+                                        )
+                                        Text(
+                                            text = timeSubtitle,
+                                            color = BabyPinkTextSecondary,
+                                            fontSize = 13.sp,
+                                            modifier = Modifier.padding(top = 2.dp)
+                                        )
+                                        if (topArtists.isNotEmpty()) {
+                                            Spacer(modifier = Modifier.height(8.dp))
+                                            Text(
+                                                text = "Favorites: " + topArtists.take(3).joinToString(" • "),
+                                                color = BabyPinkTextPrimary,
+                                                fontWeight = FontWeight.SemiBold,
+                                                fontSize = 11.sp
+                                            )
+                                        }
+                                    }
+                                }
+
+                                // Section 0.5: Jump Back In (Recently Played from Personalization Engine)
+                                if (recentTracks.isNotEmpty()) {
+                                    item {
+                                        Column {
+                                            Row(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .padding(horizontal = 16.dp),
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Row(
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                                ) {
+                                                    Icon(
+                                                        imageVector = Icons.Default.History,
+                                                        contentDescription = null,
+                                                        tint = BabyPinkPrimary,
+                                                        modifier = Modifier.size(20.dp)
+                                                    )
+                                                    Text(
+                                                        text = "Jump Back In",
+                                                        style = MaterialTheme.typography.titleLarge.copy(
+                                                            fontWeight = FontWeight.Bold
+                                                        ),
+                                                        color = BabyPinkTextPrimary
+                                                    )
+                                                }
+                                                Text(
+                                                    text = "Recently Played",
+                                                    color = BabyPinkTextSecondary,
+                                                    fontSize = 12.sp,
+                                                    fontWeight = FontWeight.Medium
+                                                )
+                                            }
+                                            Spacer(modifier = Modifier.height(10.dp))
+                                            LazyRow(
+                                                contentPadding = PaddingValues(horizontal = 16.dp),
+                                                horizontalArrangement = Arrangement.spacedBy(14.dp)
+                                            ) {
+                                                items(recentTracks, key = { "recent_${it.id}" }) { track ->
+                                                    GlassMusicCardItem(
+                                                        track = track,
+                                                        onClick = { onTrackClick(track) },
+                                                        onMoreClick = { selectedTrackForMenu = track }
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+
                                 // Section 1: Quick Picks Shelf (Frosted Glass Cards)
                                 if (quickPicks.isNotEmpty()) {
                                     item {
@@ -430,7 +536,8 @@ fun HomeScreen(
                                                     GlassTrackListItem(
                                                         track = track,
                                                         onClick = { onTrackClick(track) },
-                                                        onDownloadClick = { viewModel.toggleDownload(track) }
+                                                        onDownloadClick = { viewModel.toggleDownload(track) },
+                                                        onMoreClick = { selectedTrackForMenu = track }
                                                     )
                                                 }
                                             }
@@ -458,7 +565,8 @@ fun HomeScreen(
                                                 items(trendingNow, key = { it.id }) { track ->
                                                     GlassMusicCardItem(
                                                         track = track,
-                                                        onClick = { onTrackClick(track) }
+                                                        onClick = { onTrackClick(track) },
+                                                        onMoreClick = { selectedTrackForMenu = track }
                                                     )
                                                 }
                                             }
@@ -486,7 +594,8 @@ fun HomeScreen(
                                                 items(recommended, key = { it.id }) { track ->
                                                     GlassMusicCardItem(
                                                         track = track,
-                                                        onClick = { onTrackClick(track) }
+                                                        onClick = { onTrackClick(track) },
+                                                        onMoreClick = { selectedTrackForMenu = track }
                                                     )
                                                 }
                                             }
@@ -532,7 +641,8 @@ fun HomeScreen(
 fun GlassTrackListItem(
     track: Track,
     onClick: () -> Unit,
-    onDownloadClick: () -> Unit
+    onDownloadClick: () -> Unit,
+    onMoreClick: () -> Unit = {}
 ) {
     val context = LocalContext.current
     Row(
@@ -606,13 +716,26 @@ fun GlassTrackListItem(
                 )
             }
         }
+
+        IconButton(
+            onClick = onMoreClick,
+            modifier = Modifier.hapticPress(scaleDown = 0.85f)
+        ) {
+            Icon(
+                imageVector = Icons.Default.MoreVert,
+                contentDescription = "More Options",
+                tint = BabyPinkTextSecondary,
+                modifier = Modifier.size(20.dp)
+            )
+        }
     }
 }
 
 @Composable
 fun GlassMusicCardItem(
     track: Track,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    onMoreClick: (() -> Unit)? = null
 ) {
     val context = LocalContext.current
     Column(
@@ -659,6 +782,25 @@ fun GlassMusicCardItem(
                     fontSize = 9.sp,
                     fontWeight = FontWeight.Bold
                 )
+            }
+
+            if (onMoreClick != null) {
+                IconButton(
+                    onClick = onMoreClick,
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(4.dp)
+                        .size(28.dp)
+                        .clip(CircleShape)
+                        .background(Color(0xB3FFFFFF))
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.MoreVert,
+                        contentDescription = "More",
+                        tint = BabyPinkTextPrimary,
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
             }
         }
         Spacer(modifier = Modifier.height(8.dp))
