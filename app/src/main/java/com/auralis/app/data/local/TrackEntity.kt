@@ -20,7 +20,10 @@ data class TrackEntity(
             artist = artist,
             albumArtUrl = albumArtUrl,
             mediaUrl = mediaUrl,
-            durationMs = durationMs
+            durationMs = durationMs,
+            source = "Offline",
+            qualityBadge = "Offline HQ",
+            isDownloaded = true
         )
     }
 }

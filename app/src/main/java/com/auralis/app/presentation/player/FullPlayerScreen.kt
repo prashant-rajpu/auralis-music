@@ -4,13 +4,14 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
-import androidx.compose.material.icons.filled.Download
-import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -23,8 +24,11 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
+import com.auralis.app.ui.theme.NeonCyan
+import com.auralis.app.ui.theme.SpotifyGreen
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -68,11 +72,11 @@ fun FullPlayerScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .aspectRatio(1f)
-                        .clip(RoundedCornerShape(12.dp))
+                        .clip(RoundedCornerShape(16.dp))
                         .background(Color.DarkGray)
                 )
 
-                Spacer(modifier = Modifier.height(32.dp))
+                Spacer(modifier = Modifier.height(24.dp))
 
                 Column(
                     modifier = Modifier.fillMaxWidth(),
@@ -85,6 +89,7 @@ fun FullPlayerScreen(
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
+                    Spacer(modifier = Modifier.height(4.dp))
                     Text(
                         text = currentTrack!!.artist,
                         style = MaterialTheme.typography.titleMedium,
@@ -92,9 +97,32 @@ fun FullPlayerScreen(
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .background(Color(0xFF1E3A2B), RoundedCornerShape(6.dp))
+                                .padding(horizontal = 8.dp, vertical = 4.dp)
+                        ) {
+                            Text(
+                                text = currentTrack!!.qualityBadge,
+                                color = SpotifyGreen,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                        Text(
+                            text = "Streamed via ${currentTrack!!.source}",
+                            color = Color.Gray,
+                            fontSize = 11.sp
+                        )
+                    }
                 }
 
-                Spacer(modifier = Modifier.height(32.dp))
+                Spacer(modifier = Modifier.height(24.dp))
 
                 // Seek bar placeholder
                 Slider(
@@ -113,7 +141,10 @@ fun FullPlayerScreen(
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Text("0:00", style = MaterialTheme.typography.labelMedium)
-                    Text("3:45", style = MaterialTheme.typography.labelMedium)
+                    val durationSec = (currentTrack!!.durationMs / 1000).coerceAtLeast(30)
+                    val min = durationSec / 60
+                    val sec = durationSec % 60
+                    Text(String.format("%d:%02d", min, sec), style = MaterialTheme.typography.labelMedium)
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
@@ -125,13 +156,27 @@ fun FullPlayerScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     IconButton(onClick = { viewModel.downloadCurrentTrack() }, modifier = Modifier.size(48.dp)) {
-                        Icon(Icons.Default.Download, contentDescription = "Download", modifier = Modifier.size(24.dp))
+                        if (currentTrack!!.isDownloaded) {
+                            Icon(
+                                Icons.Default.CheckCircle,
+                                contentDescription = "Downloaded",
+                                tint = SpotifyGreen,
+                                modifier = Modifier.size(26.dp)
+                            )
+                        } else {
+                            Icon(
+                                Icons.Default.Download,
+                                contentDescription = "Download Song",
+                                tint = MaterialTheme.colorScheme.onBackground,
+                                modifier = Modifier.size(26.dp)
+                            )
+                        }
                     }
-                    
-                    IconButton(onClick = { /* TODO */ }, modifier = Modifier.size(48.dp)) {
+
+                    IconButton(onClick = { /* Previous */ }, modifier = Modifier.size(48.dp)) {
                         Icon(Icons.Default.SkipPrevious, contentDescription = "Previous", modifier = Modifier.size(36.dp))
                     }
-                    
+
                     FilledIconButton(
                         onClick = { viewModel.togglePlayPause() },
                         modifier = Modifier.size(72.dp),
@@ -147,11 +192,11 @@ fun FullPlayerScreen(
                         )
                     }
 
-                    IconButton(onClick = { /* TODO */ }, modifier = Modifier.size(48.dp)) {
+                    IconButton(onClick = { /* Next */ }, modifier = Modifier.size(48.dp)) {
                         Icon(Icons.Default.SkipNext, contentDescription = "Next", modifier = Modifier.size(36.dp))
                     }
-                    
-                    IconButton(onClick = { /* TODO: Add to playlist/favorites */ }, modifier = Modifier.size(48.dp)) {
+
+                    IconButton(onClick = { /* Favorite */ }, modifier = Modifier.size(48.dp)) {
                         Icon(Icons.Default.FavoriteBorder, contentDescription = "Favorite", modifier = Modifier.size(24.dp))
                     }
                 }

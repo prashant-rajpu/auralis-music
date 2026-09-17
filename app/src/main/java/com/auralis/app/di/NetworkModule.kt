@@ -1,5 +1,7 @@
 package com.auralis.app.di
 
+import com.auralis.app.network.AudiusApi
+import com.auralis.app.network.JioSaavnApi
 import com.auralis.app.network.OpenSourceMusicApi
 import dagger.Module
 import dagger.Provides
@@ -9,38 +11,58 @@ import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
+import java.util.concurrent.TimeUnit
 import javax.inject.Singleton
 
 @Module
 @InstallIn(SingletonComponent::class)
 object NetworkModule {
 
-    private const val BASE_URL = "https://api.deezer.com/"
-
     @Provides
     @Singleton
     fun provideOkHttpClient(): OkHttpClient {
         val logging = HttpLoggingInterceptor().apply {
-            level = HttpLoggingInterceptor.Level.BODY
+            level = HttpLoggingInterceptor.Level.HEADERS
         }
         return OkHttpClient.Builder()
             .addInterceptor(logging)
+            .connectTimeout(15, TimeUnit.SECONDS)
+            .readTimeout(15, TimeUnit.SECONDS)
+            .followRedirects(true)
+            .followSslRedirects(true)
             .build()
     }
 
     @Provides
     @Singleton
-    fun provideRetrofit(okHttpClient: OkHttpClient): Retrofit {
+    fun provideDeezerApi(okHttpClient: OkHttpClient): OpenSourceMusicApi {
         return Retrofit.Builder()
-            .baseUrl(BASE_URL)
+            .baseUrl("https://api.deezer.com/")
             .client(okHttpClient)
             .addConverterFactory(GsonConverterFactory.create())
             .build()
+            .create(OpenSourceMusicApi::class.java)
     }
 
     @Provides
     @Singleton
-    fun provideOpenSourceMusicApi(retrofit: Retrofit): OpenSourceMusicApi {
-        return retrofit.create(OpenSourceMusicApi::class.java)
+    fun provideJioSaavnApi(okHttpClient: OkHttpClient): JioSaavnApi {
+        return Retrofit.Builder()
+            .baseUrl("https://www.jiosaavn.com/")
+            .client(okHttpClient)
+            .addConverterFactory(GsonConverterFactory.create())
+            .build()
+            .create(JioSaavnApi::class.java)
+    }
+
+    @Provides
+    @Singleton
+    fun provideAudiusApi(okHttpClient: OkHttpClient): AudiusApi {
+        return Retrofit.Builder()
+            .baseUrl("https://discoveryprovider.audius.co/")
+            .client(okHttpClient)
+            .addConverterFactory(GsonConverterFactory.create())
+            .build()
+            .create(AudiusApi::class.java)
     }
 }
