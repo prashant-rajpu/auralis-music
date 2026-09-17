@@ -3,6 +3,7 @@ package com.auralis.app.data.local
 import android.content.Context
 import android.util.Log
 import com.auralis.app.domain.model.Track
+import com.auralis.app.lyrics.LyricsRepository
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -17,7 +18,8 @@ import javax.inject.Singleton
 class OfflineDownloader @Inject constructor(
     @ApplicationContext private val context: Context,
     private val trackDao: TrackDao,
-    private val okHttpClient: OkHttpClient
+    private val okHttpClient: OkHttpClient,
+    private val lyricsRepository: LyricsRepository
 ) {
     suspend fun downloadTrack(track: Track): Boolean = withContext(Dispatchers.IO) {
         try {
@@ -45,6 +47,10 @@ class OfflineDownloader @Inject constructor(
                         }
                     }
 
+                    // Fetch and cache synced lyrics for offline playback
+                    val lyrics = lyricsRepository.getLyrics(track)
+                    val lyricsJson = if (lyrics.isNotEmpty()) TrackEntity.encodeLyricsJson(lyrics) else null
+
                     val localUri = file.absolutePath
                     trackDao.insertTrack(
                         TrackEntity(
@@ -53,10 +59,13 @@ class OfflineDownloader @Inject constructor(
                             artist = track.artist,
                             albumArtUrl = track.albumArtUrl,
                             mediaUrl = localUri,
-                            durationMs = track.durationMs
+                            durationMs = track.durationMs,
+                            source = "Offline",
+                            qualityBadge = track.qualityBadge,
+                            syncedLyricsJson = lyricsJson
                         )
                     )
-                    Log.d("OfflineDownloader", "Successfully downloaded track ${track.title} to $localUri")
+                    Log.d("OfflineDownloader", "Successfully downloaded track ${track.title} with lyrics to $localUri")
                     return@withContext true
                 }
             }
