@@ -39,7 +39,8 @@ import com.auralis.app.ui.theme.*
 @Composable
 fun FullPlayerScreen(
     viewModel: PlayerViewModel = hiltViewModel(),
-    onNavigateUp: () -> Unit
+    onNavigateUp: () -> Unit,
+    onNavigateToArtist: (String) -> Unit = {}
 ) {
     val currentTrack by viewModel.currentTrack.collectAsState()
     val isPlaying by viewModel.isPlaying.collectAsState()
@@ -334,6 +335,8 @@ fun FullPlayerScreen(
                                 }
 
                                 PlayerScreenTab.LYRICS -> {
+                                    val lyricsFontSize by viewModel.lyricsFontSize.collectAsState()
+                                    val lyricsAutoScroll by viewModel.lyricsAutoScroll.collectAsState()
                                     Box(
                                         modifier = Modifier
                                             .fillMaxSize()
@@ -342,7 +345,9 @@ fun FullPlayerScreen(
                                         SyncedLyricsView(
                                             lyrics = lyrics,
                                             currentPositionFlow = viewModel.currentPositionMs,
-                                            onSeekTo = { viewModel.seekTo(it) }
+                                            onSeekTo = { viewModel.seekTo(it) },
+                                            lyricsFontSize = lyricsFontSize,
+                                            autoScroll = lyricsAutoScroll
                                         )
                                     }
                                 }
@@ -378,11 +383,36 @@ fun FullPlayerScreen(
                                                 Text("Dual-ExoPlayer Crossfade Active", color = BabyPinkTextPrimary, fontSize = 13.sp)
                                             }
                                         }
+
+                                        Button(
+                                            onClick = { onNavigateToArtist(track.artist) },
+                                            colors = ButtonDefaults.buttonColors(containerColor = BabyPinkPrimary),
+                                            shape = RoundedCornerShape(16.dp),
+                                            modifier = Modifier.fillMaxWidth().hapticPress(scaleDown = 0.94f)
+                                        ) {
+                                            Icon(Icons.Default.Person, contentDescription = null, tint = Color.White)
+                                            Spacer(modifier = Modifier.width(8.dp))
+                                            Text("View Full Artist Discography", color = Color.White, fontWeight = FontWeight.Bold)
+                                        }
+
+                                        Button(
+                                            onClick = { viewModel.startRadio() },
+                                            colors = ButtonDefaults.buttonColors(containerColor = BabyPinkCardBg),
+                                            border = ButtonDefaults.outlinedButtonBorder.copy(brush = androidx.compose.ui.graphics.SolidColor(BabyPinkBorder)),
+                                            shape = RoundedCornerShape(16.dp),
+                                            modifier = Modifier.fillMaxWidth().hapticPress(scaleDown = 0.94f)
+                                        ) {
+                                            Icon(Icons.Default.Radio, contentDescription = null, tint = BabyPinkPrimary)
+                                            Spacer(modifier = Modifier.width(8.dp))
+                                            Text("Start Infinite Track Radio", color = BabyPinkPrimary, fontWeight = FontWeight.Bold)
+                                        }
+
                                         Button(
                                             onClick = { viewModel.setSoundProfilesVisible(true) },
-                                            colors = ButtonDefaults.buttonColors(containerColor = BabyPinkPrimary),
-                                            shape = RoundedCornerShape(20.dp),
-                                            modifier = Modifier.fillMaxWidth()
+                                            colors = ButtonDefaults.buttonColors(containerColor = BabyPinkCardBg),
+                                            border = ButtonDefaults.outlinedButtonBorder.copy(brush = androidx.compose.ui.graphics.SolidColor(BabyPinkBorder)),
+                                            shape = RoundedCornerShape(16.dp),
+                                            modifier = Modifier.fillMaxWidth().hapticPress(scaleDown = 0.94f)
                                         ) {
                                             Icon(Icons.Default.GraphicEq, contentDescription = null, tint = BabyPinkTextPrimary)
                                             Spacer(modifier = Modifier.width(8.dp))
@@ -422,7 +452,10 @@ fun FullPlayerScreen(
                                     color = BabyPinkTextSecondary,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis,
-                                    modifier = Modifier.weight(1f, fill = false)
+                                    modifier = Modifier
+                                        .weight(1f, fill = false)
+                                        .clip(RoundedCornerShape(6.dp))
+                                        .clickable { onNavigateToArtist(track.artist) }
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Box(

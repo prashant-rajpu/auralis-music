@@ -1,12 +1,15 @@
 package com.auralis.app.lyrics
 
+import android.util.Log
 import com.auralis.app.data.local.TrackDao
 import com.auralis.app.data.local.TrackEntity
 import com.auralis.app.domain.model.LyricLine
 import com.auralis.app.domain.model.Track
-import com.auralis.app.network.JioSaavnApi
 import com.auralis.app.network.LrclibApi
+import com.auralis.app.network.LyricsOvhApi
 import com.auralis.app.network.NetEaseLyricsApi
+import com.auralis.app.playback.AuralisSettingsPreferences
+import com.auralis.app.playback.LyricsProvider
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
@@ -15,9 +18,10 @@ import javax.inject.Singleton
 @Singleton
 class LyricsRepository @Inject constructor(
     private val lrclibApi: LrclibApi,
+    private val lyricsOvhApi: LyricsOvhApi,
     private val netEaseApi: NetEaseLyricsApi,
-    private val jioSaavnApi: JioSaavnApi,
-    private val trackDao: TrackDao
+    private val trackDao: TrackDao,
+    private val settingsPreferences: AuralisSettingsPreferences
 ) {
     private val memoryCache = mutableMapOf<String, List<LyricLine>>()
 
@@ -35,7 +39,7 @@ class LyricsRepository @Inject constructor(
             }
         }
 
-        // 3. Local Room database (offline downloaded tracks)
+        // 3. Local Room database (offline downloaded tracks or previously cached)
         try {
             val localEntity = trackDao.getTrackById(track.id)
             if (localEntity?.syncedLyricsJson != null && localEntity.syncedLyricsJson.isNotEmpty()) {
@@ -51,69 +55,104 @@ class LyricsRepository @Inject constructor(
 
         val cleanTitle = cleanSearchQuery(track.title)
         val cleanArtist = cleanSearchQuery(track.artist)
+        val preferredProvider = settingsPreferences.lyricsProvider.value
 
-        // 4. LRCLIB (Primary synced LRC provider)
-        try {
-            val durationSec = if (track.durationMs > 0) (track.durationMs / 1000).toInt() else null
-            val resp = lrclibApi.getLyrics(cleanTitle, cleanArtist, durationSec)
+        var result: List<LyricLine> = emptyList()
+
+        when (preferredProvider) {
+            LyricsProvider.LRCLIB -> {
+                result = fetchFromLrclib(cleanTitle, cleanArtist, track.durationMs)
+                if (result.isEmpty()) result = fetchFromLyricsOvh(cleanTitle, cleanArtist, track.durationMs)
+            }
+            LyricsProvider.LYRICS_OVH -> {
+                result = fetchFromLyricsOvh(cleanTitle, cleanArtist, track.durationMs)
+                if (result.isEmpty()) result = fetchFromLrclib(cleanTitle, cleanArtist, track.durationMs)
+            }
+            LyricsProvider.NETEASE -> {
+                result = fetchFromNetEase(cleanTitle, cleanArtist)
+                if (result.isEmpty()) result = fetchFromLrclib(cleanTitle, cleanArtist, track.durationMs)
+            }
+            LyricsProvider.AUTO -> {
+                // Priority: 1. LRCLIB (synced) -> 2. Lyrics.ovh (clean full lyrics) -> 3. NetEase
+                result = fetchFromLrclib(cleanTitle, cleanArtist, track.durationMs)
+                if (result.isEmpty()) {
+                    result = fetchFromLyricsOvh(cleanTitle, cleanArtist, track.durationMs)
+                }
+                if (result.isEmpty()) {
+                    result = fetchFromNetEase(cleanTitle, cleanArtist)
+                }
+            }
+        }
+
+        if (result.isNotEmpty()) {
+            memoryCache[cacheKey] = result
+
+            // Cache to local Room database if enabled and track is offline
+            if (settingsPreferences.offlineLyricsEnabled.value) {
+                try {
+                    val localEntity = trackDao.getTrackById(track.id)
+                    if (localEntity != null && localEntity.syncedLyricsJson.isNullOrEmpty()) {
+                        val updated = localEntity.copy(
+                            syncedLyricsJson = TrackEntity.encodeLyricsJson(result)
+                        )
+                        trackDao.insertTrack(updated)
+                    }
+                } catch (e: Exception) {
+                    Log.w("LyricsRepository", "Could not cache lyrics to DB", e)
+                }
+            }
+        }
+
+        result
+    }
+
+    private suspend fun fetchFromLrclib(title: String, artist: String, durationMs: Long): List<LyricLine> {
+        return try {
+            val durationSec = if (durationMs > 0) (durationMs / 1000).toInt() else null
+            val resp = lrclibApi.getLyrics(title, artist, durationSec)
             if (resp?.syncedLyrics != null && resp.syncedLyrics.isNotBlank()) {
                 val parsed = LrcParser.parse(resp.syncedLyrics)
-                if (parsed.isNotEmpty()) {
-                    memoryCache[cacheKey] = parsed
-                    return@withContext parsed
-                }
-            } else if (resp?.plainLyrics != null && resp.plainLyrics.isNotBlank()) {
-                val plain = parsePlainLyricsToLines(resp.plainLyrics, track.durationMs)
-                if (plain.isNotEmpty()) {
-                    memoryCache[cacheKey] = plain
-                    return@withContext plain
-                }
+                if (parsed.isNotEmpty()) return parsed
+            }
+            if (resp?.plainLyrics != null && resp.plainLyrics.isNotBlank()) {
+                parsePlainLyricsToLines(resp.plainLyrics, durationMs)
+            } else {
+                emptyList()
             }
         } catch (e: Exception) {
-            // Fallback to next provider
+            emptyList()
         }
+    }
 
-        // 5. NetEase Lyrics API
-        try {
-            val query = "$cleanTitle $cleanArtist"
+    private suspend fun fetchFromLyricsOvh(title: String, artist: String, durationMs: Long): List<LyricLine> {
+        return try {
+            val resp = lyricsOvhApi.getLyrics(artist = artist, title = title)
+            val raw = resp?.lyrics
+            if (!raw.isNullOrBlank()) {
+                parsePlainLyricsToLines(raw, durationMs)
+            } else {
+                emptyList()
+            }
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+
+    private suspend fun fetchFromNetEase(title: String, artist: String): List<LyricLine> {
+        return try {
+            val query = "$title $artist"
             val searchRes = netEaseApi.searchSong(query)
-            val songId = searchRes?.result?.songs?.firstOrNull()?.id
-            if (songId != null) {
-                val lyricRes = netEaseApi.getSongLyric(songId)
-                val rawLrc = lyricRes?.lrc?.lyric
-                if (!rawLrc.isNullOrBlank()) {
-                    val parsed = LrcParser.parse(rawLrc)
-                    if (parsed.isNotEmpty()) {
-                        memoryCache[cacheKey] = parsed
-                        return@withContext parsed
-                    }
-                }
+            val songId = searchRes?.result?.songs?.firstOrNull()?.id ?: return emptyList()
+            val lyricRes = netEaseApi.getSongLyric(songId)
+            val rawLrc = lyricRes?.lrc?.lyric
+            if (!rawLrc.isNullOrBlank()) {
+                LrcParser.parse(rawLrc)
+            } else {
+                emptyList()
             }
         } catch (e: Exception) {
-            // Fallback
+            emptyList()
         }
-
-        // 6. JioSaavn lyrics API
-        try {
-            val jioResp = jioSaavnApi.getLyrics(track.id)
-            val rawLyrics = jioResp.lyrics
-            if (!rawLyrics.isNullOrBlank()) {
-                val clean = rawLyrics.replace("<br>", "\n").replace("<br/>", "\n")
-                val parsed = if (clean.contains("[")) {
-                    LrcParser.parse(clean)
-                } else {
-                    parsePlainLyricsToLines(clean, track.durationMs)
-                }
-                if (parsed.isNotEmpty()) {
-                    memoryCache[cacheKey] = parsed
-                    return@withContext parsed
-                }
-            }
-        } catch (e: Exception) {
-            // End of providers
-        }
-
-        emptyList()
     }
 
     private fun cleanSearchQuery(text: String): String {
@@ -122,6 +161,10 @@ class LyricsRepository @Inject constructor(
             .replace(Regex("\\[.*?\\]"), "")
             .replace(Regex("(?i)feat\\..*"), "")
             .replace(Regex("(?i)ft\\..*"), "")
+            .replace(Regex("(?i)official.*"), "")
+            .replace(Regex("(?i)lyrics?.*"), "")
+            .replace(Regex("(?i)remix.*"), "")
+            .replace(Regex("(?i)video.*"), "")
             .trim()
     }
 

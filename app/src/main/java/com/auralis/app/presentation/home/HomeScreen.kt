@@ -38,6 +38,8 @@ import com.auralis.app.ui.theme.*
 @Composable
 fun HomeScreen(
     onTrackClick: (Track) -> Unit,
+    onNavigateToSettings: () -> Unit = {},
+    onNavigateToArtist: (String) -> Unit = {},
     viewModel: HomeViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -106,6 +108,21 @@ fun HomeScreen(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
+                        IconButton(
+                            onClick = onNavigateToSettings,
+                            modifier = Modifier
+                                .size(38.dp)
+                                .glassPill(borderWidth = 1.dp)
+                                .hapticPress(scaleDown = 0.88f)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Tune,
+                                contentDescription = "Settings & Adjustments",
+                                tint = BabyPinkTextPrimary,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+
                         IconButton(
                             onClick = { showJamDialog = true },
                             modifier = Modifier

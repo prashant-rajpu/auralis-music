@@ -64,6 +64,13 @@ class PlayerViewModel @Inject constructor(
     private val _dislikedTrackIds = MutableStateFlow<Set<String>>(emptySet())
     val dislikedTrackIds = _dislikedTrackIds.asStateFlow()
 
+    val lyricsFontSize = playbackManager.settingsPreferences.lyricsFontSize
+    val lyricsAutoScroll = playbackManager.settingsPreferences.lyricsAutoScroll
+
+    fun startRadio() {
+        currentTrack.value?.let { playbackManager.startRadio(it) }
+    }
+
     init {
         viewModelScope.launch {
             currentTrack.collect { track ->

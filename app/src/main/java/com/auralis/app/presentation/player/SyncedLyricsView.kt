@@ -21,6 +21,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.auralis.app.domain.model.LyricLine
+import com.auralis.app.playback.LyricsFontSize
 import com.auralis.app.ui.theme.BabyPinkPrimary
 import com.auralis.app.ui.theme.BabyPinkTextPrimary
 import com.auralis.app.ui.theme.BabyPinkTextSecondary
@@ -31,6 +32,8 @@ fun SyncedLyricsView(
     lyrics: List<LyricLine>,
     currentPositionFlow: StateFlow<Long>,
     onSeekTo: (Long) -> Unit,
+    lyricsFontSize: LyricsFontSize = LyricsFontSize.STANDARD,
+    autoScroll: Boolean = true,
     modifier: Modifier = Modifier
 ) {
     val currentPositionMs by currentPositionFlow.collectAsState()
@@ -38,6 +41,8 @@ fun SyncedLyricsView(
         lyrics = lyrics,
         currentPositionMs = currentPositionMs,
         onSeekTo = onSeekTo,
+        lyricsFontSize = lyricsFontSize,
+        autoScroll = autoScroll,
         modifier = modifier
     )
 }
@@ -47,6 +52,8 @@ fun SyncedLyricsView(
     lyrics: List<LyricLine>,
     currentPositionMs: Long,
     onSeekTo: (Long) -> Unit,
+    lyricsFontSize: LyricsFontSize = LyricsFontSize.STANDARD,
+    autoScroll: Boolean = true,
     modifier: Modifier = Modifier
 ) {
     if (lyrics.isEmpty()) {
@@ -78,13 +85,16 @@ fun SyncedLyricsView(
     // Find the currently active line index based on playback position
     val activeIndex = lyrics.indexOfLast { it.timestampMs <= currentPositionMs }.coerceAtLeast(0)
 
-    // Smoothly auto-scroll so active line stays centered
-    LaunchedEffect(activeIndex) {
-        if (activeIndex >= 0 && activeIndex < lyrics.size) {
+    // Smoothly auto-scroll so active line stays centered if autoScroll is enabled
+    LaunchedEffect(activeIndex, autoScroll) {
+        if (autoScroll && activeIndex >= 0 && activeIndex < lyrics.size) {
             val targetScroll = (activeIndex - 2).coerceAtLeast(0)
             listState.animateScrollToItem(targetScroll)
         }
     }
+
+    val baseSp = lyricsFontSize.sizeSp
+    val activeSp = (baseSp + 5)
 
     LazyColumn(
         state = listState,
@@ -92,12 +102,12 @@ fun SyncedLyricsView(
             .fillMaxSize()
             .padding(horizontal = 20.dp),
         contentPadding = PaddingValues(vertical = 48.dp),
-        verticalArrangement = Arrangement.spacedBy(18.dp)
+        verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         itemsIndexed(lyrics) { index, line ->
             val isActive = index == activeIndex
-            val alpha by animateFloatAsState(targetValue = if (isActive) 1.0f else 0.4f, label = "lyric_alpha")
-            val fontSize = if (isActive) 24.sp else 19.sp
+            val alpha by animateFloatAsState(targetValue = if (isActive) 1.0f else 0.38f, label = "lyric_alpha")
+            val fontSize = if (isActive) activeSp.sp else baseSp.sp
             val fontWeight = if (isActive) FontWeight.Bold else FontWeight.Medium
             val color = if (isActive) BabyPinkTextPrimary else BabyPinkTextSecondary
 
@@ -107,8 +117,8 @@ fun SyncedLyricsView(
                 fontWeight = fontWeight,
                 color = color,
                 textAlign = TextAlign.Start,
-                lineHeight = 32.sp,
-                letterSpacing = 0.4.sp,
+                lineHeight = (fontSize.value * 1.4f).sp,
+                letterSpacing = 0.3.sp,
                 modifier = Modifier
                     .fillMaxWidth()
                     .alpha(alpha)

@@ -1,5 +1,6 @@
 package com.auralis.app.presentation.navigation
 
+import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -17,22 +18,25 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
+import com.auralis.app.presentation.artist.ArtistProfileScreen
 import com.auralis.app.presentation.home.HomeScreen
 import com.auralis.app.presentation.home.HomeTab
 import com.auralis.app.presentation.home.HomeViewModel
 import com.auralis.app.presentation.player.FullPlayerScreen
 import com.auralis.app.presentation.player.MiniPlayer
+import com.auralis.app.presentation.settings.SettingsScreen
 import com.auralis.app.ui.theme.*
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -42,7 +46,7 @@ fun AuralisNavGraph() {
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
 
-    val isFullPlayer = currentRoute == "player"
+    val isFullScreenModal = currentRoute == "player" || currentRoute == "settings" || currentRoute?.startsWith("artist") == true
 
     Box(
         modifier = Modifier
@@ -52,7 +56,7 @@ fun AuralisNavGraph() {
         Scaffold(
             containerColor = Color.Transparent,
             bottomBar = {
-                if (!isFullPlayer) {
+                if (!isFullScreenModal) {
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -63,7 +67,7 @@ fun AuralisNavGraph() {
                             onNavigateToFullPlayer = { navController.navigate("player") }
                         )
 
-                        // Floating Frosted Glass Pill Bottom Navigation Bar (Section 7 Spec)
+                        // Floating Frosted Glass Pill Bottom Navigation Bar
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -134,9 +138,9 @@ fun AuralisNavGraph() {
                     val viewModel: HomeViewModel = hiltViewModel()
                     HomeScreen(
                         viewModel = viewModel,
-                        onTrackClick = { track ->
-                            viewModel.playTrack(track)
-                        }
+                        onTrackClick = { track -> viewModel.playTrack(track) },
+                        onNavigateToSettings = { navController.navigate("settings") },
+                        onNavigateToArtist = { artist -> navController.navigate("artist/${Uri.encode(artist)}") }
                     )
                 }
 
@@ -147,9 +151,9 @@ fun AuralisNavGraph() {
                     }
                     HomeScreen(
                         viewModel = viewModel,
-                        onTrackClick = { track ->
-                            viewModel.playTrack(track)
-                        }
+                        onTrackClick = { track -> viewModel.playTrack(track) },
+                        onNavigateToSettings = { navController.navigate("settings") },
+                        onNavigateToArtist = { artist -> navController.navigate("artist/${Uri.encode(artist)}") }
                     )
                 }
 
@@ -160,15 +164,36 @@ fun AuralisNavGraph() {
                     }
                     HomeScreen(
                         viewModel = viewModel,
-                        onTrackClick = { track ->
-                            viewModel.playTrack(track)
-                        }
+                        onTrackClick = { track -> viewModel.playTrack(track) },
+                        onNavigateToSettings = { navController.navigate("settings") },
+                        onNavigateToArtist = { artist -> navController.navigate("artist/${Uri.encode(artist)}") }
                     )
                 }
 
                 composable("player") {
                     FullPlayerScreen(
-                        onNavigateUp = { navController.popBackStack() }
+                        onNavigateUp = { navController.popBackStack() },
+                        onNavigateToArtist = { artist ->
+                            navController.popBackStack()
+                            navController.navigate("artist/${Uri.encode(artist)}")
+                        }
+                    )
+                }
+
+                composable("settings") {
+                    SettingsScreen(
+                        onNavigateBack = { navController.popBackStack() }
+                    )
+                }
+
+                composable(
+                    route = "artist/{artistName}",
+                    arguments = listOf(navArgument("artistName") { type = NavType.StringType })
+                ) {
+                    val homeViewModel: HomeViewModel = hiltViewModel()
+                    ArtistProfileScreen(
+                        onNavigateBack = { navController.popBackStack() },
+                        onTrackClick = { track -> homeViewModel.playTrack(track) }
                     )
                 }
             }
@@ -206,7 +231,7 @@ private fun NavPillItem(
             color = if (isSelected) BabyPinkPrimary else BabyPinkTextSecondary
         )
         Spacer(modifier = Modifier.height(3.dp))
-        // Active indicator dot (Section 7 Spec)
+        // Active indicator dot
         Box(
             modifier = Modifier
                 .size(4.dp)

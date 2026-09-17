@@ -89,4 +89,27 @@ object NetworkModule {
             .build()
             .create(NetEaseLyricsApi::class.java)
     }
+
+    @Provides
+    @Singleton
+    fun provideLyricsOvhApi(okHttpClient: OkHttpClient): com.auralis.app.network.LyricsOvhApi {
+        return Retrofit.Builder()
+            .baseUrl("https://api.lyrics.ovh/")
+            .client(okHttpClient)
+            .addConverterFactory(GsonConverterFactory.create())
+            .build()
+            .create(com.auralis.app.network.LyricsOvhApi::class.java)
+    }
+
+    @Provides
+    @Singleton
+    fun provideSponsorBlockApi(okHttpClient: OkHttpClient): com.auralis.app.network.SponsorBlockApi {
+        return Retrofit.Builder()
+            .baseUrl("https://sponsor.ajay.app/")
+            .client(okHttpClient)
+            .addConverterFactory(GsonConverterFactory.create())
+            .build()
+            .create(com.auralis.app.network.SponsorBlockApi::class.java)
+    }
 }
+

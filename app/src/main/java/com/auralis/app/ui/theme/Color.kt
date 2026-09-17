@@ -15,6 +15,9 @@ val BabyPinkAccent = Color(0xFFFF8DA1)           // Vibrant Accent Pink (Linear 
 val BabyPinkTextPrimary = Color(0xFF5C3A4A)      // Deep Dusty Rose (Primary text: titles, song names)
 val BabyPinkTextSecondary = Color(0xFF9A7A87)    // Muted Rose (Secondary: artists, timestamps, labels)
 val BabyPinkTextTertiary = Color(0xFFB89DA8)
+val BabyPinkCardBg = BabyPinkBgCard
+val BabyPinkBorder = Color(0x73FFB6C1)
+val BabyPinkBackgroundStart = BabyPinkBgStart
 
 // Glass Surfaces & Borders
 val GlassSurface = Color(0x8CFFFFFF)            // rgba(255, 255, 255, 0.55) - Cards, panels, mini player

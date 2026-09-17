@@ -13,6 +13,8 @@ import com.auralis.app.domain.model.SoundProfile
 import com.auralis.app.domain.model.Track
 import com.auralis.app.network.JamState
 import com.auralis.app.network.JamWebSocketClient
+import com.auralis.app.network.SponsorBlockManager
+import com.auralis.app.network.YouTubeMusicApi
 import com.auralis.app.network.YouTubeStreamResolver
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.*
@@ -32,7 +34,10 @@ class PlaybackManager @Inject constructor(
     @ApplicationContext private val context: Context,
     val jamClient: JamWebSocketClient,
     val audioEffectManager: AudioEffectManager,
-    val streamResolver: YouTubeStreamResolver
+    val streamResolver: YouTubeStreamResolver,
+    val settingsPreferences: AuralisSettingsPreferences,
+    val sponsorBlockManager: SponsorBlockManager,
+    val youTubeMusicApi: YouTubeMusicApi
 ) {
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
@@ -85,6 +90,7 @@ class PlaybackManager @Inject constructor(
 
     private var currentIndex = -1
     private var isCrossfading = false
+    private var isFetchingRadio = false
     private var positionTickerJob: Job? = null
     private var crossfadeJob: Job? = null
     private var dismissJob: Job? = null
@@ -167,12 +173,26 @@ class PlaybackManager @Inject constructor(
                         _durationMs.value = dur
                     }
 
+                    // SponsorBlock auto-skip detection during playback
+                    val curTrack = _currentTrack.value
+                    if (curTrack != null && settingsPreferences.sponsorBlockEnabled.value && curTrack.isYouTubeTrack()) {
+                        val videoId = curTrack.getYouTubeVideoId() ?: curTrack.id.removePrefix("yt_")
+                        val skipTarget = sponsorBlockManager.checkSkipTargetMs(videoId, pos)
+                        if (skipTarget != null && skipTarget > pos) {
+                            Log.d("PlaybackManager", "SponsorBlock auto-skip triggered: jumping from $pos to $skipTarget ms")
+                            activePlayer.seekTo(skipTarget)
+                            _currentPositionMs.value = skipTarget
+                        }
+                    }
+
                     // Check for automatic crossfade trigger before song ends
                     val crossfadeDurationMs = audioEffectManager.currentProfile.crossfadeDurationSec * 1000L
                     if (dur > crossfadeDurationMs && (dur - pos) <= crossfadeDurationMs && !isCrossfading) {
                         if (_repeatMode.value != RepeatMode.ONE) {
                             if (currentIndex + 1 < _queue.value.size || _repeatMode.value == RepeatMode.ALL) {
                                 skipNext()
+                            } else if (settingsPreferences.infiniteRadioAutoplay.value) {
+                                triggerInfiniteRadioAutoplay()
                             }
                         }
                     }
@@ -220,23 +240,26 @@ class PlaybackManager @Inject constructor(
                         }
                     }
 
-                    is JamState.RequestSync -> {
-                        // Partner asked for current playing state: reply immediately!
-                        _currentTrack.value?.let { track ->
-                            jamClient.broadcastPlaybackState(
-                                track = track,
-                                position = activePlayer.currentPosition,
-                                isPlaying = activePlayer.isPlaying,
-                                action = "sync_response"
-                            )
-                        }
+                    is JamState.SyncSeek -> {
+                        _lastJamAction.value = "${state.sender} seeked"
+                        scheduleActionDismiss()
+                        activePlayer.seekTo(state.position)
+                        _currentPositionMs.value = state.position
+                    }
+
+                    is JamState.SyncPlayPause -> {
+                        _lastJamAction.value = if (state.isPlaying) "${state.sender} resumed" else "${state.sender} paused"
+                        scheduleActionDismiss()
+                        if (state.isPlaying) activePlayer.play() else activePlayer.pause()
+                        _isPlaying.value = state.isPlaying
                     }
 
                     is JamState.UserJoined -> {
-                        // Partner joined the session! Reply immediately with current playing song
-                        _currentTrack.value?.let { track ->
+                        val session = jamClient.currentSession.value
+                        val current = _currentTrack.value
+                        if (session != null && session.isHost && current != null) {
                             jamClient.broadcastPlaybackState(
-                                track = track,
+                                track = current,
                                 position = activePlayer.currentPosition,
                                 isPlaying = activePlayer.isPlaying,
                                 action = "sync_response"
@@ -304,6 +327,7 @@ class PlaybackManager @Inject constructor(
             }
 
             audioEffectManager.attachAudioSession(activePlayer.audioSessionId)
+            applySponsorBlockIntroSkip(resolvedTrack)
         }
     }
 
@@ -340,6 +364,38 @@ class PlaybackManager @Inject constructor(
             audioEffectManager.attachAudioSession(activePlayer.audioSessionId)
             // Instant broadcast so partner's phone changes to this song immediately
             jamClient.broadcastPlaybackState(resolvedTrack, 0L, true, action = "change_track")
+
+            applySponsorBlockIntroSkip(resolvedTrack)
+        }
+    }
+
+    fun playPlaylist(playlist: List<Track>, startIndex: Int = 0) {
+        if (playlist.isEmpty()) return
+        val safeIndex = startIndex.coerceIn(0, playlist.size - 1)
+        playTrack(playlist[safeIndex], playlist)
+    }
+
+    fun startRadio(anchorTrack: Track) {
+        playTrack(anchorTrack, listOf(anchorTrack))
+        triggerInfiniteRadioAutoplay(anchorTrack)
+    }
+
+    private fun applySponsorBlockIntroSkip(track: Track) {
+        if (!settingsPreferences.sponsorBlockEnabled.value || !track.isYouTubeTrack()) return
+
+        scope.launch {
+            try {
+                val videoId = track.getYouTubeVideoId() ?: track.id.removePrefix("yt_")
+                sponsorBlockManager.fetchSegments(videoId)
+                val introSkip = sponsorBlockManager.getIntroSkipTargetMs(videoId)
+                if (introSkip != null && introSkip > 1500L && activePlayer.currentPosition < introSkip) {
+                    Log.d("PlaybackManager", "SponsorBlock auto-skipped intro to ${introSkip}ms")
+                    activePlayer.seekTo(introSkip)
+                    _currentPositionMs.value = introSkip
+                }
+            } catch (e: Exception) {
+                // Silently ignore
+            }
         }
     }
 
@@ -393,6 +449,38 @@ class PlaybackManager @Inject constructor(
             currentIndex = nextIdx
             jamClient.broadcastPlaybackState(nextTrack, 0L, true, action = "next_track")
             startCrossfadeTo(nextTrack)
+        } else if (settingsPreferences.infiniteRadioAutoplay.value) {
+            // Queue has reached the end! Autoplay similar songs automatically
+            triggerInfiniteRadioAutoplay()
+        }
+    }
+
+    fun triggerInfiniteRadioAutoplay(anchorTrack: Track? = null) {
+        if (isFetchingRadio) return
+        val track = anchorTrack ?: _currentTrack.value ?: return
+        isFetchingRadio = true
+
+        scope.launch {
+            try {
+                val videoId = track.getYouTubeVideoId() ?: track.id.removePrefix("yt_")
+                val related = youTubeMusicApi.getRelatedTracks(videoId)
+                val currentQ = _queue.value
+                val newTracks = related.filter { rel -> currentQ.none { it.id == rel.id } }
+
+                if (newTracks.isNotEmpty()) {
+                    _queue.value = currentQ + newTracks
+                    if (currentIndex + 1 < _queue.value.size) {
+                        val nextTrack = _queue.value[currentIndex + 1]
+                        currentIndex += 1
+                        jamClient.broadcastPlaybackState(nextTrack, 0L, true, action = "radio_autoplay")
+                        startCrossfadeTo(nextTrack)
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e("PlaybackManager", "Infinite radio autoplay failed", e)
+            } finally {
+                isFetchingRadio = false
+            }
         }
     }
 
@@ -469,6 +557,8 @@ class PlaybackManager @Inject constructor(
             audioEffectManager.attachAudioSession(activePlayer.audioSessionId)
             _isPlaying.value = true
             isCrossfading = false
+
+            applySponsorBlockIntroSkip(resolvedNext)
         }
     }
 
