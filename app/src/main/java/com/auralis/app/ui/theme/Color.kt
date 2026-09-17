@@ -6,6 +6,7 @@ import androidx.compose.ui.graphics.Color
 val NeonViolet = Color(0xFFD000FF)
 val NeonCyan = Color(0xFF00F0FF)
 val NeonCrimson = Color(0xFFFF003C)
+val SpotifyGreen = Color(0xFF1DB954)
 
 // Deep OLED Blacks
 val OledBlack = Color(0xFF000000)
