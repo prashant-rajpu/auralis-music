@@ -125,7 +125,7 @@ fun FullPlayerScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     IconButton(onClick = { viewModel.downloadCurrentTrack() }, modifier = Modifier.size(48.dp)) {
-                        Icon(androidx.compose.material.icons.filled.Download, contentDescription = "Download", modifier = Modifier.size(24.dp))
+                        Icon(Icons.Default.Download, contentDescription = "Download", modifier = Modifier.size(24.dp))
                     }
                     
                     IconButton(onClick = { /* TODO */ }, modifier = Modifier.size(48.dp)) {
@@ -152,7 +152,7 @@ fun FullPlayerScreen(
                     }
                     
                     IconButton(onClick = { /* TODO: Add to playlist/favorites */ }, modifier = Modifier.size(48.dp)) {
-                        Icon(androidx.compose.material.icons.filled.FavoriteBorder, contentDescription = "Favorite", modifier = Modifier.size(24.dp))
+                        Icon(Icons.Default.FavoriteBorder, contentDescription = "Favorite", modifier = Modifier.size(24.dp))
                     }
                 }
             }
