@@ -240,19 +240,6 @@ class PlaybackManager @Inject constructor(
                         }
                     }
 
-                    is JamState.SyncSeek -> {
-                        _lastJamAction.value = "${state.sender} seeked"
-                        scheduleActionDismiss()
-                        activePlayer.seekTo(state.position)
-                        _currentPositionMs.value = state.position
-                    }
-
-                    is JamState.SyncPlayPause -> {
-                        _lastJamAction.value = if (state.isPlaying) "${state.sender} resumed" else "${state.sender} paused"
-                        scheduleActionDismiss()
-                        if (state.isPlaying) activePlayer.play() else activePlayer.pause()
-                        _isPlaying.value = state.isPlaying
-                    }
 
                     is JamState.UserJoined -> {
                         val session = jamClient.currentSession.value

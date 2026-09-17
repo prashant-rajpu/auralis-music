@@ -188,7 +188,7 @@ fun SettingsScreen(
                                 }
                             }
 
-                            HorizontalDivider(color = BabyPinkBorder, thickness = 0.5.dp)
+                            Divider(color = BabyPinkBorder, thickness = 0.5.dp)
 
                             // Lyrics Font Size
                             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -230,7 +230,7 @@ fun SettingsScreen(
                                 }
                             }
 
-                            HorizontalDivider(color = BabyPinkBorder, thickness = 0.5.dp)
+                            Divider(color = BabyPinkBorder, thickness = 0.5.dp)
 
                             // Auto Scroll Toggle
                             SettingsToggleRow(
@@ -317,13 +317,12 @@ fun SettingsScreen(
                                     )
                                 },
                                 maxLines = 4,
-                                colors = OutlinedTextFieldDefaults.colors(
+                                colors = TextFieldDefaults.outlinedTextFieldColors(
                                     focusedBorderColor = BabyPinkPrimary,
                                     unfocusedBorderColor = BabyPinkBorder,
-                                    focusedContainerColor = BabyPinkCardBg,
-                                    unfocusedContainerColor = BabyPinkCardBg,
-                                    focusedTextColor = BabyPinkTextPrimary,
-                                    unfocusedTextColor = BabyPinkTextPrimary
+                                    containerColor = BabyPinkCardBg,
+                                    textColor = BabyPinkTextPrimary,
+                                    cursorColor = BabyPinkPrimary
                                 ),
                                 shape = RoundedCornerShape(14.dp)
                             )
@@ -523,7 +522,7 @@ fun SettingsScreen(
                                 onCheckedChange = { viewModel.toggleInfiniteRadio(it) }
                             )
 
-                            HorizontalDivider(color = BabyPinkBorder, thickness = 0.5.dp)
+                            Divider(color = BabyPinkBorder, thickness = 0.5.dp)
 
                             // SponsorBlock
                             SettingsToggleRow(
@@ -533,7 +532,7 @@ fun SettingsScreen(
                                 onCheckedChange = { viewModel.toggleSponsorBlock(it) }
                             )
 
-                            HorizontalDivider(color = BabyPinkBorder, thickness = 0.5.dp)
+                            Divider(color = BabyPinkBorder, thickness = 0.5.dp)
 
                             // Audio Quality
                             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
