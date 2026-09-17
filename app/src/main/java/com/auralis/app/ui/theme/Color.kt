@@ -11,6 +11,7 @@ val BabyPinkBgCard = Color(0xFFFFDDE8)
 
 val BabyPinkPrimary = Color(0xFFFFB6C1)          // Primary Pink (Active states, progress, accents)
 val BabyPinkSoftRose = Color(0xFFFFC0CB)         // Soft Rose (Secondary accents, icons)
+val BabyPinkAccent = Color(0xFFFF8DA1)           // Vibrant Accent Pink (Linear pill gradients)
 val BabyPinkTextPrimary = Color(0xFF5C3A4A)      // Deep Dusty Rose (Primary text: titles, song names)
 val BabyPinkTextSecondary = Color(0xFF9A7A87)    // Muted Rose (Secondary: artists, timestamps, labels)
 val BabyPinkTextTertiary = Color(0xFFB89DA8)
