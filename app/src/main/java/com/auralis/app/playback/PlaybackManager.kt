@@ -20,7 +20,7 @@ import kotlinx.coroutines.launch
 
 @Singleton
 class PlaybackManager @Inject constructor(
-    private val context: Context,
+    @dagger.hilt.android.qualifiers.ApplicationContext private val context: Context,
     private val jamClient: JamWebSocketClient
 ) {
     private var mediaController: MediaController? = null

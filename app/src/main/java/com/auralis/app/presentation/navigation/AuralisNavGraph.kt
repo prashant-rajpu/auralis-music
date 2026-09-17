@@ -1,6 +1,7 @@
 package com.auralis.app.presentation.navigation
 
 import androidx.compose.runtime.Composable
+import androidx.compose.foundation.layout.padding
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
@@ -20,7 +21,7 @@ fun AuralisNavGraph() {
         NavHost(
             navController = navController,
             startDestination = "home",
-            modifier = androidx.compose.foundation.layout.padding(paddingValues)
+            modifier = androidx.compose.ui.Modifier.padding(paddingValues)
         ) {
             composable("home") {
                 val viewModel: com.auralis.app.presentation.home.HomeViewModel = androidx.hilt.navigation.compose.hiltViewModel()

@@ -10,6 +10,11 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -36,7 +41,7 @@ fun HomeScreen(
         color = MaterialTheme.colorScheme.background
     ) {
         Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-            var showJamDialog by androidx.compose.runtime.mutableStateOf(false)
+            var showJamDialog by remember { mutableStateOf(false) }
             
             Row(
                 modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp, top = 24.dp),
@@ -52,7 +57,7 @@ fun HomeScreen(
                 
                 IconButton(onClick = { showJamDialog = true }) {
                     Icon(
-                        imageVector = androidx.compose.material.icons.Icons.Default.Share,
+                        imageVector = Icons.Default.Share,
                         contentDescription = "Join Jam",
                         tint = Color.White
                     )
@@ -60,8 +65,8 @@ fun HomeScreen(
             }
 
             if (showJamDialog) {
-                var jamId by androidx.compose.runtime.mutableStateOf("")
-                var username by androidx.compose.runtime.mutableStateOf("")
+                var jamId by remember { mutableStateOf("") }
+                var username by remember { mutableStateOf("") }
                 
                 AlertDialog(
                     onDismissRequest = { showJamDialog = false },
