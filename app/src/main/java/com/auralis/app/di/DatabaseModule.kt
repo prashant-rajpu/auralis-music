@@ -22,7 +22,9 @@ object DatabaseModule {
             context,
             AuralisDatabase::class.java,
             "auralis_db"
-        ).build()
+        )
+        .fallbackToDestructiveMigration()
+        .build()
     }
 
     @Provides
