@@ -67,20 +67,20 @@ class OfflineDownloader @Inject constructor(
         }
     }
 
-    suspend fun deleteTrack(trackId: String) {
-        withContext(Dispatchers.IO) {
-            try {
-                val trackEntity = trackDao.getAllTracks().find { it.id == trackId }
-                if (trackEntity != null) {
-                    val file = File(trackEntity.mediaUrl)
-                    if (file.exists()) {
-                        file.delete()
-                    }
-                    trackDao.deleteTrack(trackId)
+    suspend fun deleteTrack(trackId: String): Unit = withContext(Dispatchers.IO) {
+        try {
+            val trackEntity = trackDao.getAllTracks().find { it.id == trackId }
+            if (trackEntity != null) {
+                val file = File(trackEntity.mediaUrl)
+                if (file.exists()) {
+                    file.delete()
                 }
-            } catch (e: Exception) {
-                Log.e("OfflineDownloader", "Failed to delete track $trackId", e)
+                trackDao.deleteTrack(trackId)
             }
+            Unit
+        } catch (e: Exception) {
+            Log.e("OfflineDownloader", "Failed to delete track $trackId", e)
+            Unit
         }
     }
 }
