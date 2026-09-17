@@ -736,19 +736,31 @@ class PlaybackManager @Inject constructor(
         }
     }
 
-    fun togglePlayPause() {
+    fun pause() {
         if (activePlayer.isPlaying) {
             activePlayer.pause()
             _isPlaying.value = false
             _currentTrack.value?.let { track ->
                 jamClient.broadcastPlaybackState(track, activePlayer.currentPosition, false, action = "pause")
             }
-        } else {
+        }
+    }
+
+    fun play() {
+        if (!activePlayer.isPlaying) {
             activePlayer.play()
             _isPlaying.value = true
             _currentTrack.value?.let { track ->
                 jamClient.broadcastPlaybackState(track, activePlayer.currentPosition, true, action = "play")
             }
+        }
+    }
+
+    fun togglePlayPause() {
+        if (activePlayer.isPlaying) {
+            pause()
+        } else {
+            play()
         }
     }
 
