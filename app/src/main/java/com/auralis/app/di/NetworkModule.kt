@@ -2,6 +2,8 @@ package com.auralis.app.di
 
 import com.auralis.app.network.AudiusApi
 import com.auralis.app.network.JioSaavnApi
+import com.auralis.app.network.LrclibApi
+import com.auralis.app.network.NetEaseLyricsApi
 import com.auralis.app.network.OpenSourceMusicApi
 import dagger.Module
 import dagger.Provides
@@ -64,5 +66,27 @@ object NetworkModule {
             .addConverterFactory(GsonConverterFactory.create())
             .build()
             .create(AudiusApi::class.java)
+    }
+
+    @Provides
+    @Singleton
+    fun provideLrclibApi(okHttpClient: OkHttpClient): LrclibApi {
+        return Retrofit.Builder()
+            .baseUrl("https://lrclib.net/")
+            .client(okHttpClient)
+            .addConverterFactory(GsonConverterFactory.create())
+            .build()
+            .create(LrclibApi::class.java)
+    }
+
+    @Provides
+    @Singleton
+    fun provideNetEaseLyricsApi(okHttpClient: OkHttpClient): NetEaseLyricsApi {
+        return Retrofit.Builder()
+            .baseUrl("https://music.163.com/")
+            .client(okHttpClient)
+            .addConverterFactory(GsonConverterFactory.create())
+            .build()
+            .create(NetEaseLyricsApi::class.java)
     }
 }

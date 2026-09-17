@@ -10,6 +10,9 @@ interface TrackDao {
     @Query("SELECT * FROM tracks")
     fun getAllTracks(): List<TrackEntity>
 
+    @Query("SELECT * FROM tracks WHERE id = :trackId LIMIT 1")
+    fun getTrackById(trackId: String): TrackEntity?
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     fun insertTrack(track: TrackEntity)
 

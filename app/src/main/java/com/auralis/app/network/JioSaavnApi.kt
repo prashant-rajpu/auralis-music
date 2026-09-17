@@ -14,7 +14,18 @@ interface JioSaavnApi {
 
     @GET("api.php?__call=playlist.getDetails&_format=json&_marker=0&ctx=web6dot0&api_version=4&listid=110858205")
     suspend fun getTrendingPlaylist(): JioSaavnPlaylistResponse
+
+    @GET("api.php?__call=lyrics.getLyrics&_format=json&_marker=0&ctx=web6dot0&api_version=4")
+    suspend fun getLyrics(
+        @Query("lyrics_id") lyricsId: String
+    ): JioSaavnLyricsResponse
 }
+
+data class JioSaavnLyricsResponse(
+    @SerializedName("lyrics") val lyrics: String?,
+    @SerializedName("snippet") val snippet: String?,
+    @SerializedName("status") val status: String?
+)
 
 data class JioSaavnSearchResponse(
     @SerializedName("results") val results: List<JioSaavnSongDto>?
