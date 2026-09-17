@@ -17,6 +17,11 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlin.random.Random
+
+enum class RepeatMode {
+    OFF, ALL, ONE
+}
 
 @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
 @Singleton
@@ -49,6 +54,12 @@ class PlaybackManager @Inject constructor(
     private val _queue = MutableStateFlow<List<Track>>(emptyList())
     val queue = _queue.asStateFlow()
 
+    private val _isShuffleEnabled = MutableStateFlow(false)
+    val isShuffleEnabled = _isShuffleEnabled.asStateFlow()
+
+    private val _repeatMode = MutableStateFlow(RepeatMode.OFF)
+    val repeatMode = _repeatMode.asStateFlow()
+
     private var currentIndex = -1
     private var isCrossfading = false
     private var positionTickerJob: Job? = null
@@ -76,8 +87,12 @@ class PlaybackManager @Inject constructor(
                         _durationMs.value = player.duration.coerceAtLeast(0L)
                         audioEffectManager.attachAudioSession(player.audioSessionId)
                     } else if (playbackState == Player.STATE_ENDED && !isCrossfading) {
-                        // Naturally advance to next track in queue with crossfade
-                        skipNext()
+                        if (_repeatMode.value == RepeatMode.ONE) {
+                            activePlayer.seekTo(0L)
+                            activePlayer.play()
+                        } else {
+                            skipNext()
+                        }
                     }
                 }
             }
@@ -99,8 +114,10 @@ class PlaybackManager @Inject constructor(
                     // Check for automatic crossfade trigger before song ends
                     val crossfadeDurationMs = audioEffectManager.currentProfile.crossfadeDurationSec * 1000L
                     if (dur > crossfadeDurationMs && (dur - pos) <= crossfadeDurationMs && !isCrossfading) {
-                        if (currentIndex + 1 < _queue.value.size) {
-                            skipNext()
+                        if (_repeatMode.value != RepeatMode.ONE) {
+                            if (currentIndex + 1 < _queue.value.size || _repeatMode.value == RepeatMode.ALL) {
+                                skipNext()
+                            }
                         }
                     }
                 }
@@ -149,11 +166,50 @@ class PlaybackManager @Inject constructor(
         jamClient.broadcastPlaybackState(track.id, 0L, true)
     }
 
+    fun playTrackAtIndex(index: Int) {
+        val q = _queue.value
+        if (index in q.indices) {
+            val target = q[index]
+            currentIndex = index
+            startCrossfadeTo(target)
+        }
+    }
+
+    fun toggleShuffle() {
+        _isShuffleEnabled.value = !_isShuffleEnabled.value
+    }
+
+    fun toggleRepeat() {
+        _repeatMode.value = when (_repeatMode.value) {
+            RepeatMode.OFF -> RepeatMode.ALL
+            RepeatMode.ALL -> RepeatMode.ONE
+            RepeatMode.ONE -> RepeatMode.OFF
+        }
+    }
+
     fun skipNext() {
         val q = _queue.value
         if (q.isEmpty()) return
-        val nextIdx = currentIndex + 1
-        if (nextIdx < q.size) {
+
+        if (_repeatMode.value == RepeatMode.ONE) {
+            activePlayer.seekTo(0L)
+            activePlayer.play()
+            _currentPositionMs.value = 0L
+            return
+        }
+
+        val nextIdx = when {
+            _isShuffleEnabled.value && q.size > 1 -> {
+                var rand = Random.nextInt(q.size)
+                if (rand == currentIndex) rand = (rand + 1) % q.size
+                rand
+            }
+            currentIndex + 1 < q.size -> currentIndex + 1
+            _repeatMode.value == RepeatMode.ALL -> 0
+            else -> -1
+        }
+
+        if (nextIdx != -1) {
             val nextTrack = q[nextIdx]
             currentIndex = nextIdx
             startCrossfadeTo(nextTrack)
@@ -169,7 +225,14 @@ class PlaybackManager @Inject constructor(
             _currentPositionMs.value = 0L
             return
         }
-        val prevIdx = currentIndex - 1
+        val prevIdx = if (currentIndex - 1 >= 0) {
+            currentIndex - 1
+        } else if (_repeatMode.value == RepeatMode.ALL) {
+            q.size - 1
+        } else {
+            -1
+        }
+
         if (prevIdx >= 0) {
             val prevTrack = q[prevIdx]
             currentIndex = prevIdx

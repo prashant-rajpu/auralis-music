@@ -1,5 +1,6 @@
 package com.auralis.app.presentation.player
 
+import androidx.compose.foundation.border
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -15,7 +16,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.auralis.app.domain.model.SoundPreset
 import com.auralis.app.domain.model.SoundProfile
-import com.auralis.app.ui.theme.SpotifyGreen
+import com.auralis.app.ui.theme.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -27,10 +28,11 @@ fun SoundProfilesBottomSheet(
     Dialog(onDismissRequest = onDismiss) {
         Surface(
             shape = RoundedCornerShape(24.dp),
-            color = MaterialTheme.colorScheme.surface,
+            color = YtMusicSurface,
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(vertical = 16.dp)
+                .border(1.dp, YtMusicBorder, RoundedCornerShape(24.dp))
         ) {
             Column(
                 modifier = Modifier
@@ -46,26 +48,26 @@ fun SoundProfilesBottomSheet(
                         Text(
                             text = "Audio FX & Equalizer",
                             style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
-                            color = MaterialTheme.colorScheme.onSurface
+                            color = Color.White
                         )
                         Text(
-                            text = "Sound profiles and crossfade",
+                            text = "Hardware DSP & Crossfade Mixing",
                             style = MaterialTheme.typography.bodySmall,
-                            color = Color.Gray
+                            color = YtMusicTextSecondary
                         )
                     }
                     TextButton(onClick = onDismiss) {
-                        Text("Done", color = SpotifyGreen, fontWeight = FontWeight.Bold)
+                        Text("Done", color = YtMusicRed, fontWeight = FontWeight.Bold)
                     }
                 }
 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(18.dp))
 
                 // Preset chips
                 Text(
-                    text = "Genre Preset",
+                    text = "Sound Profiles",
                     style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
-                    color = MaterialTheme.colorScheme.onSurface
+                    color = Color.White
                 )
                 Spacer(modifier = Modifier.height(8.dp))
 
@@ -82,14 +84,17 @@ fun SoundProfilesBottomSheet(
                             onClick = { onProfileChange(profile.copy(preset = preset)) },
                             label = { Text(preset.displayName) },
                             colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = SpotifyGreen,
-                                selectedLabelColor = Color.Black
-                            )
+                                selectedContainerColor = YtMusicRed,
+                                selectedLabelColor = Color.White,
+                                containerColor = YtMusicCard,
+                                labelColor = YtMusicTextSecondary
+                            ),
+                            shape = RoundedCornerShape(16.dp)
                         )
                     }
                 }
 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(18.dp))
 
                 // Bass Boost slider
                 Row(
@@ -99,12 +104,14 @@ fun SoundProfilesBottomSheet(
                 ) {
                     Text(
                         text = "Bass Boost",
-                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium)
+                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
+                        color = Color.White
                     )
                     Text(
                         text = "${(profile.bassBoostStrength / 10)}%",
                         style = MaterialTheme.typography.bodySmall,
-                        color = SpotifyGreen
+                        color = YtMusicRed,
+                        fontWeight = FontWeight.Bold
                     )
                 }
                 Slider(
@@ -112,12 +119,13 @@ fun SoundProfilesBottomSheet(
                     onValueChange = { onProfileChange(profile.copy(bassBoostStrength = it.toInt())) },
                     valueRange = 0f..1000f,
                     colors = SliderDefaults.colors(
-                        thumbColor = SpotifyGreen,
-                        activeTrackColor = SpotifyGreen
+                        thumbColor = YtMusicRed,
+                        activeTrackColor = YtMusicRed,
+                        inactiveTrackColor = Color(0x33FFFFFF)
                     )
                 )
 
-                Spacer(modifier = Modifier.height(10.dp))
+                Spacer(modifier = Modifier.height(12.dp))
 
                 // Treble Boost slider
                 Row(
@@ -127,12 +135,14 @@ fun SoundProfilesBottomSheet(
                 ) {
                     Text(
                         text = "Treble Boost",
-                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium)
+                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
+                        color = Color.White
                     )
                     Text(
                         text = "${(profile.trebleBoostStrength / 10)}%",
                         style = MaterialTheme.typography.bodySmall,
-                        color = SpotifyGreen
+                        color = YtMusicRed,
+                        fontWeight = FontWeight.Bold
                     )
                 }
                 Slider(
@@ -140,12 +150,13 @@ fun SoundProfilesBottomSheet(
                     onValueChange = { onProfileChange(profile.copy(trebleBoostStrength = it.toInt())) },
                     valueRange = 0f..1000f,
                     colors = SliderDefaults.colors(
-                        thumbColor = SpotifyGreen,
-                        activeTrackColor = SpotifyGreen
+                        thumbColor = YtMusicRed,
+                        activeTrackColor = YtMusicRed,
+                        inactiveTrackColor = Color(0x33FFFFFF)
                     )
                 )
 
-                Spacer(modifier = Modifier.height(10.dp))
+                Spacer(modifier = Modifier.height(12.dp))
 
                 // Crossfade Duration slider
                 Row(
@@ -154,13 +165,15 @@ fun SoundProfilesBottomSheet(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "Crossfade Duration",
-                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium)
+                        text = "Dual-Engine Crossfade Duration",
+                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
+                        color = Color.White
                     )
                     Text(
                         text = "${profile.crossfadeDurationSec}s",
                         style = MaterialTheme.typography.bodySmall,
-                        color = SpotifyGreen
+                        color = YtMusicRed,
+                        fontWeight = FontWeight.Bold
                     )
                 }
                 Slider(
@@ -169,8 +182,9 @@ fun SoundProfilesBottomSheet(
                     valueRange = 1f..12f,
                     steps = 10,
                     colors = SliderDefaults.colors(
-                        thumbColor = SpotifyGreen,
-                        activeTrackColor = SpotifyGreen
+                        thumbColor = YtMusicRed,
+                        activeTrackColor = YtMusicRed,
+                        inactiveTrackColor = Color(0x33FFFFFF)
                     )
                 )
             }

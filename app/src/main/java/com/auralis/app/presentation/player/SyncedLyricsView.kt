@@ -20,7 +20,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.auralis.app.domain.model.LyricLine
-import com.auralis.app.ui.theme.SpotifyGreen
+import com.auralis.app.ui.theme.YtMusicRed
+import com.auralis.app.ui.theme.YtMusicTextSecondary
 
 @Composable
 fun SyncedLyricsView(
@@ -34,12 +35,21 @@ fun SyncedLyricsView(
             modifier = modifier.fillMaxSize(),
             contentAlignment = Alignment.Center
         ) {
-            Text(
-                text = "Looking for synchronized lyrics...",
-                style = MaterialTheme.typography.bodyLarge,
-                color = Color.Gray,
-                textAlign = TextAlign.Center
-            )
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(
+                    text = "Lyrics not available for this track",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = YtMusicTextSecondary,
+                    textAlign = TextAlign.Center
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "Synced LRC will load automatically when found",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color.DarkGray,
+                    textAlign = TextAlign.Center
+                )
+            }
         }
         return
     }
@@ -49,7 +59,7 @@ fun SyncedLyricsView(
     // Find the currently active line index based on playback position
     val activeIndex = lyrics.indexOfLast { it.timestampMs <= currentPositionMs }.coerceAtLeast(0)
 
-    // Smoothly auto-scroll so active line stays near the center
+    // Smoothly auto-scroll so active line stays centered
     LaunchedEffect(activeIndex) {
         if (activeIndex >= 0 && activeIndex < lyrics.size) {
             val targetScroll = (activeIndex - 2).coerceAtLeast(0)
@@ -61,16 +71,16 @@ fun SyncedLyricsView(
         state = listState,
         modifier = modifier
             .fillMaxSize()
-            .padding(horizontal = 16.dp),
+            .padding(horizontal = 20.dp),
         contentPadding = PaddingValues(vertical = 48.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+        verticalArrangement = Arrangement.spacedBy(18.dp)
     ) {
         itemsIndexed(lyrics) { index, line ->
             val isActive = index == activeIndex
-            val alpha by animateFloatAsState(targetValue = if (isActive) 1.0f else 0.4f, label = "lyric_alpha")
-            val fontSize = if (isActive) 22.sp else 18.sp
-            val fontWeight = if (isActive) FontWeight.Bold else FontWeight.Normal
-            val color = if (isActive) SpotifyGreen else MaterialTheme.colorScheme.onBackground
+            val alpha by animateFloatAsState(targetValue = if (isActive) 1.0f else 0.35f, label = "lyric_alpha")
+            val fontSize = if (isActive) 24.sp else 19.sp
+            val fontWeight = if (isActive) FontWeight.ExtraBold else FontWeight.Medium
+            val color = if (isActive) Color.White else Color(0x99FFFFFF)
 
             Text(
                 text = line.text,
@@ -78,11 +88,12 @@ fun SyncedLyricsView(
                 fontWeight = fontWeight,
                 color = color,
                 textAlign = TextAlign.Start,
+                lineHeight = 32.sp,
                 modifier = Modifier
                     .fillMaxWidth()
                     .alpha(alpha)
                     .clickable { onSeekTo(line.timestampMs) }
-                    .padding(vertical = 6.dp)
+                    .padding(vertical = 4.dp)
             )
         }
     }

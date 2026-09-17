@@ -4,69 +4,49 @@ import android.app.Activity
 import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.ui.graphics.Color
 import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.dynamicDarkColorScheme
-import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 
-private val DarkColorScheme = darkColorScheme(
-    primary = NeonViolet,
-    secondary = NeonCyan,
-    tertiary = NeonCrimson,
-    background = OledBlack,
-    surface = DarkGrey,
-    onPrimary = OledBlack,
-    onSecondary = OledBlack,
-    onTertiary = OledBlack,
-    onBackground = Color.White,
-    onSurface = Color.White
-)
-
-private val LightColorScheme = lightColorScheme(
-    primary = Purple40,
-    secondary = PurpleGrey40,
-    tertiary = Pink40,
-    background = Color(0xFFFFFBFE),
-    surface = Color(0xFFFFFBFE),
+private val YtMusicColorScheme = darkColorScheme(
+    primary = YtMusicRed,
+    secondary = YtMusicTextPrimary,
+    tertiary = YtMusicRedGlow,
+    background = YtMusicBlack,
+    surface = YtMusicSurface,
+    surfaceVariant = YtMusicCard,
     onPrimary = Color.White,
-    onSecondary = Color.White,
+    onSecondary = YtMusicBlack,
     onTertiary = Color.White,
-    onBackground = Color(0xFF1C1B1F),
-    onSurface = Color(0xFF1C1B1F)
+    onBackground = YtMusicTextPrimary,
+    onSurface = YtMusicTextPrimary,
+    onSurfaceVariant = YtMusicTextSecondary,
+    outline = YtMusicBorder
 )
 
 @Composable
 fun AuralisTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
-    // Dynamic color is available on Android 12+
-    dynamicColor: Boolean = true,
+    dynamicColor: Boolean = false, // Keep false for signature YouTube Music OLED black
     content: @Composable () -> Unit
 ) {
-    // We enforce dark theme for Auralis for the premium OLED look
-    val forceDarkTheme = true
-    
-    val colorScheme = when {
-        dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
-            val context = LocalContext.current
-            if (forceDarkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
-        }
-        forceDarkTheme -> DarkColorScheme
-        else -> LightColorScheme
-    }
-    
+    val colorScheme = YtMusicColorScheme
+
     val view = LocalView.current
     if (!view.isInEditMode) {
         SideEffect {
             val window = (view.context as Activity).window
-            window.statusBarColor = colorScheme.background.toArgb()
-            WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = !forceDarkTheme
+            window.statusBarColor = YtMusicBlack.toArgb()
+            window.navigationBarColor = YtMusicBlack.toArgb()
+            WindowCompat.getInsetsController(window, view).apply {
+                isAppearanceLightStatusBars = false
+                isAppearanceLightNavigationBars = false
+            }
         }
     }
 

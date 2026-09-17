@@ -4,15 +4,24 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.auralis.app.domain.model.LyricLine
 import com.auralis.app.domain.model.SoundProfile
+import com.auralis.app.domain.model.Track
 import com.auralis.app.domain.repository.MusicRepository
 import com.auralis.app.lyrics.LyricsRepository
 import com.auralis.app.playback.AudioEffectManager
 import com.auralis.app.playback.PlaybackManager
+import com.auralis.app.playback.RepeatMode
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+
+enum class PlayerScreenTab {
+    ARTWORK,
+    UP_NEXT,
+    LYRICS,
+    RELATED
+}
 
 @HiltViewModel
 class PlayerViewModel @Inject constructor(
@@ -26,18 +35,27 @@ class PlayerViewModel @Inject constructor(
     val isPlaying = playbackManager.isPlaying
     val currentPositionMs = playbackManager.currentPositionMs
     val durationMs = playbackManager.durationMs
+    val queue = playbackManager.queue
+    val isShuffleEnabled = playbackManager.isShuffleEnabled
+    val repeatMode = playbackManager.repeatMode
 
     private val _lyrics = MutableStateFlow<List<LyricLine>>(emptyList())
     val lyrics = _lyrics.asStateFlow()
 
-    private val _isLyricsVisible = MutableStateFlow(false)
-    val isLyricsVisible = _isLyricsVisible.asStateFlow()
+    private val _activeTab = MutableStateFlow(PlayerScreenTab.ARTWORK)
+    val activeTab = _activeTab.asStateFlow()
 
     private val _isSoundProfilesVisible = MutableStateFlow(false)
     val isSoundProfilesVisible = _isSoundProfilesVisible.asStateFlow()
 
     private val _soundProfile = MutableStateFlow(audioEffectManager.currentProfile)
     val soundProfile = _soundProfile.asStateFlow()
+
+    private val _likedTrackIds = MutableStateFlow<Set<String>>(emptySet())
+    val likedTrackIds = _likedTrackIds.asStateFlow()
+
+    private val _dislikedTrackIds = MutableStateFlow<Set<String>>(emptySet())
+    val dislikedTrackIds = _dislikedTrackIds.asStateFlow()
 
     init {
         viewModelScope.launch {
@@ -48,6 +66,14 @@ class PlayerViewModel @Inject constructor(
                     _lyrics.value = fetchedLyrics
                 }
             }
+        }
+    }
+
+    fun selectTab(tab: PlayerScreenTab) {
+        if (_activeTab.value == tab && tab != PlayerScreenTab.ARTWORK) {
+            _activeTab.value = PlayerScreenTab.ARTWORK
+        } else {
+            _activeTab.value = tab
         }
     }
 
@@ -67,8 +93,38 @@ class PlayerViewModel @Inject constructor(
         playbackManager.seekTo(positionMs)
     }
 
-    fun toggleLyrics() {
-        _isLyricsVisible.value = !_isLyricsVisible.value
+    fun toggleShuffle() {
+        playbackManager.toggleShuffle()
+    }
+
+    fun toggleRepeat() {
+        playbackManager.toggleRepeat()
+    }
+
+    fun playTrackFromQueue(index: Int) {
+        playbackManager.playTrackAtIndex(index)
+    }
+
+    fun toggleLike(trackId: String) {
+        val current = _likedTrackIds.value.toMutableSet()
+        if (current.contains(trackId)) {
+            current.remove(trackId)
+        } else {
+            current.add(trackId)
+            _dislikedTrackIds.value = _dislikedTrackIds.value - trackId
+        }
+        _likedTrackIds.value = current
+    }
+
+    fun toggleDislike(trackId: String) {
+        val current = _dislikedTrackIds.value.toMutableSet()
+        if (current.contains(trackId)) {
+            current.remove(trackId)
+        } else {
+            current.add(trackId)
+            _likedTrackIds.value = _likedTrackIds.value - trackId
+        }
+        _dislikedTrackIds.value = current
     }
 
     fun setSoundProfilesVisible(visible: Boolean) {

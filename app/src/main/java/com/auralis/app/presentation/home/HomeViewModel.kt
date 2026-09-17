@@ -36,6 +36,9 @@ class HomeViewModel @Inject constructor(
     private val _sourceFilter = MutableStateFlow("All")
     val sourceFilter: StateFlow<String> = _sourceFilter.asStateFlow()
 
+    private val _selectedMood = MutableStateFlow("All")
+    val selectedMood: StateFlow<String> = _selectedMood.asStateFlow()
+
     private val _uiState = MutableStateFlow<HomeUiState>(HomeUiState.Loading)
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
 
@@ -52,16 +55,35 @@ class HomeViewModel @Inject constructor(
         } else {
             if (_searchQuery.value.isNotBlank()) {
                 performSearch(_searchQuery.value, _sourceFilter.value)
+            } else if (_selectedMood.value != "All") {
+                performSearch(_selectedMood.value, _sourceFilter.value)
             } else {
                 loadTrendingTracks()
             }
         }
     }
 
+    fun selectMood(mood: String) {
+        _selectedMood.value = mood
+        if (_selectedTab.value == HomeTab.Downloaded) {
+            _selectedTab.value = HomeTab.Trending
+        }
+        if (mood == "All") {
+            if (_searchQuery.value.isNotBlank()) {
+                performSearch(_searchQuery.value, _sourceFilter.value)
+            } else {
+                loadTrendingTracks()
+            }
+        } else {
+            performSearch(mood, _sourceFilter.value)
+        }
+    }
+
     fun selectSourceFilter(source: String) {
         _sourceFilter.value = source
-        if (_searchQuery.value.isNotBlank()) {
-            performSearch(_searchQuery.value, source)
+        val query = if (_searchQuery.value.isNotBlank()) _searchQuery.value else if (_selectedMood.value != "All") _selectedMood.value else ""
+        if (query.isNotBlank()) {
+            performSearch(query, source)
         }
     }
 
@@ -71,6 +93,8 @@ class HomeViewModel @Inject constructor(
         if (query.isBlank()) {
             if (_selectedTab.value == HomeTab.Downloaded) {
                 loadOfflineTracks()
+            } else if (_selectedMood.value != "All") {
+                performSearch(_selectedMood.value, _sourceFilter.value)
             } else {
                 loadTrendingTracks()
             }
@@ -133,7 +157,7 @@ class HomeViewModel @Inject constructor(
             try {
                 val tracks = repository.fetchLocalTracks()
                 if (tracks.isEmpty()) {
-                    _uiState.value = HomeUiState.Error("No downloaded tracks yet. Tap the download icon on any song to listen offline with synced lyrics!")
+                    _uiState.value = HomeUiState.Error("No downloaded tracks yet. Tap download on any song to save for offline playback!")
                 } else {
                     _uiState.value = HomeUiState.Success(tracks)
                 }
@@ -154,6 +178,8 @@ class HomeViewModel @Inject constructor(
                 loadOfflineTracks()
             } else if (_searchQuery.value.isNotBlank()) {
                 performSearch(_searchQuery.value, _sourceFilter.value)
+            } else if (_selectedMood.value != "All") {
+                performSearch(_selectedMood.value, _sourceFilter.value)
             } else {
                 loadTrendingTracks()
             }
