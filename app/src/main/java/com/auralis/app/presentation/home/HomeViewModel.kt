@@ -193,6 +193,7 @@ class HomeViewModel @Inject constructor(
 
     val jamSession = playbackManager.jamSession
     val jamState = playbackManager.jamState
+    val lastJamAction = playbackManager.lastJamAction
 
     fun startJam(jamId: String, username: String) {
         playbackManager.jamClient.startJam(jamId, username)

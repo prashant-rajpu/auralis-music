@@ -41,6 +41,7 @@ fun MiniPlayer(
     val durationMs by viewModel.durationMs.collectAsState()
     val likedTrackIds by viewModel.likedTrackIds.collectAsState()
     val jamSession by viewModel.jamSession.collectAsState()
+    val lastJamAction by viewModel.lastJamAction.collectAsState()
 
     if (currentTrack != null) {
         val isLiked = likedTrackIds.contains(currentTrack!!.id)
@@ -55,6 +56,7 @@ fun MiniPlayer(
             isPlaying = isPlaying,
             isLiked = isLiked,
             isJamActive = jamSession != null,
+            lastJamAction = lastJamAction,
             jamParticipants = jamSession?.participants?.filter { it != jamSession?.username }?.joinToString().orEmpty(),
             progress = progress,
             onPlayPauseClick = { viewModel.togglePlayPause() },
@@ -71,6 +73,7 @@ private fun MiniPlayerContent(
     isPlaying: Boolean,
     isLiked: Boolean,
     isJamActive: Boolean,
+    lastJamAction: String?,
     jamParticipants: String,
     progress: Float,
     onPlayPauseClick: () -> Unit,
@@ -136,12 +139,12 @@ private fun MiniPlayerContent(
                     )
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
-                        text = if (isJamActive) "🎧 Jam with ${jamParticipants.ifEmpty { "Partner" }}" else "${track.artist} • ${track.source}",
+                        text = if (lastJamAction != null) "💖 $lastJamAction" else if (isJamActive) "🎧 Jam with ${jamParticipants.ifEmpty { "Partner" }}" else "${track.artist} • ${track.source}",
                         style = MaterialTheme.typography.bodySmall.copy(
                             fontSize = 12.sp,
-                            fontWeight = if (isJamActive) FontWeight.Bold else FontWeight.Medium
+                            fontWeight = if (isJamActive || lastJamAction != null) FontWeight.Bold else FontWeight.Medium
                         ),
-                        color = if (isJamActive) BabyPinkPrimary else BabyPinkTextSecondary,
+                        color = if (isJamActive || lastJamAction != null) BabyPinkPrimary else BabyPinkTextSecondary,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )

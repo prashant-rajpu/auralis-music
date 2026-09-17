@@ -1,6 +1,6 @@
 package com.auralis.app.presentation.player
 
-import androidx.compose.animation.Crossfade
+import androidx.compose.animation.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -54,6 +54,7 @@ fun FullPlayerScreen(
     val soundProfile by viewModel.soundProfile.collectAsState()
     val jamSession by viewModel.jamSession.collectAsState()
     val isJamSheetVisible by viewModel.isJamSheetVisible.collectAsState()
+    val lastJamAction by viewModel.lastJamAction.collectAsState()
 
     var isDraggingSlider by remember { mutableStateOf(false) }
     var dragSliderValue by remember { mutableStateOf(0f) }
@@ -150,7 +151,37 @@ fun FullPlayerScreen(
                         .fillMaxSize()
                         .padding(horizontal = 24.dp, vertical = 8.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
-                ) {
+                    // Live Jam Action Announcement (e.g. "Sneha played Kesariya")
+                    AnimatedVisibility(
+                        visible = lastJamAction != null,
+                        enter = fadeIn() + slideInVertically(),
+                        exit = fadeOut() + slideOutVertically()
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .padding(bottom = 6.dp)
+                                .shadow(elevation = 6.dp, shape = RoundedCornerShape(18.dp), ambientColor = PlayButtonGlowPink)
+                                .clip(RoundedCornerShape(18.dp))
+                                .background(BabyPinkPrimary)
+                                .padding(horizontal = 14.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Favorite,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Text(
+                                text = lastJamAction.orEmpty(),
+                                color = Color.White,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+
                     // Active Spotify Jam Beacon
                     if (jamSession != null) {
                         Row(

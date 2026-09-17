@@ -30,9 +30,11 @@ sealed class JamState {
         val track: Track,
         val position: Long,
         val isPlaying: Boolean,
-        val sender: String
+        val sender: String,
+        val action: String = "sync"
     ) : JamState()
     data class UserJoined(val username: String) : JamState()
+    data class RequestSync(val sender: String) : JamState()
     data class UserLeft(val username: String) : JamState()
     data class QueueTrack(val track: Track, val sender: String) : JamState()
     object Disconnected : JamState()
@@ -92,8 +94,9 @@ class JamWebSocketClient @Inject constructor(
                 _isConnected.value = true
                 _jamState.value = JamState.Connected(session)
 
-                // Announce user joined
+                // Announce user joined and request current playing state immediately
                 broadcastUserJoined(session.username)
+                broadcastRequestSync()
             }
 
             override fun onMessage(webSocket: WebSocket, text: String) {
@@ -137,6 +140,7 @@ class JamWebSocketClient @Inject constructor(
                 "sync_playback" -> {
                     val position = json.optLong("position", 0L)
                     val isPlaying = json.optBoolean("isPlaying", false)
+                    val action = json.optString("action", "sync")
                     val trackObj = json.optJSONObject("track")
 
                     if (trackObj != null) {
@@ -150,8 +154,12 @@ class JamWebSocketClient @Inject constructor(
                             qualityBadge = trackObj.optString("qualityBadge", "320 kbps"),
                             source = trackObj.optString("source", "YouTube Music")
                         )
-                        _jamState.value = JamState.SyncPlayback(track, position, isPlaying, sender)
+                        _jamState.value = JamState.SyncPlayback(track, position, isPlaying, sender, action)
                     }
+                }
+
+                "request_sync" -> {
+                    _jamState.value = JamState.RequestSync(sender)
                 }
 
                 "user_joined" -> {
@@ -195,7 +203,7 @@ class JamWebSocketClient @Inject constructor(
         }
     }
 
-    fun broadcastPlaybackState(track: Track, position: Long, isPlaying: Boolean) {
+    fun broadcastPlaybackState(track: Track, position: Long, isPlaying: Boolean, action: String = "sync") {
         val session = _currentSession.value ?: return
         if (!_isConnected.value) return
 
@@ -206,6 +214,7 @@ class JamWebSocketClient @Inject constructor(
                     put("sender", session.username)
                     put("position", position)
                     put("isPlaying", isPlaying)
+                    put("action", action)
                     put("track", JSONObject().apply {
                         put("id", track.id)
                         put("title", track.title)
@@ -220,6 +229,21 @@ class JamWebSocketClient @Inject constructor(
                 publishToTopic(session.jamId, json.toString())
             } catch (e: Exception) {
                 Log.e("JamClient", "Failed to broadcast playback state", e)
+            }
+        }
+    }
+
+    fun broadcastRequestSync() {
+        val session = _currentSession.value ?: return
+        scope.launch {
+            try {
+                val json = JSONObject().apply {
+                    put("type", "request_sync")
+                    put("sender", session.username)
+                }
+                publishToTopic(session.jamId, json.toString())
+            } catch (e: Exception) {
+                Log.e("JamClient", "Failed to broadcast request sync", e)
             }
         }
     }

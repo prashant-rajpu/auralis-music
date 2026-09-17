@@ -43,6 +43,7 @@ fun HomeScreen(
     val sourceFilter by viewModel.sourceFilter.collectAsState()
     val selectedMood by viewModel.selectedMood.collectAsState()
     val jamSession by viewModel.jamSession.collectAsState()
+    val lastJamAction by viewModel.lastJamAction.collectAsState()
 
     var showJamDialog by remember { mutableStateOf(false) }
     var isSearchExpanded by remember { mutableStateOf(false) }
@@ -272,7 +273,7 @@ fun HomeScreen(
                                     fontSize = 13.sp
                                 )
                                 Text(
-                                    text = "${jamSession!!.participants.size} listening together in sync",
+                                    text = lastJamAction ?: "${jamSession!!.participants.size} listening together in sync",
                                     color = BabyPinkPrimary,
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.SemiBold

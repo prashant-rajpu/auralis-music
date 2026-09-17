@@ -3,6 +3,8 @@ package com.auralis.app.playback
 import android.content.Context
 import android.net.Uri
 import android.util.Log
+import androidx.media3.common.AudioAttributes
+import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
@@ -32,8 +34,20 @@ class PlaybackManager @Inject constructor(
 ) {
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
-    private var playerA: ExoPlayer = ExoPlayer.Builder(context).build()
-    private var playerB: ExoPlayer = ExoPlayer.Builder(context).build()
+    // Call-compatible audio attributes: Music usage with handleAudioFocus = false
+    // so music continues playing without being paused when on video/voice calls (WhatsApp, Instagram, Meet, etc.)
+    private val audioAttributes = AudioAttributes.Builder()
+        .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
+        .setUsage(C.USAGE_MEDIA)
+        .build()
+
+    private var playerA: ExoPlayer = ExoPlayer.Builder(context)
+        .setAudioAttributes(audioAttributes, /* handleAudioFocus = */ false)
+        .build()
+
+    private var playerB: ExoPlayer = ExoPlayer.Builder(context)
+        .setAudioAttributes(audioAttributes, /* handleAudioFocus = */ false)
+        .build()
 
     // playerA is initially active; playerB is standby for crossfade
     private var activePlayer: ExoPlayer = playerA
@@ -60,6 +74,10 @@ class PlaybackManager @Inject constructor(
     private val _repeatMode = MutableStateFlow(RepeatMode.OFF)
     val repeatMode = _repeatMode.asStateFlow()
 
+    // Live Jam Action notification banner (e.g. "Sneha changed track to Kesariya")
+    private val _lastJamAction = MutableStateFlow<String?>(null)
+    val lastJamAction = _lastJamAction.asStateFlow()
+
     val jamSession = jamClient.currentSession
     val jamState = jamClient.jamState
 
@@ -67,6 +85,8 @@ class PlaybackManager @Inject constructor(
     private var isCrossfading = false
     private var positionTickerJob: Job? = null
     private var crossfadeJob: Job? = null
+    private var dismissJob: Job? = null
+    private var tickCounter = 0
 
     init {
         setupPlayer(playerA)
@@ -102,6 +122,14 @@ class PlaybackManager @Inject constructor(
         })
     }
 
+    private fun scheduleActionDismiss() {
+        dismissJob?.cancel()
+        dismissJob = scope.launch {
+            delay(4000)
+            _lastJamAction.value = null
+        }
+    }
+
     private fun startPositionTicker() {
         positionTickerJob?.cancel()
         positionTickerJob = scope.launch {
@@ -123,6 +151,17 @@ class PlaybackManager @Inject constructor(
                             }
                         }
                     }
+
+                    // Periodic anti-drift sync: Host broadcasts position every 8s so both phones stay locked in time
+                    tickCounter++
+                    if (tickCounter % 40 == 0) { // 40 * 200ms = 8 seconds
+                        val session = jamClient.currentSession.value
+                        if (session != null && session.isHost) {
+                            _currentTrack.value?.let { track ->
+                                jamClient.broadcastPlaybackState(track, pos, true, action = "drift_sync")
+                            }
+                        }
+                    }
                 }
                 delay(200)
             }
@@ -138,24 +177,64 @@ class PlaybackManager @Inject constructor(
                         val current = _currentTrack.value
 
                         if (current == null || current.id != incomingTrack.id) {
+                            _lastJamAction.value = "${state.sender} played ${incomingTrack.title}"
+                            scheduleActionDismiss()
                             playTrackFromJam(incomingTrack, state.position, state.isPlaying)
                         } else {
                             if (activePlayer.isPlaying != state.isPlaying) {
+                                _lastJamAction.value = if (state.isPlaying) "${state.sender} resumed" else "${state.sender} paused"
+                                scheduleActionDismiss()
                                 if (state.isPlaying) activePlayer.play() else activePlayer.pause()
                                 _isPlaying.value = state.isPlaying
                             }
-                            if (Math.abs(activePlayer.currentPosition - state.position) > 2000L) {
+                            val drift = Math.abs(activePlayer.currentPosition - state.position)
+                            if (drift > 1500L) {
                                 activePlayer.seekTo(state.position)
                                 _currentPositionMs.value = state.position
                             }
                         }
                     }
+
+                    is JamState.RequestSync -> {
+                        // Partner asked for current playing state: reply immediately!
+                        _currentTrack.value?.let { track ->
+                            jamClient.broadcastPlaybackState(
+                                track = track,
+                                position = activePlayer.currentPosition,
+                                isPlaying = activePlayer.isPlaying,
+                                action = "sync_response"
+                            )
+                        }
+                    }
+
+                    is JamState.UserJoined -> {
+                        // Partner joined the session! Reply immediately with current playing song
+                        _currentTrack.value?.let { track ->
+                            jamClient.broadcastPlaybackState(
+                                track = track,
+                                position = activePlayer.currentPosition,
+                                isPlaying = activePlayer.isPlaying,
+                                action = "sync_response"
+                            )
+                        }
+                        _lastJamAction.value = "${state.username} joined the Jam"
+                        scheduleActionDismiss()
+                    }
+
+                    is JamState.UserLeft -> {
+                        _lastJamAction.value = "${state.username} left the Jam"
+                        scheduleActionDismiss()
+                    }
+
                     is JamState.QueueTrack -> {
                         val currentList = _queue.value
                         if (currentList.none { it.id == state.track.id }) {
                             _queue.value = currentList + state.track
                         }
+                        _lastJamAction.value = "${state.sender} queued ${state.track.title}"
+                        scheduleActionDismiss()
                     }
+
                     else -> {}
                 }
             }
@@ -217,7 +296,8 @@ class PlaybackManager @Inject constructor(
         _durationMs.value = track.durationMs
 
         audioEffectManager.attachAudioSession(activePlayer.audioSessionId)
-        jamClient.broadcastPlaybackState(track, 0L, true)
+        // Instant broadcast so partner's phone changes to this song immediately
+        jamClient.broadcastPlaybackState(track, 0L, true, action = "change_track")
     }
 
     fun playTrackAtIndex(index: Int) {
@@ -225,6 +305,7 @@ class PlaybackManager @Inject constructor(
         if (index in q.indices) {
             val target = q[index]
             currentIndex = index
+            jamClient.broadcastPlaybackState(target, 0L, true, action = "change_track")
             startCrossfadeTo(target)
         }
     }
@@ -249,7 +330,7 @@ class PlaybackManager @Inject constructor(
             activePlayer.seekTo(0L)
             activePlayer.play()
             _currentPositionMs.value = 0L
-            _currentTrack.value?.let { jamClient.broadcastPlaybackState(it, 0L, true) }
+            _currentTrack.value?.let { jamClient.broadcastPlaybackState(it, 0L, true, action = "repeat_one") }
             return
         }
 
@@ -267,6 +348,7 @@ class PlaybackManager @Inject constructor(
         if (nextIdx != -1) {
             val nextTrack = q[nextIdx]
             currentIndex = nextIdx
+            jamClient.broadcastPlaybackState(nextTrack, 0L, true, action = "next_track")
             startCrossfadeTo(nextTrack)
         }
     }
@@ -278,7 +360,7 @@ class PlaybackManager @Inject constructor(
             // Restart current track
             activePlayer.seekTo(0L)
             _currentPositionMs.value = 0L
-            _currentTrack.value?.let { jamClient.broadcastPlaybackState(it, 0L, activePlayer.isPlaying) }
+            _currentTrack.value?.let { jamClient.broadcastPlaybackState(it, 0L, activePlayer.isPlaying, action = "restart_track") }
             return
         }
         val prevIdx = if (currentIndex - 1 >= 0) {
@@ -292,6 +374,7 @@ class PlaybackManager @Inject constructor(
         if (prevIdx >= 0) {
             val prevTrack = q[prevIdx]
             currentIndex = prevIdx
+            jamClient.broadcastPlaybackState(prevTrack, 0L, true, action = "prev_track")
             startCrossfadeTo(prevTrack)
         }
     }
@@ -336,8 +419,6 @@ class PlaybackManager @Inject constructor(
             audioEffectManager.attachAudioSession(activePlayer.audioSessionId)
             _isPlaying.value = true
             isCrossfading = false
-
-            jamClient.broadcastPlaybackState(nextTrack, 0L, true)
         }
     }
 
@@ -360,7 +441,7 @@ class PlaybackManager @Inject constructor(
         activePlayer.seekTo(positionMs.coerceAtLeast(0L))
         _currentPositionMs.value = positionMs
         _currentTrack.value?.let { track ->
-            jamClient.broadcastPlaybackState(track, positionMs, activePlayer.isPlaying)
+            jamClient.broadcastPlaybackState(track, positionMs, activePlayer.isPlaying, action = "seek")
         }
     }
 
@@ -369,13 +450,13 @@ class PlaybackManager @Inject constructor(
             activePlayer.pause()
             _isPlaying.value = false
             _currentTrack.value?.let { track ->
-                jamClient.broadcastPlaybackState(track, activePlayer.currentPosition, false)
+                jamClient.broadcastPlaybackState(track, activePlayer.currentPosition, false, action = "pause")
             }
         } else {
             activePlayer.play()
             _isPlaying.value = true
             _currentTrack.value?.let { track ->
-                jamClient.broadcastPlaybackState(track, activePlayer.currentPosition, true)
+                jamClient.broadcastPlaybackState(track, activePlayer.currentPosition, true, action = "play")
             }
         }
     }

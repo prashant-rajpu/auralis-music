@@ -41,6 +41,7 @@ class PlayerViewModel @Inject constructor(
     val repeatMode = playbackManager.repeatMode
     val jamSession = playbackManager.jamSession
     val jamState = playbackManager.jamState
+    val lastJamAction = playbackManager.lastJamAction
 
     private val _lyrics = MutableStateFlow<List<LyricLine>>(emptyList())
     val lyrics = _lyrics.asStateFlow()
