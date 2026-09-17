@@ -27,12 +27,12 @@ fun SoundProfilesBottomSheet(
 ) {
     Dialog(onDismissRequest = onDismiss) {
         Surface(
-            shape = RoundedCornerShape(24.dp),
-            color = YtMusicSurface,
+            shape = RoundedCornerShape(26.dp),
+            color = GlassSurfaceStrong,
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(vertical = 16.dp)
-                .border(1.dp, YtMusicBorder, RoundedCornerShape(24.dp))
+                .border(1.2.dp, GlassBorder, RoundedCornerShape(26.dp))
         ) {
             Column(
                 modifier = Modifier
@@ -48,16 +48,16 @@ fun SoundProfilesBottomSheet(
                         Text(
                             text = "Audio FX & Equalizer",
                             style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
-                            color = Color.White
+                            color = BabyPinkTextPrimary
                         )
                         Text(
                             text = "Hardware DSP & Crossfade Mixing",
                             style = MaterialTheme.typography.bodySmall,
-                            color = YtMusicTextSecondary
+                            color = BabyPinkTextSecondary
                         )
                     }
                     TextButton(onClick = onDismiss) {
-                        Text("Done", color = YtMusicRed, fontWeight = FontWeight.Bold)
+                        Text("Done", color = BabyPinkPrimary, fontWeight = FontWeight.Bold)
                     }
                 }
 
@@ -67,7 +67,7 @@ fun SoundProfilesBottomSheet(
                 Text(
                     text = "Sound Profiles",
                     style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
-                    color = Color.White
+                    color = BabyPinkTextPrimary
                 )
                 Spacer(modifier = Modifier.height(8.dp))
 
@@ -84,10 +84,10 @@ fun SoundProfilesBottomSheet(
                             onClick = { onProfileChange(profile.copy(preset = preset)) },
                             label = { Text(preset.displayName) },
                             colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = YtMusicRed,
-                                selectedLabelColor = Color.White,
-                                containerColor = YtMusicCard,
-                                labelColor = YtMusicTextSecondary
+                                selectedContainerColor = BabyPinkPrimary,
+                                selectedLabelColor = BabyPinkTextPrimary,
+                                containerColor = GlassSurface,
+                                labelColor = BabyPinkTextSecondary
                             ),
                             shape = RoundedCornerShape(16.dp)
                         )
@@ -105,12 +105,12 @@ fun SoundProfilesBottomSheet(
                     Text(
                         text = "Bass Boost",
                         style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
-                        color = Color.White
+                        color = BabyPinkTextPrimary
                     )
                     Text(
                         text = "${(profile.bassBoostStrength / 10)}%",
                         style = MaterialTheme.typography.bodySmall,
-                        color = YtMusicRed,
+                        color = BabyPinkPrimary,
                         fontWeight = FontWeight.Bold
                     )
                 }
@@ -119,9 +119,9 @@ fun SoundProfilesBottomSheet(
                     onValueChange = { onProfileChange(profile.copy(bassBoostStrength = it.toInt())) },
                     valueRange = 0f..1000f,
                     colors = SliderDefaults.colors(
-                        thumbColor = YtMusicRed,
-                        activeTrackColor = YtMusicRed,
-                        inactiveTrackColor = Color(0x33FFFFFF)
+                        thumbColor = Color.White,
+                        activeTrackColor = BabyPinkPrimary,
+                        inactiveTrackColor = ProgressBarTrackPink
                     )
                 )
 
@@ -136,12 +136,12 @@ fun SoundProfilesBottomSheet(
                     Text(
                         text = "Treble Boost",
                         style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
-                        color = Color.White
+                        color = BabyPinkTextPrimary
                     )
                     Text(
                         text = "${(profile.trebleBoostStrength / 10)}%",
                         style = MaterialTheme.typography.bodySmall,
-                        color = YtMusicRed,
+                        color = BabyPinkPrimary,
                         fontWeight = FontWeight.Bold
                     )
                 }
@@ -150,9 +150,9 @@ fun SoundProfilesBottomSheet(
                     onValueChange = { onProfileChange(profile.copy(trebleBoostStrength = it.toInt())) },
                     valueRange = 0f..1000f,
                     colors = SliderDefaults.colors(
-                        thumbColor = YtMusicRed,
-                        activeTrackColor = YtMusicRed,
-                        inactiveTrackColor = Color(0x33FFFFFF)
+                        thumbColor = Color.White,
+                        activeTrackColor = BabyPinkPrimary,
+                        inactiveTrackColor = ProgressBarTrackPink
                     )
                 )
 
@@ -167,12 +167,12 @@ fun SoundProfilesBottomSheet(
                     Text(
                         text = "Dual-Engine Crossfade Duration",
                         style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
-                        color = Color.White
+                        color = BabyPinkTextPrimary
                     )
                     Text(
                         text = "${profile.crossfadeDurationSec}s",
                         style = MaterialTheme.typography.bodySmall,
-                        color = YtMusicRed,
+                        color = BabyPinkPrimary,
                         fontWeight = FontWeight.Bold
                     )
                 }
@@ -182,9 +182,9 @@ fun SoundProfilesBottomSheet(
                     valueRange = 1f..12f,
                     steps = 10,
                     colors = SliderDefaults.colors(
-                        thumbColor = YtMusicRed,
-                        activeTrackColor = YtMusicRed,
-                        inactiveTrackColor = Color(0x33FFFFFF)
+                        thumbColor = Color.White,
+                        activeTrackColor = BabyPinkPrimary,
+                        inactiveTrackColor = ProgressBarTrackPink
                     )
                 )
             }

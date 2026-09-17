@@ -20,8 +20,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.auralis.app.domain.model.LyricLine
-import com.auralis.app.ui.theme.YtMusicRed
-import com.auralis.app.ui.theme.YtMusicTextSecondary
+import com.auralis.app.ui.theme.BabyPinkPrimary
+import com.auralis.app.ui.theme.BabyPinkTextPrimary
+import com.auralis.app.ui.theme.BabyPinkTextSecondary
 
 @Composable
 fun SyncedLyricsView(
@@ -39,14 +40,14 @@ fun SyncedLyricsView(
                 Text(
                     text = "Lyrics not available for this track",
                     style = MaterialTheme.typography.titleMedium,
-                    color = YtMusicTextSecondary,
+                    color = BabyPinkTextPrimary,
                     textAlign = TextAlign.Center
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = "Synced LRC will load automatically when found",
                     style = MaterialTheme.typography.bodySmall,
-                    color = Color.DarkGray,
+                    color = BabyPinkTextSecondary,
                     textAlign = TextAlign.Center
                 )
             }
@@ -77,10 +78,10 @@ fun SyncedLyricsView(
     ) {
         itemsIndexed(lyrics) { index, line ->
             val isActive = index == activeIndex
-            val alpha by animateFloatAsState(targetValue = if (isActive) 1.0f else 0.35f, label = "lyric_alpha")
+            val alpha by animateFloatAsState(targetValue = if (isActive) 1.0f else 0.4f, label = "lyric_alpha")
             val fontSize = if (isActive) 24.sp else 19.sp
-            val fontWeight = if (isActive) FontWeight.ExtraBold else FontWeight.Medium
-            val color = if (isActive) Color.White else Color(0x99FFFFFF)
+            val fontWeight = if (isActive) FontWeight.Bold else FontWeight.Medium
+            val color = if (isActive) BabyPinkTextPrimary else BabyPinkTextSecondary
 
             Text(
                 text = line.text,
@@ -89,6 +90,7 @@ fun SyncedLyricsView(
                 color = color,
                 textAlign = TextAlign.Start,
                 lineHeight = 32.sp,
+                letterSpacing = 0.4.sp,
                 modifier = Modifier
                     .fillMaxWidth()
                     .alpha(alpha)

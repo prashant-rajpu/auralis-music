@@ -1,14 +1,45 @@
 package com.auralis.app.ui.theme
 
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 
-// YouTube Music Premium Dark Palette
+// Glassmorphism + Light Baby Pink Music Player Theme (Single Source of Truth)
+val BabyPinkBgStart = Color(0xFFFFF5F8)
+val BabyPinkBgMiddle = Color(0xFFFFE4EC)
+val BabyPinkBgEnd = Color(0xFFFFF0F5)
+val BabyPinkBgCard = Color(0xFFFFDDE8)
+
+val BabyPinkPrimary = Color(0xFFFFB6C1)          // Primary Pink (Active states, progress, accents)
+val BabyPinkSoftRose = Color(0xFFFFC0CB)         // Soft Rose (Secondary accents, icons)
+val BabyPinkTextPrimary = Color(0xFF5C3A4A)      // Deep Dusty Rose (Primary text: titles, song names)
+val BabyPinkTextSecondary = Color(0xFF9A7A87)    // Muted Rose (Secondary: artists, timestamps, labels)
+val BabyPinkTextTertiary = Color(0xFFB89DA8)
+
+// Glass Surfaces & Borders
+val GlassSurface = Color(0x8CFFFFFF)            // rgba(255, 255, 255, 0.55) - Cards, panels, mini player
+val GlassSurfaceStrong = Color(0xB3FFFFFF)      // rgba(255, 255, 255, 0.70) - Modals, notifications
+val GlassBorder = Color(0x73FFB6C1)             // rgba(255, 182, 193, 0.45) - Soft glowing edges
+val GlassBorderHighlight = Color(0x80FFFFFF)    // Subtle white inner light
+
+val ProgressBarTrackPink = Color(0xFFFFD6E0)    // Very light pink track
+val PlayButtonGlowPink = Color(0x66FFB6C1)      // Soft radial glow at 40% opacity
+val NotificationTint = Color(0xD9FFF0F5)        // rgba(255, 240, 245, 0.85)
+
+// Global Gradient Brush
+val BabyPinkBackgroundBrush = Brush.verticalGradient(
+    colors = listOf(
+        BabyPinkBgStart,
+        BabyPinkBgMiddle,
+        BabyPinkBgEnd
+    )
+)
+
+// Legacy / Alternative Accents for Compatibility
 val YtMusicBlack = Color(0xFF030303)
 val YtMusicDark = Color(0xFF0D0D0D)
 val YtMusicSurface = Color(0xFF161616)
 val YtMusicCard = Color(0xFF212121)
 val YtMusicPill = Color(0xFF282828)
-val YtMusicPillHover = Color(0xFF383838)
 val YtMusicRed = Color(0xFFFF0033)
 val YtMusicRedGlow = Color(0xFFFF2E54)
 val YtMusicTextPrimary = Color(0xFFFFFFFF)
@@ -16,27 +47,6 @@ val YtMusicTextSecondary = Color(0xFFAAAAAA)
 val YtMusicTextTertiary = Color(0xFF717171)
 val YtMusicBorder = Color(0x22FFFFFF)
 val YtMusicGlassSurface = Color(0xD9161616)
-
-// Neon & Legacy Accents
-val NeonViolet = Color(0xFFD000FF)
-val NeonCyan = Color(0xFF00F0FF)
-val NeonCrimson = Color(0xFFFF003C)
 val SpotifyGreen = Color(0xFF1DB954)
-
-// Deep OLED Blacks
-val OledBlack = Color(0xFF000000)
 val DarkGrey = Color(0xFF121212)
-val SurfaceDark = Color(0xFF1E1E1E)
-
-// Frosted Glass overlays (semi-transparent)
-val GlassWhite10 = Color(0x1AFFFFFF)
-val GlassWhite20 = Color(0x33FFFFFF)
-val GlassBlack50 = Color(0x80000000)
-
-val Purple80 = Color(0xFFD0BCFF)
-val PurpleGrey80 = Color(0xFFCCC2DC)
-val Pink80 = Color(0xFFEFB8C8)
-
-val Purple40 = Color(0xFF6650a4)
-val PurpleGrey40 = Color(0xFF625b71)
-val Pink40 = Color(0xFF7D5260)
+val NeonCyan = Color(0xFF00F0FF)

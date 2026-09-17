@@ -6,11 +6,11 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.SkipNext
-import androidx.compose.material.icons.outlined.ThumbUp
-import androidx.compose.material.icons.filled.ThumbUp
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -18,6 +18,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
@@ -80,29 +81,40 @@ private fun MiniPlayerContent(
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 8.dp, vertical = 4.dp)
-            .clip(RoundedCornerShape(12.dp))
-            .background(YtMusicGlassSurface)
-            .border(1.dp, if (isJamActive) SpotifyGreen.copy(alpha = 0.4f) else YtMusicBorder, RoundedCornerShape(12.dp))
+            .padding(horizontal = 12.dp, vertical = 6.dp)
+            .shadow(elevation = 10.dp, shape = RoundedCornerShape(20.dp), ambientColor = PlayButtonGlowPink)
+            .clip(RoundedCornerShape(20.dp))
+            .background(GlassSurfaceStrong)
+            .border(1.2.dp, GlassBorder, RoundedCornerShape(20.dp))
             .clickable { onClick() }
     ) {
         Column {
+            // Soft pink progress line at the top of the mini player (per spec)
+            LinearProgressIndicator(
+                progress = progress,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(2.5.dp),
+                color = BabyPinkPrimary,
+                trackColor = ProgressBarTrackPink
+            )
+
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(60.dp)
+                    .height(62.dp)
                     .padding(horizontal = 10.dp, vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Album Art
+                // Miniature rounded album art
                 AsyncImage(
                     model = track.albumArtUrl,
                     contentDescription = "Album Art",
                     contentScale = ContentScale.Crop,
                     modifier = Modifier
                         .size(46.dp)
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(YtMusicCard)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(BabyPinkBgMiddle)
                 )
 
                 Spacer(modifier = Modifier.width(12.dp))
@@ -115,10 +127,10 @@ private fun MiniPlayerContent(
                     Text(
                         text = track.title,
                         style = MaterialTheme.typography.bodyMedium.copy(
-                            fontWeight = FontWeight.SemiBold,
+                            fontWeight = FontWeight.Bold,
                             fontSize = 14.sp
                         ),
-                        color = Color.White,
+                        color = BabyPinkTextPrimary,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
@@ -127,24 +139,24 @@ private fun MiniPlayerContent(
                         text = if (isJamActive) "🎧 Jam with ${jamParticipants.ifEmpty { "Partner" }}" else "${track.artist} • ${track.source}",
                         style = MaterialTheme.typography.bodySmall.copy(
                             fontSize = 12.sp,
-                            fontWeight = if (isJamActive) FontWeight.Bold else FontWeight.Normal
+                            fontWeight = if (isJamActive) FontWeight.Bold else FontWeight.Medium
                         ),
-                        color = if (isJamActive) SpotifyGreen else YtMusicTextSecondary,
+                        color = if (isJamActive) BabyPinkPrimary else BabyPinkTextSecondary,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
                 }
 
-                // Like Shortcut
+                // Heart (Like) Shortcut
                 IconButton(
                     onClick = onLikeClick,
                     modifier = Modifier.size(36.dp)
                 ) {
                     Icon(
-                        imageVector = if (isLiked) Icons.Default.ThumbUp else Icons.Outlined.ThumbUp,
+                        imageVector = if (isLiked) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
                         contentDescription = "Like",
-                        tint = if (isLiked) YtMusicRed else YtMusicTextSecondary,
-                        modifier = Modifier.size(20.dp)
+                        tint = if (isLiked) BabyPinkPrimary else BabyPinkTextSecondary,
+                        modifier = Modifier.size(22.dp)
                     )
                 }
 
@@ -156,7 +168,7 @@ private fun MiniPlayerContent(
                     Icon(
                         imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
                         contentDescription = if (isPlaying) "Pause" else "Play",
-                        tint = Color.White,
+                        tint = BabyPinkTextPrimary,
                         modifier = Modifier.size(28.dp)
                     )
                 }
@@ -169,21 +181,11 @@ private fun MiniPlayerContent(
                     Icon(
                         imageVector = Icons.Default.SkipNext,
                         contentDescription = "Next Track",
-                        tint = Color.White,
+                        tint = BabyPinkTextPrimary,
                         modifier = Modifier.size(24.dp)
                     )
                 }
             }
-
-            // Live Progress Bar (Spotify Green when in Jam, YouTube Red when regular)
-            LinearProgressIndicator(
-                progress = progress,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(2.5.dp),
-                color = if (isJamActive) SpotifyGreen else YtMusicRed,
-                trackColor = Color(0x22FFFFFF)
-            )
         }
     }
 }
