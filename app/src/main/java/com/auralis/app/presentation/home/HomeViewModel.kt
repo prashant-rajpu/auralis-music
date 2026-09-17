@@ -33,6 +33,9 @@ class HomeViewModel @Inject constructor(
     private val _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
 
+    private val _sourceFilter = MutableStateFlow("All")
+    val sourceFilter: StateFlow<String> = _sourceFilter.asStateFlow()
+
     private val _uiState = MutableStateFlow<HomeUiState>(HomeUiState.Loading)
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
 
@@ -48,10 +51,17 @@ class HomeViewModel @Inject constructor(
             loadOfflineTracks()
         } else {
             if (_searchQuery.value.isNotBlank()) {
-                performSearch(_searchQuery.value)
+                performSearch(_searchQuery.value, _sourceFilter.value)
             } else {
                 loadTrendingTracks()
             }
+        }
+    }
+
+    fun selectSourceFilter(source: String) {
+        _sourceFilter.value = source
+        if (_searchQuery.value.isNotBlank()) {
+            performSearch(_searchQuery.value, source)
         }
     }
 
@@ -69,15 +79,15 @@ class HomeViewModel @Inject constructor(
 
         searchJob = viewModelScope.launch {
             delay(400) // 400ms debounce
-            performSearch(query)
+            performSearch(query, _sourceFilter.value)
         }
     }
 
-    private fun performSearch(query: String) {
+    private fun performSearch(query: String, source: String = "All") {
         viewModelScope.launch {
             _uiState.value = HomeUiState.Loading
             try {
-                val tracks = repository.searchTracks(query)
+                val tracks = repository.searchTracks(query, source)
                 if (tracks.isEmpty()) {
                     _uiState.value = HomeUiState.Error("No tracks found for '$query'")
                 } else {
@@ -95,7 +105,6 @@ class HomeViewModel @Inject constructor(
             try {
                 val tracks = repository.fetchServerTracks()
                 if (tracks.isEmpty()) {
-                    // Fallback to offline tracks if online list is empty
                     val offline = repository.fetchLocalTracks()
                     if (offline.isNotEmpty()) {
                         _selectedTab.value = HomeTab.Downloaded
@@ -107,7 +116,6 @@ class HomeViewModel @Inject constructor(
                     _uiState.value = HomeUiState.Success(tracks)
                 }
             } catch (e: Exception) {
-                // If network fails completely, automatically fallback to offline tracks
                 val offline = repository.fetchLocalTracks()
                 if (offline.isNotEmpty()) {
                     _selectedTab.value = HomeTab.Downloaded
@@ -125,7 +133,7 @@ class HomeViewModel @Inject constructor(
             try {
                 val tracks = repository.fetchLocalTracks()
                 if (tracks.isEmpty()) {
-                    _uiState.value = HomeUiState.Error("No downloaded tracks yet. Tap the download icon on any song to listen offline!")
+                    _uiState.value = HomeUiState.Error("No downloaded tracks yet. Tap the download icon on any song to listen offline with synced lyrics!")
                 } else {
                     _uiState.value = HomeUiState.Success(tracks)
                 }
@@ -142,11 +150,10 @@ class HomeViewModel @Inject constructor(
             } else {
                 repository.downloadTrack(track)
             }
-            // Refresh state
             if (_selectedTab.value == HomeTab.Downloaded) {
                 loadOfflineTracks()
             } else if (_searchQuery.value.isNotBlank()) {
-                performSearch(_searchQuery.value)
+                performSearch(_searchQuery.value, _sourceFilter.value)
             } else {
                 loadTrendingTracks()
             }
@@ -154,7 +161,8 @@ class HomeViewModel @Inject constructor(
     }
 
     fun playTrack(track: Track) {
-        playbackManager.playTrack(track)
+        val currentList = (_uiState.value as? HomeUiState.Success)?.tracks ?: listOf(track)
+        playbackManager.playTrack(track, currentList)
     }
 
     fun connectToJam(jamId: String, username: String) {

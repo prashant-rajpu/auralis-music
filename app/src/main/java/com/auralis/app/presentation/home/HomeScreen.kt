@@ -2,9 +2,11 @@ package com.auralis.app.presentation.home
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -41,6 +43,7 @@ fun HomeScreen(
     val uiState by viewModel.uiState.collectAsState()
     val selectedTab by viewModel.selectedTab.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
+    val sourceFilter by viewModel.sourceFilter.collectAsState()
 
     Surface(
         modifier = Modifier.fillMaxSize(),
@@ -69,7 +72,7 @@ fun HomeScreen(
                         fontWeight = FontWeight.Bold
                     )
                     Text(
-                        text = "Superpremium 320 kbps Streaming",
+                        text = "YouTube Music + 320 kbps Master Engine",
                         color = NeonCyan,
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Medium
@@ -116,8 +119,34 @@ fun HomeScreen(
                 ),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(vertical = 12.dp)
+                    .padding(top = 12.dp, bottom = 8.dp)
             )
+
+            // Source Filter Chips Row (All, YouTube Music, JioSaavn 320k, Audius)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState())
+                    .padding(bottom = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                val sources = listOf("All", "YouTube Music", "JioSaavn 320k", "Audius")
+                sources.forEach { source ->
+                    val isSelected = sourceFilter.equals(source, ignoreCase = true)
+                    FilterChip(
+                        selected = isSelected,
+                        onClick = { viewModel.selectSourceFilter(source) },
+                        label = { Text(source, fontSize = 12.sp) },
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = NeonCyan,
+                            selectedLabelColor = Color.Black,
+                            containerColor = DarkGrey,
+                            labelColor = Color.LightGray
+                        ),
+                        shape = RoundedCornerShape(16.dp)
+                    )
+                }
+            }
 
             // Segmented Tabs: Online vs Downloaded
             Row(
