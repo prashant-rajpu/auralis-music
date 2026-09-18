@@ -8,7 +8,7 @@ data class Track(
     val mediaUrl: String,
     val durationMs: Long,
     val source: String = "Auralis Master",
-    val qualityBadge: String = "320 kbps Master",
+    val qualityBadge: String = "HQ Audio",
     val isDownloaded: Boolean = false,
     val lyrics: List<LyricLine>? = null,
     val isAutoplayRecommendation: Boolean = false

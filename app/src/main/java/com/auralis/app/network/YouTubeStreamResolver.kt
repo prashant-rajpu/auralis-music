@@ -56,10 +56,10 @@ class YouTubeStreamResolver @Inject constructor(
             }
         }
 
-        // 2. High-speed Lossless Master Stream via JioSaavn / OpenSource Catalog
+        // 2. Catalog match: JioSaavn 320 kbps AAC, else a Deezer preview
         val masterStreamUrl = resolveViaCatalog(track)
         if (!masterStreamUrl.isNullOrBlank()) {
-            Log.d("YouTubeStreamResolver", "Resolved $cacheKey via lossless master catalog: $masterStreamUrl")
+            Log.d("YouTubeStreamResolver", "Resolved $cacheKey via catalog match: $masterStreamUrl")
             streamCache[cacheKey] = CachedStream(
                 url = masterStreamUrl,
                 expiresAtMs = System.currentTimeMillis() + (12 * 3600 * 1000L)

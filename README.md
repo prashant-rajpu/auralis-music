@@ -1,52 +1,43 @@
 # Auralis Music
 
-A superpremium, ad-free music experience featuring a Dual-ExoPlayer crossfade audio engine, extensive multi-source catalog (YouTube Music, JioSaavn 320 kbps Master audio, Audius), time-synchronized lyrics with tap-to-seek, Android AudioFX sound profiles, and 100% offline playback.
+An ad-free Android music player with multi-source streaming, offline downloads, synced lyrics,
+AudioFX sound profiles, crossfade playback and a listen-together mode.
 
----
+## Features
 
-## 🎵 Features
+- **Playback**: overlapping crossfade between tracks (1–12 s), gapless-style transitions on skip,
+  shuffle and repeat, 0.75–2× speed, sleep timer with fade-out, notification / lockscreen /
+  Bluetooth controls.
+- **Sound profiles**: Android AudioFX equalizer with five presets (Flat, Bass Heavy, Vocal Clarity,
+  EDM / Club, Acoustic Warm) plus bass and treble boost, remembered across launches.
+- **Sources**: YouTube Music (search, related tracks, artist pages), JioSaavn (320 kbps AAC) and
+  Audius (320 kbps MP3), searchable together with per-source badges.
+- **Synced lyrics**: LRCLIB, Lyrics.ovh and NetEase with auto-scroll and tap-to-seek; lyrics are
+  cached with downloads for offline use.
+- **Offline**: one-tap downloads to app storage; the Home screen falls back to your downloads when
+  there is no network.
+- **Together Mode**: listen in sync with another phone, share the queue, send reactions.
+- **Infinite Radio**, SponsorBlock skipping for YouTube tracks, playlist import/export links.
 
-### 🎧 Advanced Dual-ExoPlayer Audio Engine
-- **Simultaneous Cross-Mixing**: Two pooled `ExoPlayer` instances perform true overlapping crossfade (1s to 12s, default 5s) on automatic track transitions and manual skips.
-- **Android AudioFX Sound Profiles**: Hardware-accelerated Bass Boost slider, Treble Boost slider, and 5 curated sound presets (*Flat / Studio Reference*, *Bass Heavy*, *Vocal Clarity*, *EDM / Club*, *Acoustic Warm*).
-- **Persistent DSP State**: Remembers your EQ and crossfade configuration across app launches.
+See [`docs/STATUS.md`](docs/STATUS.md) for what is known to be missing and the roadmap.
 
-### 🌐 Massive Multi-Source Online Catalog
-- **YouTube Music Engine**: Deep catalog coverage via YouTube InnerTube with direct high-bitrate Opus and AAC audio extraction.
-- **JioSaavn 320 kbps Engine**: Pristine CD-quality 320 kbps unencrypted audio streams via native DES-ECB decryption (`38346591`).
-- **Audius Decentralized Streaming**: Unrestricted 320 kbps MP3 streams.
-- **Multi-Source Filtering**: Instantly filter search results across `All`, `YouTube Music`, `JioSaavn 320k`, and `Audius` with audio quality badges.
+> YouTube Music and JioSaavn are accessed through unofficial endpoints. They can stop working
+> without notice, and builds that include them are distributed outside Google Play.
 
-### 📜 Synchronized Lyrics & Tap-to-Seek
-- **Multi-Provider Auto-Fallback**: Resolves time-synced LRC lyrics across YouTube Music, LRCLIB, NetEase Cloud Music, and JioSaavn.
-- **Interactive Player Display**: Auto-scrolls the active lyric line to center and lets you tap any line to instantly jump playback to that timestamp.
-- **100% Offline Lyrics Support**: Automatically caches synchronized LRC lyrics to Room DB when tracks are downloaded.
+## Tech stack
 
-### 💾 Robust Offline Mode
-- Single-tap download caching to app storage and Room database (`TrackDao`).
-- Automatic zero-internet fallback that seamlessly serves your offline library.
+Kotlin, Jetpack Compose (Material 3), Media3 ExoPlayer + MediaSession, Hilt, Room, Retrofit /
+OkHttp / Gson, Coil, Kotlin coroutines and Flow. Single `app` module.
 
-### 👥 Live Jam Sessions
-- Synchronized group listening via WebSockets (`JamWebSocketClient`).
+## Building
 
----
+Requires JDK 17 and the Android SDK (platform 37). The Gradle wrapper is committed.
 
-## 🛠️ Architecture & Tech Stack
-
-- **UI**: Jetpack Compose, Material 3, dynamic theme palette
-- **Media Engine**: Android Media3 (ExoPlayer), Android AudioFX (`Equalizer`, `BassBoost`)
-- **Architecture**: Clean Architecture / MVVM with StateFlow & Coroutines
-- **Networking**: Retrofit 2, OkHttp 3, Gson
-- **Persistence**: Room Database (v2) with automated schema migration
-- **Dependency Injection**: Dagger Hilt
-- **Image Loading**: Coil Compose
-
----
-
-## 📦 Build Instructions
-
-APKs are automatically generated via GitHub Actions CI:
 ```bash
-gradle build assembleDebug
+./gradlew testDebugUnitTest assembleDebug     # tests + debug APK
+./gradlew assembleRelease                     # R8-minified release APK (unsigned without a keystore)
 ```
-Check the **Actions** tab on GitHub to download the latest `auralis-debug-apk` artifact.
+
+Every push runs lint, unit tests, and both debug and release builds in GitHub Actions; the debug
+APK is attached to the run as `auralis-debug-apk`. Tags matching `v*` publish a signed APK to
+GitHub Releases — see [`docs/RELEASING.md`](docs/RELEASING.md).

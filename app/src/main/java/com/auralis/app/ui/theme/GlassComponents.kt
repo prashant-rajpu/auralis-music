@@ -3,6 +3,8 @@ package com.auralis.app.ui.theme
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
@@ -10,7 +12,9 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
@@ -18,6 +22,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
@@ -113,27 +121,52 @@ fun Modifier.doubleBezelCard(
     )
 
 /**
- * Haptic Spring Press Physics:
- * Simulates physical button depression with Apple/Linear-tier kinetic tension on touch.
+ * Spring "squeeze" while pressed plus haptic feedback on tap, honoring the user's haptic
+ * intensity setting. Observes the pointer directly (Initial pass, never consuming), so it works
+ * in front of any clickable without sharing its interaction source and never steals its events.
  */
 fun Modifier.hapticPress(
     scaleDown: Float = 0.97f,
     interactionSource: MutableInteractionSource? = null
 ): Modifier = composed {
     val source = interactionSource ?: remember { MutableInteractionSource() }
-    val isPressed by source.collectIsPressedAsState()
+    val externallyPressed by source.collectIsPressedAsState()
+    var pointerPressed by remember { mutableStateOf(false) }
+    val haptic = LocalHapticFeedback.current
+    val intensity = LocalHapticIntensity.current
     val scale by animateFloatAsState(
-        targetValue = if (isPressed) scaleDown else 1f,
+        targetValue = if (externallyPressed || pointerPressed) scaleDown else 1f,
         animationSpec = spring(
             dampingRatio = Spring.DampingRatioMediumBouncy,
             stiffness = Spring.StiffnessMedium
         ),
         label = "haptic_spring_scale"
     )
-    this.graphicsLayer {
-        scaleX = scale
-        scaleY = scale
-    }
+    this
+        .pointerInput(intensity) {
+            val slop = viewConfiguration.touchSlop
+            awaitEachGesture {
+                val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+                pointerPressed = true
+                var isTap = true
+                try {
+                    while (true) {
+                        val event = awaitPointerEvent(PointerEventPass.Initial)
+                        val tracked = event.changes.firstOrNull { it.id == down.id } ?: event.changes.first()
+                        if ((tracked.position - down.position).getDistance() > slop) isTap = false
+                        if (event.changes.none { it.pressed }) break
+                    }
+                } finally {
+                    pointerPressed = false
+                }
+                // Only a tap (not the start of a scroll) earns a tick
+                if (isTap) intensity.feedbackType?.let(haptic::performHapticFeedback)
+            }
+        }
+        .graphicsLayer {
+            scaleX = scale
+            scaleY = scale
+        }
 }
 
 /**

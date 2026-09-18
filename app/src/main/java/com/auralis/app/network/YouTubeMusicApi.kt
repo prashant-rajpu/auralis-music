@@ -194,7 +194,7 @@ class YouTubeMusicApi @Inject constructor(
                 mediaUrl = "https://www.youtube.com/watch?v=$videoId",
                 durationMs = durationMs,
                 source = "Auralis Radio",
-                qualityBadge = "320 kbps Master",
+                qualityBadge = "YouTube Music",
                 isDownloaded = false
             )
         } catch (e: Exception) {
@@ -481,7 +481,7 @@ class YouTubeMusicApi @Inject constructor(
                 mediaUrl = "https://www.youtube.com/watch?v=$videoId",
                 durationMs = durationMs,
                 source = "Auralis Master",
-                qualityBadge = "320 kbps Master",
+                qualityBadge = "YouTube Music",
                 isDownloaded = false
             )
         } catch (e: Exception) {

@@ -168,7 +168,7 @@ class NetworkMusicRepository @Inject constructor(
             mediaUrl = mediaUrl,
             durationMs = durationSec * 1000L,
             source = "Auralis Master",
-            qualityBadge = "320 kbps Lossless"
+            qualityBadge = "320 kbps AAC"
         )
     }
 
@@ -188,7 +188,7 @@ class NetworkMusicRepository @Inject constructor(
                 mediaUrl = streamUrl,
                 durationMs = duration,
                 source = "Auralis Global",
-                qualityBadge = "Lossless Audio"
+                qualityBadge = "320 kbps MP3"
             )
         } ?: emptyList()
     }

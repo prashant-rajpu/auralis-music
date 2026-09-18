@@ -1,16 +1,20 @@
 # Project State
 
-## Current Phase: Phase 5 - Advanced Audio Engine, Synced Lyrics & Multi-Source Catalog
+## Current Phase: Phase 0 - Stabilize & make releasable
 **Status**: Completed
 
 **Recent Actions**:
-- Implemented Dual-ExoPlayer crossfade audio engine with smooth simultaneous volume mixing across track transitions (1s–12s configurable duration).
-- Implemented Android AudioFX Equalizer & Bass Boost suite with 5 curated sound presets (Flat, Bass Heavy, Vocal Clarity, EDM / Club, Acoustic Warm) and persistent user preferences.
-- Added YouTube Music InnerTube engine providing comprehensive library coverage alongside JioSaavn 320 kbps Master audio and Audius decentralized streaming.
-- Built multi-provider synchronized lyrics system (Local Room DB -> YouTube Music -> LRCLIB -> NetEase -> JioSaavn) with animated auto-scrolling and tap-to-seek playback.
-- Enhanced offline downloader to automatically fetch and cache synced LRC lyrics directly into Room DB for 100% offline lyrics support.
-- Updated Now Playing screen with live draggable progress seekbar, synced lyrics toggle, and AudioFX Sound Profiles bottom sheet modal.
-- Updated Home screen with multi-engine source filter chips (`All`, `YouTube Music`, `JioSaavn 320k`, `Audius`) and audio quality badges.
+- Upgraded the toolchain: Gradle 9.7 wrapper, AGP 9.4 with built-in Kotlin 2.4, KSP, Compose
+  BOM 2026.09 (compileSdk 37 / targetSdk 36), Media3 1.11, Room 2.8, Hilt 2.60, Java 17.
+- Release builds now work: R8 keep rules for the Gson DTOs, resource shrinking, signing from
+  `keystore.properties` or CI secrets, and a tag-triggered GitHub Release workflow.
+- Hardened Together Mode (URL allowlist for inbound tracks, session-code validation, duplicate
+  message suppression), restricted MediaSession control to trusted controllers, debug-only HTTP
+  logging, per-session audio effects, local files no longer re-resolved over the network.
+- Removed dead code, hid the unwired streaming-quality setting, made the haptic setting real,
+  and replaced inaccurate docs and quality badges with honest ones (`docs/STATUS.md`).
+
+**Next Phase**: Phase 1 - `play` / `plus` product flavors and the `MusicSource` abstraction.
 
 **Blockers**:
-- None. All unit test algorithms verified.
+- None.

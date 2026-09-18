@@ -12,7 +12,7 @@ data class JamTrackDto(
     val mediaUrl: String = "",
     val albumArtUrl: String? = null,
     val durationMs: Long = 0L,
-    val qualityBadge: String = "320 kbps Master",
+    val qualityBadge: String = "HQ Audio",
     val source: String = "Auralis Master"
 )
 

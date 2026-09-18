@@ -50,7 +50,6 @@ fun SettingsScreen(
 
     val infiniteRadioAutoplay by viewModel.infiniteRadioAutoplay.collectAsState()
     val sponsorBlockEnabled by viewModel.sponsorBlockEnabled.collectAsState()
-    val audioQuality by viewModel.audioQuality.collectAsState()
     val hapticIntensity by viewModel.hapticIntensity.collectAsState()
 
     val userPlaylists by viewModel.userPlaylists.collectAsState()
@@ -640,47 +639,6 @@ fun SettingsScreen(
                                 onCheckedChange = { viewModel.toggleSponsorBlock(it) }
                             )
 
-                            HorizontalDivider(color = BabyPinkBorder, thickness = 0.5.dp)
-
-                            // Audio Quality
-                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Text(
-                                    text = "Streaming Quality",
-                                    color = BabyPinkTextPrimary,
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.SemiBold
-                                )
-
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    AudioQualitySetting.values().forEach { quality ->
-                                        val isSelected = audioQuality == quality
-                                        Box(
-                                            modifier = Modifier
-                                                .weight(1f)
-                                                .clip(RoundedCornerShape(12.dp))
-                                                .background(if (isSelected) BabyPinkPrimary else BabyPinkCardBg)
-                                                .border(
-                                                    width = 1.dp,
-                                                    color = if (isSelected) BabyPinkPrimary else BabyPinkBorder,
-                                                    shape = RoundedCornerShape(12.dp)
-                                                )
-                                                .clickable { viewModel.setAudioQuality(quality) }
-                                                .padding(vertical = 8.dp),
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            Text(
-                                                text = "${quality.bitrateKbps} kbps",
-                                                color = if (isSelected) Color.White else BabyPinkTextPrimary,
-                                                fontSize = 12.sp,
-                                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
-                                            )
-                                        }
-                                    }
-                                }
-                            }
                         }
                     }
                 }

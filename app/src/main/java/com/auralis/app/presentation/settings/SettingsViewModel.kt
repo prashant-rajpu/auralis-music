@@ -30,7 +30,6 @@ class SettingsViewModel @Inject constructor(
 
     val infiniteRadioAutoplay = preferences.infiniteRadioAutoplay
     val sponsorBlockEnabled = preferences.sponsorBlockEnabled
-    val audioQuality = preferences.audioQuality
     val hapticIntensity = preferences.hapticIntensity
 
     val userPlaylists = playlistSharingManager.userPlaylists
@@ -72,10 +71,6 @@ class SettingsViewModel @Inject constructor(
 
     fun toggleSponsorBlock(enabled: Boolean) {
         preferences.setSponsorBlockEnabled(enabled)
-    }
-
-    fun setAudioQuality(quality: AudioQualitySetting) {
-        preferences.setAudioQuality(quality)
     }
 
     fun setHapticIntensity(intensity: HapticIntensity) {

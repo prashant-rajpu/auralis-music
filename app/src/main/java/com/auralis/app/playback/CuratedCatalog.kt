@@ -18,7 +18,7 @@ object CuratedCatalog {
                 mediaUrl = "https://music.youtube.com/watch?v=b1kbLwvqugk",
                 durationMs = 230000L,
                 source = "Auralis Master",
-                qualityBadge = "320 kbps Lossless",
+                qualityBadge = "YouTube Music",
                 isAutoplayRecommendation = false
             ),
             Track(
@@ -29,7 +29,7 @@ object CuratedCatalog {
                 mediaUrl = "https://music.youtube.com/watch?v=4NRXx6U8ABQ",
                 durationMs = 200000L,
                 source = "Auralis Master",
-                qualityBadge = "320 kbps Lossless",
+                qualityBadge = "YouTube Music",
                 isAutoplayRecommendation = false
             ),
             Track(
@@ -40,7 +40,7 @@ object CuratedCatalog {
                 mediaUrl = "https://music.youtube.com/watch?v=JGwWNGJdvx8",
                 durationMs = 233000L,
                 source = "Auralis Master",
-                qualityBadge = "320 kbps Lossless",
+                qualityBadge = "YouTube Music",
                 isAutoplayRecommendation = false
             ),
             Track(
@@ -51,7 +51,7 @@ object CuratedCatalog {
                 mediaUrl = "https://music.youtube.com/watch?v=BddP6PYo2gs",
                 durationMs = 268000L,
                 source = "Auralis Master",
-                qualityBadge = "320 kbps Lossless",
+                qualityBadge = "YouTube Music",
                 isAutoplayRecommendation = false
             ),
             Track(
@@ -62,7 +62,7 @@ object CuratedCatalog {
                 mediaUrl = "https://music.youtube.com/watch?v=GxldQ9GyXfY",
                 durationMs = 177000L,
                 source = "Auralis Master",
-                qualityBadge = "320 kbps Lossless",
+                qualityBadge = "YouTube Music",
                 isAutoplayRecommendation = false
             ),
             Track(
@@ -73,7 +73,7 @@ object CuratedCatalog {
                 mediaUrl = "https://music.youtube.com/watch?v=syFZfO_wfMQ",
                 durationMs = 226000L,
                 source = "Auralis Master",
-                qualityBadge = "320 kbps Lossless",
+                qualityBadge = "YouTube Music",
                 isAutoplayRecommendation = false
             ),
             Track(
@@ -84,7 +84,7 @@ object CuratedCatalog {
                 mediaUrl = "https://music.youtube.com/watch?v=TUVcZfQe-Kw",
                 durationMs = 203000L,
                 source = "Auralis Master",
-                qualityBadge = "320 kbps Lossless",
+                qualityBadge = "YouTube Music",
                 isAutoplayRecommendation = false
             ),
             Track(
@@ -95,7 +95,7 @@ object CuratedCatalog {
                 mediaUrl = "https://music.youtube.com/watch?v=ha_X2bE3oEQ",
                 durationMs = 209000L,
                 source = "Auralis Master",
-                qualityBadge = "320 kbps Lossless",
+                qualityBadge = "YouTube Music",
                 isAutoplayRecommendation = false
             )
         )

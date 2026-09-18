@@ -10,3 +10,5 @@ keystore.properties
 .kotlin/
 *.iml
 .DS_Store
+release.keystore
+*.jks
