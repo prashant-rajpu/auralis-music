@@ -13,6 +13,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -30,6 +31,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.auralis.app.domain.model.AudioQualitySetting
 import com.auralis.app.playback.*
 import com.auralis.app.ui.theme.*
 
@@ -95,7 +97,7 @@ fun SettingsScreen(
                         .hapticPress(scaleDown = 0.88f)
                 ) {
                     Icon(
-                        imageVector = Icons.Default.ArrowBack,
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                         contentDescription = "Back",
                         tint = BabyPinkTextPrimary
                     )
@@ -209,7 +211,7 @@ fun SettingsScreen(
                                 }
                             }
 
-                            Divider(color = BabyPinkBorder, thickness = 0.5.dp)
+                            HorizontalDivider(color = BabyPinkBorder, thickness = 0.5.dp)
 
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
@@ -261,7 +263,7 @@ fun SettingsScreen(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                LyricsProvider.values().forEach { provider ->
+                                viewModel.availableLyricsProviders.forEach { provider ->
                                     val isSelected = lyricsProvider == provider
                                     val shortLabel = when (provider) {
                                         LyricsProvider.AUTO -> "Auto"
@@ -293,7 +295,7 @@ fun SettingsScreen(
                                 }
                             }
 
-                            Divider(color = BabyPinkBorder, thickness = 0.5.dp)
+                            HorizontalDivider(color = BabyPinkBorder, thickness = 0.5.dp)
 
                             // Lyrics Font Size
                             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -335,7 +337,7 @@ fun SettingsScreen(
                                 }
                             }
 
-                            Divider(color = BabyPinkBorder, thickness = 0.5.dp)
+                            HorizontalDivider(color = BabyPinkBorder, thickness = 0.5.dp)
 
                             // Auto Scroll Toggle
                             SettingsToggleRow(
@@ -422,11 +424,13 @@ fun SettingsScreen(
                                     )
                                 },
                                 maxLines = 4,
-                                colors = TextFieldDefaults.outlinedTextFieldColors(
+                                colors = OutlinedTextFieldDefaults.colors(
                                     focusedBorderColor = BabyPinkPrimary,
                                     unfocusedBorderColor = BabyPinkBorder,
-                                    containerColor = BabyPinkCardBg,
-                                    textColor = BabyPinkTextPrimary,
+                                    focusedContainerColor = BabyPinkCardBg,
+                                    unfocusedContainerColor = BabyPinkCardBg,
+                                    focusedTextColor = BabyPinkTextPrimary,
+                                    unfocusedTextColor = BabyPinkTextPrimary,
                                     cursorColor = BabyPinkPrimary
                                 ),
                                 shape = RoundedCornerShape(14.dp)
@@ -627,25 +631,30 @@ fun SettingsScreen(
                                 onCheckedChange = { viewModel.toggleInfiniteRadio(it) }
                             )
 
-                            Divider(color = BabyPinkBorder, thickness = 0.5.dp)
+                            if (viewModel.hasSegmentSkipper) {
+                                HorizontalDivider(color = BabyPinkBorder, thickness = 0.5.dp)
 
-                            // SponsorBlock
-                            SettingsToggleRow(
-                                title = "SponsorBlock Music Auto-Skip",
-                                subtitle = "Auto-skips non-music video intros, dialogue, and sketches",
-                                checked = sponsorBlockEnabled,
-                                onCheckedChange = { viewModel.toggleSponsorBlock(it) }
-                            )
+                                SettingsToggleRow(
+                                    title = "SponsorBlock Music Auto-Skip",
+                                    subtitle = "Auto-skips non-music video intros, dialogue, and sketches",
+                                    checked = sponsorBlockEnabled,
+                                    onCheckedChange = { viewModel.toggleSponsorBlock(it) }
+                                )
+                            }
 
-                            Divider(color = BabyPinkBorder, thickness = 0.5.dp)
+                            HorizontalDivider(color = BabyPinkBorder, thickness = 0.5.dp)
 
-                            // Audio Quality
                             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                 Text(
                                     text = "Streaming Quality",
                                     color = BabyPinkTextPrimary,
                                     fontSize = 14.sp,
                                     fontWeight = FontWeight.SemiBold
+                                )
+                                Text(
+                                    text = "Applies to catalogs that offer several bitrates",
+                                    color = BabyPinkTextSecondary,
+                                    fontSize = 11.sp
                                 )
 
                                 Row(
@@ -669,7 +678,11 @@ fun SettingsScreen(
                                             contentAlignment = Alignment.Center
                                         ) {
                                             Text(
-                                                text = "${quality.bitrateKbps} kbps",
+                                                text = when (quality) {
+                                                    AudioQualitySetting.HIGH -> "Best"
+                                                    AudioQualitySetting.STANDARD -> "160 kbps"
+                                                    AudioQualitySetting.DATA_SAVER -> "96 kbps"
+                                                },
                                                 color = if (isSelected) Color.White else BabyPinkTextPrimary,
                                                 fontSize = 12.sp,
                                                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium

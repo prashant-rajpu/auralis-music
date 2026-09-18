@@ -5,9 +5,6 @@ import com.auralis.app.data.local.TrackDao
 import com.auralis.app.data.local.TrackEntity
 import com.auralis.app.domain.model.LyricLine
 import com.auralis.app.domain.model.Track
-import com.auralis.app.network.LrclibApi
-import com.auralis.app.network.LyricsOvhApi
-import com.auralis.app.network.NetEaseLyricsApi
 import com.auralis.app.playback.AuralisSettingsPreferences
 import com.auralis.app.playback.LyricsProvider
 import kotlinx.coroutines.Dispatchers
@@ -17,13 +14,16 @@ import javax.inject.Singleton
 
 @Singleton
 class LyricsRepository @Inject constructor(
-    private val lrclibApi: LrclibApi,
-    private val lyricsOvhApi: LyricsOvhApi,
-    private val netEaseApi: NetEaseLyricsApi,
+    sources: Set<@JvmSuppressWildcards LyricsSource>,
     private val trackDao: TrackDao,
     private val settingsPreferences: AuralisSettingsPreferences
 ) {
+    private val orderedSources = sources.sortedBy { it.priority }
     private val memoryCache = mutableMapOf<String, List<LyricLine>>()
+
+    /** Automatic plus every backend present in this build, for the settings picker. */
+    val availableProviders: List<LyricsProvider> =
+        listOf(LyricsProvider.AUTO) + orderedSources.map { it.provider }
 
     suspend fun getLyrics(track: Track): List<LyricLine> = withContext(Dispatchers.IO) {
         val cacheKey = "${track.title.lowercase().trim()}_${track.artist.lowercase().trim()}"
@@ -55,33 +55,18 @@ class LyricsRepository @Inject constructor(
 
         val cleanTitle = cleanSearchQuery(track.title)
         val cleanArtist = cleanSearchQuery(track.artist)
-        val preferredProvider = settingsPreferences.lyricsProvider.value
+        val preferred = settingsPreferences.lyricsProvider.value
+        val chain = orderedSources.filter { it.provider == preferred } +
+            orderedSources.filter { it.provider != preferred }
 
         var result: List<LyricLine> = emptyList()
-
-        when (preferredProvider) {
-            LyricsProvider.LRCLIB -> {
-                result = fetchFromLrclib(cleanTitle, cleanArtist, track.durationMs)
-                if (result.isEmpty()) result = fetchFromLyricsOvh(cleanTitle, cleanArtist, track.durationMs)
+        for (source in chain) {
+            result = try {
+                source.fetch(cleanTitle, cleanArtist, track.durationMs)
+            } catch (e: Exception) {
+                emptyList()
             }
-            LyricsProvider.LYRICS_OVH -> {
-                result = fetchFromLyricsOvh(cleanTitle, cleanArtist, track.durationMs)
-                if (result.isEmpty()) result = fetchFromLrclib(cleanTitle, cleanArtist, track.durationMs)
-            }
-            LyricsProvider.NETEASE -> {
-                result = fetchFromNetEase(cleanTitle, cleanArtist)
-                if (result.isEmpty()) result = fetchFromLrclib(cleanTitle, cleanArtist, track.durationMs)
-            }
-            LyricsProvider.AUTO -> {
-                // Priority: 1. LRCLIB (synced) -> 2. Lyrics.ovh (clean full lyrics) -> 3. NetEase
-                result = fetchFromLrclib(cleanTitle, cleanArtist, track.durationMs)
-                if (result.isEmpty()) {
-                    result = fetchFromLyricsOvh(cleanTitle, cleanArtist, track.durationMs)
-                }
-                if (result.isEmpty()) {
-                    result = fetchFromNetEase(cleanTitle, cleanArtist)
-                }
-            }
+            if (result.isNotEmpty()) break
         }
 
         if (result.isNotEmpty()) {
@@ -106,55 +91,6 @@ class LyricsRepository @Inject constructor(
         result
     }
 
-    private suspend fun fetchFromLrclib(title: String, artist: String, durationMs: Long): List<LyricLine> {
-        return try {
-            val durationSec = if (durationMs > 0) (durationMs / 1000).toInt() else null
-            val resp = lrclibApi.getLyrics(title, artist, durationSec)
-            if (resp?.syncedLyrics != null && resp.syncedLyrics.isNotBlank()) {
-                val parsed = LrcParser.parse(resp.syncedLyrics)
-                if (parsed.isNotEmpty()) return parsed
-            }
-            if (resp?.plainLyrics != null && resp.plainLyrics.isNotBlank()) {
-                parsePlainLyricsToLines(resp.plainLyrics, durationMs)
-            } else {
-                emptyList()
-            }
-        } catch (e: Exception) {
-            emptyList()
-        }
-    }
-
-    private suspend fun fetchFromLyricsOvh(title: String, artist: String, durationMs: Long): List<LyricLine> {
-        return try {
-            val resp = lyricsOvhApi.getLyrics(artist = artist, title = title)
-            val raw = resp?.lyrics
-            if (!raw.isNullOrBlank()) {
-                parsePlainLyricsToLines(raw, durationMs)
-            } else {
-                emptyList()
-            }
-        } catch (e: Exception) {
-            emptyList()
-        }
-    }
-
-    private suspend fun fetchFromNetEase(title: String, artist: String): List<LyricLine> {
-        return try {
-            val query = "$title $artist"
-            val searchRes = netEaseApi.searchSong(query)
-            val songId = searchRes?.result?.songs?.firstOrNull()?.id ?: return emptyList()
-            val lyricRes = netEaseApi.getSongLyric(songId)
-            val rawLrc = lyricRes?.lrc?.lyric
-            if (!rawLrc.isNullOrBlank()) {
-                LrcParser.parse(rawLrc)
-            } else {
-                emptyList()
-            }
-        } catch (e: Exception) {
-            emptyList()
-        }
-    }
-
     private fun cleanSearchQuery(text: String): String {
         return text
             .replace(Regex("\\(.*?\\)"), "")
@@ -166,20 +102,5 @@ class LyricsRepository @Inject constructor(
             .replace(Regex("(?i)remix.*"), "")
             .replace(Regex("(?i)video.*"), "")
             .trim()
-    }
-
-    private fun parsePlainLyricsToLines(plainText: String, durationMs: Long): List<LyricLine> {
-        val lines = plainText.lineSequence()
-            .map { it.trim() }
-            .filter { it.isNotEmpty() }
-            .toList()
-        if (lines.isEmpty()) return emptyList()
-
-        val safeDuration = if (durationMs > 0) durationMs else 180000L
-        val interval = (safeDuration - 5000L).coerceAtLeast(1000L) / lines.size.coerceAtLeast(1)
-
-        return lines.mapIndexed { index, line ->
-            LyricLine(timestampMs = index * interval, text = line)
-        }
     }
 }

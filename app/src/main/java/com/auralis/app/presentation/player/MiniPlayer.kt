@@ -251,7 +251,7 @@ private fun IsolatedMiniProgressBar(viewModel: PlayerViewModel) {
     }
 
     LinearProgressIndicator(
-        progress = progress,
+        progress = { progress },
         modifier = Modifier
             .fillMaxWidth()
             .height(2.5.dp),

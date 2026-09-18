@@ -107,7 +107,7 @@ fun FullPlayerScreen(
                             fontSize = 10.sp
                         )
                         Text(
-                            text = "Auralis Master • " + (track?.qualityBadge ?: "320 kbps"),
+                            text = listOfNotNull(track?.source, track?.qualityBadge).joinToString(" • ").ifEmpty { "Auralis" },
                             style = MaterialTheme.typography.titleSmall.copy(
                                 fontWeight = FontWeight.Bold
                             ),
@@ -182,7 +182,7 @@ fun FullPlayerScreen(
                         )
                     }
                 },
-                colors = TopAppBarDefaults.smallTopAppBarColors(
+                colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = Color.Transparent
                 )
             )

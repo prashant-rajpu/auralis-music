@@ -12,47 +12,47 @@ import javax.inject.Singleton
 class AudioEffectManager @Inject constructor(
     private val preferences: SoundProfilePreferences
 ) {
-    private var equalizer: Equalizer? = null
-    private var bassBoost: BassBoost? = null
-    private var currentSessionId: Int = -1
+    private class SessionEffects(val equalizer: Equalizer?, val bassBoost: BassBoost?)
+
+    // One set of effects per audio session: the two crossfade players each own a session, and
+    // re-creating effects every time the active player changes causes audible drop-outs.
+    private val sessions = mutableMapOf<Int, SessionEffects>()
 
     var currentProfile: SoundProfile = preferences.getSoundProfile()
         private set
 
     fun attachAudioSession(audioSessionId: Int) {
-        if (audioSessionId <= 0 || audioSessionId == currentSessionId) return
-        currentSessionId = audioSessionId
+        if (audioSessionId <= 0 || sessions.containsKey(audioSessionId)) return
 
-        release()
-
-        try {
-            equalizer = Equalizer(0, audioSessionId).apply {
-                enabled = true
-            }
+        val equalizer = try {
+            Equalizer(0, audioSessionId).apply { enabled = true }
         } catch (e: Exception) {
             Log.w("AudioEffectManager", "Failed to initialize Equalizer", e)
-            equalizer = null
+            null
         }
 
-        try {
-            bassBoost = BassBoost(0, audioSessionId).apply {
-                enabled = true
-            }
+        val bassBoost = try {
+            BassBoost(0, audioSessionId).apply { enabled = true }
         } catch (e: Exception) {
             Log.w("AudioEffectManager", "Failed to initialize BassBoost", e)
-            bassBoost = null
+            null
         }
 
-        applyProfile(currentProfile)
+        val effects = SessionEffects(equalizer, bassBoost)
+        sessions[audioSessionId] = effects
+        applyProfileTo(effects, currentProfile)
     }
 
     fun applyProfile(profile: SoundProfile) {
         currentProfile = profile
         preferences.saveSoundProfile(profile)
+        sessions.values.forEach { applyProfileTo(it, profile) }
+    }
 
+    private fun applyProfileTo(effects: SessionEffects, profile: SoundProfile) {
         // 1. Apply Bass Boost
         try {
-            bassBoost?.let { bb ->
+            effects.bassBoost?.let { bb ->
                 if (bb.strengthSupported) {
                     val strength = profile.bassBoostStrength.coerceIn(0, 1000).toShort()
                     bb.setStrength(strength)
@@ -64,7 +64,7 @@ class AudioEffectManager @Inject constructor(
         }
 
         // 2. Apply Equalizer preset curve & Treble boost
-        val eq = equalizer ?: return
+        val eq = effects.equalizer ?: return
         try {
             val numBands = eq.numberOfBands
             if (numBands <= 0) return
@@ -123,18 +123,10 @@ class AudioEffectManager @Inject constructor(
     }
 
     fun release() {
-        try {
-            equalizer?.release()
-            equalizer = null
-        } catch (e: Exception) {
-            // Ignore release error
+        sessions.values.forEach { effects ->
+            runCatching { effects.equalizer?.release() }
+            runCatching { effects.bassBoost?.release() }
         }
-
-        try {
-            bassBoost?.release()
-            bassBoost = null
-        } catch (e: Exception) {
-            // Ignore release error
-        }
+        sessions.clear()
     }
 }

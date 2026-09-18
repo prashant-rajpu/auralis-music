@@ -25,6 +25,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
+import com.auralis.app.domain.model.Provider
 import com.auralis.app.domain.model.Track
 import com.auralis.app.ui.theme.*
 
@@ -124,7 +125,7 @@ fun TrackContextMenuBottomSheet(
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
-                Divider(color = GlassBorder, thickness = 1.dp)
+                HorizontalDivider(color = GlassBorder, thickness = 1.dp)
                 Spacer(modifier = Modifier.height(8.dp))
 
                 // Action 1: Play Next (Spotify / YT Music feature)
@@ -191,9 +192,14 @@ fun TrackContextMenuBottomSheet(
                         val shareIntent = Intent(Intent.ACTION_SEND).apply {
                             type = "text/plain"
                             putExtra(Intent.EXTRA_SUBJECT, "Listen to ${track.title} on Auralis 💗")
+                            val link = if (track.provider == Provider.YOUTUBE) {
+                                "\nhttps://music.youtube.com/watch?v=${track.providerId}"
+                            } else {
+                                ""
+                            }
                             putExtra(
                                 Intent.EXTRA_TEXT,
-                                "Listening to \"${track.title}\" by ${track.artist} on Auralis Music 💗✨\nhttps://youtube.com/watch?v=${track.id}"
+                                "Listening to \"${track.title}\" by ${track.artist} on Auralis Music 💗✨$link"
                             )
                         }
                         context.startActivity(Intent.createChooser(shareIntent, "Share song via"))

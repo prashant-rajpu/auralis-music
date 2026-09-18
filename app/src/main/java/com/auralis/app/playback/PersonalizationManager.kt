@@ -154,7 +154,7 @@ class PersonalizationManager @Inject constructor(
                         mediaUrl = obj.getString("mediaUrl"),
                         durationMs = obj.optLong("durationMs", 210000L),
                         source = obj.optString("source", "Auralis"),
-                        qualityBadge = obj.optString("qualityBadge", "320 kbps Master")
+                        qualityBadge = obj.optString("qualityBadge", "HQ Audio")
                     )
                 )
             }

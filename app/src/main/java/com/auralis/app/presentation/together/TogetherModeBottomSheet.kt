@@ -31,6 +31,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import com.auralis.app.network.JamProtocolHelper
 import com.auralis.app.network.JamSession
 import com.auralis.app.ui.theme.*
 import kotlin.random.Random
@@ -492,11 +493,13 @@ fun TogetherModeBottomSheet(
                             label = { Text("Your Name", color = BabyPinkTextSecondary, fontSize = 12.sp) },
                             singleLine = true,
                             shape = RoundedCornerShape(16.dp),
-                            colors = TextFieldDefaults.outlinedTextFieldColors(
+                            colors = OutlinedTextFieldDefaults.colors(
                                 focusedBorderColor = BabyPinkPrimary,
                                 unfocusedBorderColor = GlassBorder,
-                                containerColor = GlassSurfaceStrong,
-                                textColor = BabyPinkTextPrimary
+                                focusedContainerColor = GlassSurfaceStrong,
+                                unfocusedContainerColor = GlassSurfaceStrong,
+                                focusedTextColor = BabyPinkTextPrimary,
+                                unfocusedTextColor = BabyPinkTextPrimary
                             ),
                             modifier = Modifier.fillMaxWidth()
                         )
@@ -586,11 +589,13 @@ fun TogetherModeBottomSheet(
                             placeholder = { Text("Enter Partner's Code (e.g. BABU-4829)", color = BabyPinkTextSecondary, fontSize = 12.sp) },
                             singleLine = true,
                             shape = RoundedCornerShape(16.dp),
-                            colors = TextFieldDefaults.outlinedTextFieldColors(
+                            colors = OutlinedTextFieldDefaults.colors(
                                 focusedBorderColor = BabyPinkPrimary,
                                 unfocusedBorderColor = GlassBorder,
-                                containerColor = GlassSurfaceStrong,
-                                textColor = BabyPinkTextPrimary
+                                focusedContainerColor = GlassSurfaceStrong,
+                                unfocusedContainerColor = GlassSurfaceStrong,
+                                focusedTextColor = BabyPinkTextPrimary,
+                                unfocusedTextColor = BabyPinkTextPrimary
                             ),
                             modifier = Modifier.fillMaxWidth()
                         )
@@ -603,11 +608,13 @@ fun TogetherModeBottomSheet(
                             placeholder = { Text("Your Name (e.g. Laddu)", color = BabyPinkTextSecondary, fontSize = 12.sp) },
                             singleLine = true,
                             shape = RoundedCornerShape(16.dp),
-                            colors = TextFieldDefaults.outlinedTextFieldColors(
+                            colors = OutlinedTextFieldDefaults.colors(
                                 focusedBorderColor = BabyPinkPrimary,
                                 unfocusedBorderColor = GlassBorder,
-                                containerColor = GlassSurfaceStrong,
-                                textColor = BabyPinkTextPrimary
+                                focusedContainerColor = GlassSurfaceStrong,
+                                unfocusedContainerColor = GlassSurfaceStrong,
+                                focusedTextColor = BabyPinkTextPrimary,
+                                unfocusedTextColor = BabyPinkTextPrimary
                             ),
                             modifier = Modifier.fillMaxWidth()
                         )
@@ -630,12 +637,12 @@ fun TogetherModeBottomSheet(
 
                             Button(
                                 onClick = {
-                                    if (joinCodeInput.isNotBlank()) {
+                                    if (JamProtocolHelper.isValidJamCode(joinCodeInput)) {
                                         val name = usernameInput.ifBlank { "Laddu" }
                                         onJoinTogether(joinCodeInput, name)
                                     }
                                 },
-                                enabled = joinCodeInput.isNotBlank(),
+                                enabled = JamProtocolHelper.isValidJamCode(joinCodeInput),
                                 colors = ButtonDefaults.buttonColors(
                                     containerColor = BabyPinkPrimary,
                                     disabledContainerColor = BabyPinkPrimary.copy(alpha = 0.4f)

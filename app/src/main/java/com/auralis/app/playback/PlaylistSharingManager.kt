@@ -150,7 +150,7 @@ class PlaylistSharingManager @Inject constructor(
                         mediaUrl = "yt:$title $artist",
                         durationMs = 210000L,
                         source = "Imported",
-                        qualityBadge = "320 kbps Master"
+                        qualityBadge = "Imported"
                     )
                 )
             }
@@ -238,7 +238,7 @@ class PlaylistSharingManager @Inject constructor(
                                 mediaUrl = tObj.get("mediaUrl").asString,
                                 durationMs = tObj.get("durationMs").asLong,
                                 source = if (tObj.has("source")) tObj.get("source").asString else "Custom",
-                                qualityBadge = "320 kbps Master"
+                                qualityBadge = "Imported"
                             )
                         )
                     }

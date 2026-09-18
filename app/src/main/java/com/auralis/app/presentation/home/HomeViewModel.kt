@@ -2,6 +2,8 @@ package com.auralis.app.presentation.home
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.auralis.app.data.local.MediaStoreSource
+import com.auralis.app.domain.model.Provider
 import com.auralis.app.domain.model.Track
 import com.auralis.app.domain.repository.MusicRepository
 import com.auralis.app.network.JamWebSocketClient
@@ -24,8 +26,24 @@ enum class HomeTab {
 class HomeViewModel @Inject constructor(
     private val repository: MusicRepository,
     private val playbackManager: PlaybackManager,
-    private val jamClient: JamWebSocketClient
+    private val jamClient: JamWebSocketClient,
+    private val mediaStoreSource: MediaStoreSource
 ) : ViewModel() {
+
+    /** Runtime permission that unlocks on-device music, and whether it has been granted. */
+    val localAudioPermission: String = mediaStoreSource.permission
+
+    private val _hasLocalAudioPermission = MutableStateFlow(mediaStoreSource.hasPermission())
+    val hasLocalAudioPermission: StateFlow<Boolean> = _hasLocalAudioPermission.asStateFlow()
+
+    fun refreshLocalAudioPermission() {
+        val granted = mediaStoreSource.hasPermission()
+        val changed = granted != _hasLocalAudioPermission.value
+        _hasLocalAudioPermission.value = granted
+        if (changed && granted && _selectedTab.value == HomeTab.Downloaded) {
+            loadOfflineTracks()
+        }
+    }
 
     private val _selectedTab = MutableStateFlow(HomeTab.Trending)
     val selectedTab: StateFlow<HomeTab> = _selectedTab.asStateFlow()
@@ -33,8 +51,11 @@ class HomeViewModel @Inject constructor(
     private val _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
 
-    private val _sourceFilter = MutableStateFlow("All")
-    val sourceFilter: StateFlow<String> = _sourceFilter.asStateFlow()
+    private val _sourceFilter = MutableStateFlow<Provider?>(null)
+    val sourceFilter: StateFlow<Provider?> = _sourceFilter.asStateFlow()
+
+    /** Online catalogs in this build, for the filter chips. */
+    val availableSources: List<Provider> = repository.availableProviders
 
     private val _selectedMood = MutableStateFlow("All")
     val selectedMood: StateFlow<String> = _selectedMood.asStateFlow()
@@ -79,14 +100,12 @@ class HomeViewModel @Inject constructor(
         }
     }
 
-    fun selectSourceFilter(source: String) {
+    fun selectSourceFilter(source: Provider?) {
         _sourceFilter.value = source
         val query = if (_searchQuery.value.isNotBlank()) {
             _searchQuery.value
         } else if (_selectedMood.value != "All") {
             _selectedMood.value
-        } else if (source != "All" && source != "320 kbps Master" && source != "Lossless") {
-            source
         } else {
             ""
         }
@@ -117,7 +136,7 @@ class HomeViewModel @Inject constructor(
         }
     }
 
-    private fun performSearch(query: String, source: String = "All") {
+    private fun performSearch(query: String, source: Provider? = null) {
         viewModelScope.launch {
             _uiState.value = HomeUiState.Loading
             try {
@@ -137,7 +156,7 @@ class HomeViewModel @Inject constructor(
         viewModelScope.launch {
             _uiState.value = HomeUiState.Loading
             try {
-                val tracks = repository.fetchServerTracks()
+                val tracks = repository.fetchServerTracks(_sourceFilter.value)
                 if (tracks.isEmpty()) {
                     val offline = repository.fetchLocalTracks()
                     if (offline.isNotEmpty()) {
@@ -167,7 +186,13 @@ class HomeViewModel @Inject constructor(
             try {
                 val tracks = repository.fetchLocalTracks()
                 if (tracks.isEmpty()) {
-                    _uiState.value = HomeUiState.Error("No downloaded tracks yet. Tap download on any song to save for offline playback!")
+                    _uiState.value = HomeUiState.Error(
+                        if (_hasLocalAudioPermission.value) {
+                            "Nothing here yet. Download a song, or add music to this device."
+                        } else {
+                            "Nothing downloaded yet. Allow access to find music already on this device."
+                        }
+                    )
                 } else {
                     _uiState.value = HomeUiState.Success(tracks)
                 }
