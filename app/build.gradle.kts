@@ -119,6 +119,11 @@ android {
     }
 }
 
+ksp {
+    // Checked-in schema JSON makes every future migration reviewable
+    arg("room.schemaLocation", "$projectDir/schemas")
+}
+
 kotlin {
     compilerOptions {
         optIn.add("androidx.compose.material3.ExperimentalMaterial3Api")
