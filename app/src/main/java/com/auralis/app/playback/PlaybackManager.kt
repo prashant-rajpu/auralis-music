@@ -367,8 +367,7 @@ class PlaybackManager @Inject constructor(
                                 if (state.isPlaying) activePlayer.play() else activePlayer.pause()
                                 _isPlaying.value = state.isPlaying
                             }
-                            val drift = Math.abs(activePlayer.currentPosition - state.position)
-                            if (drift > 1500L) {
+                            if (com.auralis.app.network.JamProtocolHelper.shouldSeek(activePlayer.currentPosition, state.position)) {
                                 activePlayer.seekTo(state.position)
                                 _currentPositionMs.value = state.position
                             }

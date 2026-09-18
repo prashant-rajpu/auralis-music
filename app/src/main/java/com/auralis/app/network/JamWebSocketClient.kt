@@ -72,10 +72,7 @@ class JamWebSocketClient @Inject constructor(
     private val _jamState = MutableStateFlow<JamState>(JamState.Idle)
     val jamState = _jamState.asStateFlow()
 
-    private fun cleanTopic(jamId: String): String {
-        val sanitized = jamId.trim().lowercase().replace(Regex("[^a-z0-9]"), "")
-        return "auralis_jam_${if (sanitized.isNotEmpty()) sanitized else "global"}"
-    }
+    private fun cleanTopic(jamId: String): String = JamProtocolHelper.cleanTopic(jamId)
 
     fun startJam(jamId: String, username: String) {
         connectInternal(jamId, username, isHost = true)
@@ -175,105 +172,34 @@ class JamWebSocketClient @Inject constructor(
     }
 
     private fun handleJamPayload(jsonString: String) {
-        try {
-            val json = JSONObject(jsonString)
-            val sender = json.optString("sender")
-            val currentUsername = _currentSession.value?.username ?: ""
+        val currentUsername = _currentSession.value?.username ?: ""
+        val state = JamProtocolHelper.parseJamPayload(jsonString, currentUsername) ?: return
 
-            // Ignore our own published echoes
-            if (sender.equals(currentUsername, ignoreCase = true)) {
-                return
-            }
-
-            when (json.optString("type")) {
-                "sync_playback" -> {
-                    val position = json.optLong("position", 0L)
-                    val isPlaying = json.optBoolean("isPlaying", false)
-                    val action = json.optString("action", "sync")
-                    val trackObj = json.optJSONObject("track")
-
-                    if (trackObj != null) {
-                        val track = Track(
-                            id = trackObj.optString("id"),
-                            title = trackObj.optString("title"),
-                            artist = trackObj.optString("artist"),
-                            mediaUrl = trackObj.optString("mediaUrl"),
-                            albumArtUrl = trackObj.optString("albumArtUrl").ifEmpty { null },
-                            durationMs = trackObj.optLong("durationMs", 0L),
-                            qualityBadge = trackObj.optString("qualityBadge", "320 kbps Master"),
-                            source = trackObj.optString("source", "Auralis Master")
-                        )
-                        _jamState.value = JamState.SyncPlayback(track, position, isPlaying, sender, action)
+        when (state) {
+            is JamState.UserJoined -> {
+                _currentSession.value?.let { current ->
+                    if (!current.participants.contains(state.username)) {
+                        val updatedList = current.participants + state.username
+                        _currentSession.value = current.copy(participants = updatedList)
                     }
-                }
-
-                "request_sync" -> {
-                    _jamState.value = JamState.RequestSync(sender)
-                }
-
-                "user_joined" -> {
-                    val joinedUser = json.optString("user", sender)
-                    _currentSession.value?.let { current ->
-                        if (!current.participants.contains(joinedUser)) {
-                            val updatedList = current.participants + joinedUser
-                            _currentSession.value = current.copy(participants = updatedList)
-                        }
-                    }
-                    _jamState.value = JamState.UserJoined(joinedUser)
-                }
-
-                "queue_track" -> {
-                    val trackObj = json.optJSONObject("track")
-                    if (trackObj != null) {
-                        val track = Track(
-                            id = trackObj.optString("id"),
-                            title = trackObj.optString("title"),
-                            artist = trackObj.optString("artist"),
-                            mediaUrl = trackObj.optString("mediaUrl"),
-                            albumArtUrl = trackObj.optString("albumArtUrl").ifEmpty { null },
-                            durationMs = trackObj.optLong("durationMs", 0L),
-                            qualityBadge = trackObj.optString("qualityBadge", "320 kbps Master"),
-                            source = trackObj.optString("source", "Auralis Master")
-                        )
-                        _jamState.value = JamState.QueueTrack(track, sender)
-                    }
-                }
-
-                "user_left" -> {
-                    val leftUser = json.optString("user", sender)
-                    _currentSession.value?.let { current ->
-                        _currentSession.value = current.copy(participants = current.participants - leftUser)
-                    }
-                    _jamState.value = JamState.UserLeft(leftUser)
-                }
-
-                "reaction" -> {
-                    val emoji = json.optString("emoji", "❤️")
-                    val reactionSender = json.optString("sender", "Partner")
-                    _jamState.value = JamState.ReactionReceived(emoji, reactionSender)
-                }
-
-                "memory_quote" -> {
-                    val quote = json.optString("quote", "I love you jaanaa 💋")
-                    val quoteSender = json.optString("sender", "Partner")
-                    _jamState.value = JamState.MemoryQuoteReceived(quote, quoteSender)
                 }
             }
-        } catch (e: Exception) {
-            Log.e("JamClient", "Failed to deserialize jam payload", e)
+            is JamState.UserLeft -> {
+                _currentSession.value?.let { current ->
+                    _currentSession.value = current.copy(participants = current.participants - state.username)
+                }
+            }
+            else -> {}
         }
+        _jamState.value = state
     }
 
     fun broadcastReaction(emoji: String) {
         val session = _currentSession.value ?: return
         scope.launch {
             try {
-                val json = JSONObject().apply {
-                    put("type", "reaction")
-                    put("sender", session.username)
-                    put("emoji", emoji)
-                }
-                publishToTopic(session.jamId, json.toString())
+                val json = JamProtocolHelper.buildReactionJson(session.username, emoji)
+                publishToTopic(session.jamId, json)
             } catch (e: Exception) {
                 Log.e("JamClient", "Failed to broadcast reaction", e)
             }
@@ -284,12 +210,8 @@ class JamWebSocketClient @Inject constructor(
         val session = _currentSession.value ?: return
         scope.launch {
             try {
-                val json = JSONObject().apply {
-                    put("type", "memory_quote")
-                    put("sender", session.username)
-                    put("quote", quote)
-                }
-                publishToTopic(session.jamId, json.toString())
+                val json = JamProtocolHelper.buildMemoryQuoteJson(session.username, quote)
+                publishToTopic(session.jamId, json)
             } catch (e: Exception) {
                 Log.e("JamClient", "Failed to broadcast memory quote", e)
             }
@@ -298,35 +220,17 @@ class JamWebSocketClient @Inject constructor(
 
     fun broadcastPlaybackState(track: Track, position: Long, isPlaying: Boolean, action: String = "sync") {
         val session = _currentSession.value ?: return
-
         scope.launch {
             try {
-                // If it's a YouTube track, send the original YouTube URL or videoId so the partner can resolve cleanly
                 val cleanMediaUrl = if (track.isYouTubeTrack() && track.mediaUrl.contains("googlevideo.com")) {
                     val vid = track.getYouTubeVideoId()
                     if (vid != null) "https://www.youtube.com/watch?v=$vid" else track.mediaUrl
                 } else {
                     track.mediaUrl
                 }
-
-                val json = JSONObject().apply {
-                    put("type", "sync_playback")
-                    put("sender", session.username)
-                    put("position", position)
-                    put("isPlaying", isPlaying)
-                    put("action", action)
-                    put("track", JSONObject().apply {
-                        put("id", track.id)
-                        put("title", track.title)
-                        put("artist", track.artist)
-                        put("mediaUrl", cleanMediaUrl)
-                        put("albumArtUrl", track.albumArtUrl ?: "")
-                        put("durationMs", track.durationMs)
-                        put("qualityBadge", track.qualityBadge)
-                        put("source", track.source)
-                    })
-                }
-                publishToTopic(session.jamId, json.toString())
+                val cleanTrack = track.copy(mediaUrl = cleanMediaUrl)
+                val json = JamProtocolHelper.buildSyncPlaybackJson(session.username, cleanTrack, position, isPlaying, action)
+                publishToTopic(session.jamId, json)
             } catch (e: Exception) {
                 Log.e("JamClient", "Failed to broadcast playback state", e)
             }
@@ -337,11 +241,8 @@ class JamWebSocketClient @Inject constructor(
         val session = _currentSession.value ?: return
         scope.launch {
             try {
-                val json = JSONObject().apply {
-                    put("type", "request_sync")
-                    put("sender", session.username)
-                }
-                publishToTopic(session.jamId, json.toString())
+                val json = JamProtocolHelper.buildRequestSyncJson(session.username)
+                publishToTopic(session.jamId, json)
             } catch (e: Exception) {
                 Log.e("JamClient", "Failed to broadcast request sync", e)
             }
@@ -352,12 +253,8 @@ class JamWebSocketClient @Inject constructor(
         val session = _currentSession.value ?: return
         scope.launch {
             try {
-                val json = JSONObject().apply {
-                    put("type", "user_joined")
-                    put("sender", username)
-                    put("user", username)
-                }
-                publishToTopic(session.jamId, json.toString())
+                val json = JamProtocolHelper.buildUserJoinedJson(username)
+                publishToTopic(session.jamId, json)
             } catch (e: Exception) {
                 Log.e("JamClient", "Failed to broadcast user joined", e)
             }
@@ -374,22 +271,9 @@ class JamWebSocketClient @Inject constructor(
                 } else {
                     track.mediaUrl
                 }
-
-                val json = JSONObject().apply {
-                    put("type", "queue_track")
-                    put("sender", session.username)
-                    put("track", JSONObject().apply {
-                        put("id", track.id)
-                        put("title", track.title)
-                        put("artist", track.artist)
-                        put("mediaUrl", cleanMediaUrl)
-                        put("albumArtUrl", track.albumArtUrl ?: "")
-                        put("durationMs", track.durationMs)
-                        put("qualityBadge", track.qualityBadge)
-                        put("source", track.source)
-                    })
-                }
-                publishToTopic(session.jamId, json.toString())
+                val cleanTrack = track.copy(mediaUrl = cleanMediaUrl)
+                val json = JamProtocolHelper.buildQueueTrackJson(session.username, cleanTrack)
+                publishToTopic(session.jamId, json)
             } catch (e: Exception) {
                 Log.e("JamClient", "Failed to broadcast queue track", e)
             }
@@ -422,12 +306,8 @@ class JamWebSocketClient @Inject constructor(
 
         val session = _currentSession.value
         if (sendLeaveNotice && session != null && _isConnected.value) {
-            val json = JSONObject().apply {
-                put("type", "user_left")
-                put("sender", session.username)
-                put("user", session.username)
-            }
-            publishToTopic(session.jamId, json.toString())
+            val json = JamProtocolHelper.buildUserLeftJson(session.username)
+            publishToTopic(session.jamId, json)
         }
 
         webSocket?.close(1000, "User disconnected")
