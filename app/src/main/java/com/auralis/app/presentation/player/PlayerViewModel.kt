@@ -10,7 +10,6 @@ import com.auralis.app.lyrics.LyricsRepository
 import com.auralis.app.network.JamSession
 import com.auralis.app.playback.AudioEffectManager
 import com.auralis.app.playback.PlaybackManager
-import com.auralis.app.playback.PinkAccentTheme
 import com.auralis.app.playback.RepeatMode
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -48,7 +47,6 @@ class PlayerViewModel @Inject constructor(
     val currentQueueIndex = playbackManager.currentQueueIndex
     val playbackSpeed = playbackManager.playbackSpeed
     val sleepTimerMinutesRemaining = playbackManager.sleepTimerMinutesRemaining
-    val accentTheme = playbackManager.personalizationManager.accentTheme
 
     fun sendJamReaction(emoji: String) {
         playbackManager.sendJamReaction(emoji)
@@ -178,10 +176,6 @@ class PlayerViewModel @Inject constructor(
 
     fun setSleepTimer(minutes: Int?) {
         playbackManager.setSleepTimer(minutes)
-    }
-
-    fun setAccentTheme(theme: PinkAccentTheme) {
-        playbackManager.personalizationManager.setAccentTheme(theme)
     }
 
     fun toggleLike(trackId: String) {

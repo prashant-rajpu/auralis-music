@@ -22,7 +22,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -30,95 +29,90 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
 /**
- * Ultra-performance Glass Card with hardware-accelerated specular lighting gradient rim.
- * Eliminates heavy RenderNode software shadow blur masks that cause frame drops.
+ * The surface modifiers below are the app's only card/panel/pill recipes. They are composable so
+ * they can read [LocalAuralisColors]: a hairline that is a white highlight on a dark field has to
+ * become a dark hairline on a light one, or every card in light mode looks like a smudge.
  */
-fun Modifier.glassCard(
+
+/** Hairline that catches light at the top edge and fades into the plain border colour. */
+@Composable
+private fun edgeBrush(highlightAlpha: Float): Brush {
+    val colors = LocalAuralisColors.current
+    return Brush.verticalGradient(
+        listOf(
+            colors.borderHighlight.copy(alpha = highlightAlpha),
+            colors.border,
+            colors.border.copy(alpha = 0.6f)
+        )
+    )
+}
+
+/** Standard content card: track rows, shelf tiles, settings groups. */
+@Composable
+fun Modifier.surfaceCard(
     cornerRadius: Dp = 20.dp,
-    borderWidth: Dp = 1.dp,
-    elevation: Dp = 0.dp
+    borderWidth: Dp = 1.dp
 ): Modifier = this
     .clip(RoundedCornerShape(cornerRadius))
-    .background(GlassSurface)
-    .border(
-        width = borderWidth,
-        brush = Brush.verticalGradient(
-            listOf(
-                Color.White.copy(alpha = 0.85f),
-                Color.White.copy(alpha = 0.25f),
-                BabyPinkSoftRose.copy(alpha = 0.20f)
-            )
-        ),
-        shape = RoundedCornerShape(cornerRadius)
-    )
+    .background(SurfaceColor)
+    .border(borderWidth, edgeBrush(0.9f), RoundedCornerShape(cornerRadius))
 
-/**
- * Heavy Frosted Glass Panel for bottom sheets, dialogs, and navigation pills.
- */
-fun Modifier.glassPanel(
+/** Raised panel: bottom sheets, dialogs, the mini player, the nav bar. */
+@Composable
+fun Modifier.surfacePanel(
     cornerRadius: Dp = 26.dp,
     borderWidth: Dp = 1.dp
 ): Modifier = this
     .clip(RoundedCornerShape(cornerRadius))
-    .background(GlassSurfaceStrong)
-    .border(
-        width = borderWidth,
-        brush = Brush.verticalGradient(
-            listOf(
-                Color.White.copy(alpha = 0.90f),
-                Color.White.copy(alpha = 0.35f),
-                BabyPinkSoftRose.copy(alpha = 0.25f)
-            )
-        ),
-        shape = RoundedCornerShape(cornerRadius)
-    )
+    .background(SurfaceElevated)
+    .border(borderWidth, edgeBrush(1f), RoundedCornerShape(cornerRadius))
 
-/**
- * Frosted Glass Capsule / Pill for filter chips, tags, and icon wrappers.
- */
-fun Modifier.glassPill(
+/** Capsule: filter chips, tags, icon wrappers. */
+@Composable
+fun Modifier.surfacePill(
     borderWidth: Dp = 1.dp
 ): Modifier = this
     .clip(CircleShape)
-    .background(GlassSurfaceStrong)
-    .border(
-        width = borderWidth,
-        brush = Brush.verticalGradient(
-            listOf(
-                Color.White.copy(alpha = 0.80f),
-                Color.White.copy(alpha = 0.20f)
-            )
-        ),
-        shape = CircleShape
-    )
+    .background(SurfaceElevated)
+    .border(borderWidth, edgeBrush(0.8f), CircleShape)
 
-/**
- * Luxury Double-Bezel card enclosure (Machined Hardware aesthetic).
- * Concentric outer rim with translucent ambient core.
- */
-fun Modifier.doubleBezelCard(
-    outerRadius: Dp = 22.dp,
-    innerPadding: Dp = 2.dp
-): Modifier = this
-    .clip(RoundedCornerShape(outerRadius))
-    .background(
-        Brush.verticalGradient(
-            listOf(
-                Color.White.copy(alpha = 0.45f),
-                BabyPinkSoftRose.copy(alpha = 0.15f)
-            )
+/** Concentric frame around album art — an outer bezel a shade lighter than the art's backdrop. */
+@Composable
+fun Modifier.artworkFrame(
+    outerRadius: Dp = 22.dp
+): Modifier {
+    val colors = LocalAuralisColors.current
+    return this
+        .clip(RoundedCornerShape(outerRadius))
+        .background(
+            Brush.verticalGradient(listOf(colors.surfaceHighest, colors.surfaceElevated))
         )
-    )
-    .border(
-        width = 1.dp,
-        brush = Brush.verticalGradient(
-            listOf(
-                Color.White.copy(alpha = 0.80f),
-                BabyPinkSoftRose.copy(alpha = 0.30f)
-            )
-        ),
-        shape = RoundedCornerShape(outerRadius)
-    )
+        .border(
+            width = 1.dp,
+            brush = Brush.verticalGradient(
+                listOf(colors.borderHighlight, colors.border)
+            ),
+            shape = RoundedCornerShape(outerRadius)
+        )
+}
+
+/** Accent-tinted rim for active state: the playing row, the current chip, the play button. */
+@Composable
+fun Modifier.accentGlowBorder(
+    glowColor: Color = AccentColor,
+    cornerRadius: Dp = 20.dp,
+    borderWidth: Dp = 1.2.dp
+): Modifier = this.border(
+    width = borderWidth,
+    brush = Brush.verticalGradient(
+        listOf(
+            glowColor.copy(alpha = 0.90f),
+            glowColor.copy(alpha = 0.40f),
+            glowColor.copy(alpha = 0.15f)
+        )
+    ),
+    shape = RoundedCornerShape(cornerRadius)
+)
 
 /**
  * Spring "squeeze" while pressed plus haptic feedback on tap, honoring the user's haptic
@@ -175,7 +169,7 @@ fun Modifier.hapticPress(
 @Composable
 fun AnimatedEqualizerBars(
     modifier: Modifier = Modifier,
-    barColor: Color = BabyPinkPrimary,
+    barColor: Color = AccentColor,
     barCount: Int = 3,
     maxHeight: Dp = 16.dp,
     isPlaying: Boolean = true
@@ -231,22 +225,3 @@ fun AnimatedEqualizerBars(
         }
     }
 }
-
-/**
- * Specular Ambient Glow Border for active state cards, play buttons, and headers.
- */
-fun Modifier.glassGlowBorder(
-    glowColor: Color = BabyPinkPrimary,
-    cornerRadius: Dp = 20.dp,
-    borderWidth: Dp = 1.2.dp
-): Modifier = this.border(
-    width = borderWidth,
-    brush = Brush.verticalGradient(
-        listOf(
-            glowColor.copy(alpha = 0.90f),
-            glowColor.copy(alpha = 0.40f),
-            BabyPinkSoftRose.copy(alpha = 0.20f)
-        )
-    ),
-    shape = RoundedCornerShape(cornerRadius)
-)

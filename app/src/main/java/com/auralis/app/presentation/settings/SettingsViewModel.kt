@@ -6,6 +6,8 @@ import com.auralis.app.domain.model.AudioQualitySetting
 import com.auralis.app.domain.model.Track
 import com.auralis.app.lyrics.LyricsRepository
 import com.auralis.app.playback.*
+import com.auralis.app.ui.theme.AccentPalette
+import com.auralis.app.ui.theme.ThemeMode
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -142,11 +144,17 @@ class SettingsViewModel @Inject constructor(
         _toastEvent.value = SettingsToastEvent.Success("Playlist removed.")
     }
 
-    val accentTheme = playbackManager.personalizationManager.accentTheme
     val topArtists = playbackManager.personalizationManager.topArtists
 
-    fun setAccentTheme(theme: PinkAccentTheme) {
-        playbackManager.personalizationManager.setAccentTheme(theme)
-        _toastEvent.value = SettingsToastEvent.Success("Applied ${theme.displayName} theme! 🌸")
+    // Appearance
+    val themeMode = preferences.themeMode
+    val accentPalette = preferences.accentPalette
+
+    fun setThemeMode(mode: ThemeMode) {
+        preferences.setThemeMode(mode)
+    }
+
+    fun setAccentPalette(accent: AccentPalette) {
+        preferences.setAccentPalette(accent)
     }
 }

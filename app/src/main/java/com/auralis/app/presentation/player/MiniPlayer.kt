@@ -84,7 +84,7 @@ private fun MiniPlayerContent(
             .fillMaxWidth()
             .padding(horizontal = 12.dp, vertical = 6.dp)
             .hapticPress(scaleDown = 0.985f)
-            .glassPanel(cornerRadius = 22.dp)
+            .surfacePanel(cornerRadius = 22.dp)
             .clickable { onClick() }
     ) {
         Column {
@@ -110,7 +110,7 @@ private fun MiniPlayerContent(
                         modifier = Modifier
                             .size(48.dp)
                             .clip(RoundedCornerShape(12.dp))
-                            .background(BabyPinkBgMiddle)
+                            .background(BackgroundElevated)
                     )
 
                     if (isJamActive) {
@@ -118,13 +118,13 @@ private fun MiniPlayerContent(
                             modifier = Modifier
                                 .offset(x = 4.dp, y = 4.dp)
                                 .clip(RoundedCornerShape(8.dp))
-                                .background(BabyPinkPrimary)
-                                .border(1.dp, Color.White, RoundedCornerShape(8.dp))
+                                .background(AccentColor)
+                                .border(1.dp, OnAccentColor.copy(alpha = 0.6f), RoundedCornerShape(8.dp))
                                 .padding(horizontal = 4.dp, vertical = 1.dp)
                         ) {
                             Text(
                                 text = "💗 Together",
-                                color = Color.White,
+                                color = OnAccentColor,
                                 fontSize = 8.sp,
                                 fontWeight = FontWeight.Bold
                             )
@@ -149,14 +149,14 @@ private fun MiniPlayerContent(
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 14.sp
                             ),
-                            color = BabyPinkTextPrimary,
+                            color = TextPrimary,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.weight(1f, fill = false)
                         )
                         if (isPlaying) {
                             AnimatedEqualizerBars(
-                                barColor = BabyPinkPrimary,
+                                barColor = AccentColor,
                                 barCount = 3,
                                 maxHeight = 12.dp,
                                 isPlaying = true
@@ -170,7 +170,7 @@ private fun MiniPlayerContent(
                             fontSize = 12.sp,
                             fontWeight = if (isJamActive || lastJamAction != null) FontWeight.Bold else FontWeight.Medium
                         ),
-                        color = if (isJamActive || lastJamAction != null) BabyPinkPrimary else BabyPinkTextSecondary,
+                        color = if (isJamActive || lastJamAction != null) AccentColor else TextSecondary,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
@@ -186,7 +186,7 @@ private fun MiniPlayerContent(
                     Icon(
                         imageVector = if (isLiked) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
                         contentDescription = "Like",
-                        tint = if (isLiked) BabyPinkPrimary else BabyPinkTextSecondary,
+                        tint = if (isLiked) AccentColor else TextSecondary,
                         modifier = Modifier.size(22.dp)
                     )
                 }
@@ -211,7 +211,7 @@ private fun MiniPlayerContent(
                     Icon(
                         imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
                         contentDescription = if (isPlaying) "Pause" else "Play",
-                        tint = BabyPinkPrimary,
+                        tint = AccentColor,
                         modifier = Modifier.size(30.dp)
                     )
                 }
@@ -226,7 +226,7 @@ private fun MiniPlayerContent(
                     Icon(
                         imageVector = Icons.Default.SkipNext,
                         contentDescription = "Next Track",
-                        tint = BabyPinkTextPrimary,
+                        tint = TextPrimary,
                         modifier = Modifier.size(24.dp)
                     )
                 }
@@ -255,7 +255,7 @@ private fun IsolatedMiniProgressBar(viewModel: PlayerViewModel) {
         modifier = Modifier
             .fillMaxWidth()
             .height(2.5.dp),
-        color = BabyPinkPrimary,
-        trackColor = ProgressBarTrackPink
+        color = AccentColor,
+        trackColor = TrackColor
     )
 }

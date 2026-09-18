@@ -94,7 +94,7 @@ fun HomeScreen(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(BabyPinkBackgroundBrush)
+                .background(BackgroundBrush)
         ) {
             Column(
                 modifier = Modifier
@@ -117,20 +117,20 @@ fun HomeScreen(
                         Box(
                             modifier = Modifier
                                 .size(36.dp)
-                                .glassPill(borderWidth = 1.dp)
-                                .background(BabyPinkPrimary),
+                                .surfacePill(borderWidth = 1.dp)
+                                .background(AccentColor),
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Favorite,
                                 contentDescription = "Logo",
-                                tint = Color.White,
+                                tint = OnAccentColor,
                                 modifier = Modifier.size(20.dp)
                             )
                         }
                         Text(
                             text = "Auralis",
-                            color = BabyPinkTextPrimary,
+                            color = TextPrimary,
                             fontSize = 22.sp,
                             fontWeight = FontWeight.Bold,
                             letterSpacing = 0.5.sp
@@ -146,13 +146,13 @@ fun HomeScreen(
                             onClick = onNavigateToSettings,
                             modifier = Modifier
                                 .size(38.dp)
-                                .glassPill(borderWidth = 1.dp)
+                                .surfacePill(borderWidth = 1.dp)
                                 .hapticPress(scaleDown = 0.88f)
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Tune,
                                 contentDescription = "Settings & Adjustments",
-                                tint = BabyPinkTextPrimary,
+                                tint = TextPrimary,
                                 modifier = Modifier.size(18.dp)
                             )
                         }
@@ -168,11 +168,11 @@ fun HomeScreen(
                             modifier = Modifier
                                 .size(38.dp)
                                 .clip(CircleShape)
-                                .background(if (isSearchExpanded) BabyPinkPrimary else GlassSurfaceStrong)
+                                .background(if (isSearchExpanded) AccentColor else SurfaceElevated)
                                 .border(
                                     1.dp,
                                     Brush.verticalGradient(
-                                        listOf(Color.White.copy(0.85f), Color.White.copy(0.25f))
+                                        listOf(BorderHighlight, BorderColor)
                                     ),
                                     CircleShape
                                 )
@@ -181,7 +181,7 @@ fun HomeScreen(
                             Icon(
                                 imageVector = Icons.Default.Search,
                                 contentDescription = "Search",
-                                tint = if (isSearchExpanded) Color.White else BabyPinkTextPrimary,
+                                tint = if (isSearchExpanded) OnAccentColor else TextPrimary,
                                 modifier = Modifier.size(20.dp)
                             )
                         }
@@ -205,18 +205,18 @@ fun HomeScreen(
                                 .clip(RoundedCornerShape(18.dp))
                                 .background(
                                     if (isSelected) {
-                                        Brush.horizontalGradient(listOf(BabyPinkPrimary, BabyPinkAccent))
+                                        Brush.horizontalGradient(listOf(AccentColor, AccentColorBright))
                                     } else {
-                                        Brush.linearGradient(listOf(GlassSurfaceStrong, GlassSurface))
+                                        Brush.linearGradient(listOf(SurfaceElevated, SurfaceColor))
                                     }
                                 )
                                 .border(
                                     width = 1.dp,
                                     brush = Brush.verticalGradient(
                                         if (isSelected) {
-                                            listOf(Color.White.copy(0.85f), BabyPinkPrimary)
+                                            listOf(OnAccentColor.copy(alpha = 0.55f), AccentColor)
                                         } else {
-                                            listOf(Color.White.copy(0.70f), Color.White.copy(0.15f))
+                                            listOf(BorderHighlight, BorderColor)
                                         }
                                     ),
                                     shape = RoundedCornerShape(18.dp)
@@ -226,7 +226,7 @@ fun HomeScreen(
                         ) {
                             Text(
                                 text = mood,
-                                color = if (isSelected) Color.White else BabyPinkTextPrimary,
+                                color = if (isSelected) OnAccentColor else TextPrimary,
                                 fontSize = 13.sp,
                                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
                             )
@@ -249,10 +249,10 @@ fun HomeScreen(
                             value = searchQuery,
                             onValueChange = { viewModel.onSearchQueryChange(it) },
                             placeholder = {
-                                Text("Search songs, albums, artists, YouTube...", color = BabyPinkTextSecondary, fontSize = 14.sp)
+                                Text("Search songs, albums, artists, YouTube...", color = TextSecondary, fontSize = 14.sp)
                             },
                             leadingIcon = {
-                                Icon(Icons.Default.Search, contentDescription = null, tint = BabyPinkPrimary)
+                                Icon(Icons.Default.Search, contentDescription = null, tint = AccentColor)
                             },
                             trailingIcon = {
                                 if (searchQuery.isNotEmpty()) {
@@ -260,27 +260,27 @@ fun HomeScreen(
                                         onClick = { viewModel.onSearchQueryChange("") },
                                         modifier = Modifier.hapticPress(scaleDown = 0.88f)
                                     ) {
-                                        Icon(Icons.Default.Close, contentDescription = "Clear", tint = BabyPinkTextSecondary)
+                                        Icon(Icons.Default.Close, contentDescription = "Clear", tint = TextSecondary)
                                     }
                                 }
                             },
                             singleLine = true,
                             shape = RoundedCornerShape(24.dp),
                             colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = BabyPinkPrimary,
-                                unfocusedBorderColor = GlassBorder,
-                                focusedContainerColor = GlassSurfaceStrong,
-                                unfocusedContainerColor = GlassSurfaceStrong,
-                                cursorColor = BabyPinkPrimary,
-                                focusedTextColor = BabyPinkTextPrimary,
-                                unfocusedTextColor = BabyPinkTextPrimary
+                                focusedBorderColor = AccentColor,
+                                unfocusedBorderColor = BorderColor,
+                                focusedContainerColor = SurfaceElevated,
+                                unfocusedContainerColor = SurfaceElevated,
+                                cursorColor = AccentColor,
+                                focusedTextColor = TextPrimary,
+                                unfocusedTextColor = TextPrimary
                             ),
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .border(
                                     width = 1.dp,
                                     brush = Brush.verticalGradient(
-                                        listOf(Color.White.copy(0.85f), Color.White.copy(0.20f))
+                                        listOf(BorderHighlight, BorderColor)
                                     ),
                                     shape = RoundedCornerShape(24.dp)
                                 )
@@ -304,14 +304,14 @@ fun HomeScreen(
                                         .clip(RoundedCornerShape(14.dp))
                                         .background(
                                             if (isSelected) {
-                                                Brush.horizontalGradient(listOf(BabyPinkPrimary, BabyPinkAccent))
+                                                Brush.horizontalGradient(listOf(AccentColor, AccentColorBright))
                                             } else {
-                                                Brush.linearGradient(listOf(GlassSurfaceStrong, GlassSurface))
+                                                Brush.linearGradient(listOf(SurfaceElevated, SurfaceColor))
                                             }
                                         )
                                         .border(
                                             1.dp,
-                                            if (isSelected) Color.White.copy(0.85f) else GlassBorder,
+                                            if (isSelected) OnAccentColor.copy(alpha = 0.6f) else BorderColor,
                                             RoundedCornerShape(14.dp)
                                         )
                                         .clickable { viewModel.selectSourceFilter(source) }
@@ -321,7 +321,7 @@ fun HomeScreen(
                                         text = source?.displayName ?: "All",
                                         fontSize = 11.sp,
                                         fontWeight = FontWeight.SemiBold,
-                                        color = if (isSelected) Color.White else BabyPinkTextPrimary
+                                        color = if (isSelected) OnAccentColor else TextPrimary
                                     )
                                 }
                             }
@@ -336,7 +336,7 @@ fun HomeScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(horizontal = 16.dp, vertical = 6.dp)
-                            .glassCard(cornerRadius = 18.dp)
+                            .surfaceCard(cornerRadius = 18.dp)
                             .hapticPress(scaleDown = 0.98f)
                             .clickable { showJamDialog = true }
                             .padding(horizontal = 14.dp, vertical = 10.dp),
@@ -348,19 +348,19 @@ fun HomeScreen(
                                 modifier = Modifier
                                     .size(10.dp)
                                     .clip(CircleShape)
-                                    .background(BabyPinkPrimary)
+                                    .background(AccentColor)
                             )
                             Spacer(modifier = Modifier.width(10.dp))
                             Column {
                                 Text(
                                     text = "💗 Together with $partner • Laddu Sync",
-                                    color = BabyPinkTextPrimary,
+                                    color = TextPrimary,
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 13.sp
                                 )
                                 Text(
                                     text = lastJamAction ?: "Listening together in real-time sync",
-                                    color = BabyPinkPrimary,
+                                    color = AccentColor,
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.SemiBold
                                 )
@@ -368,7 +368,7 @@ fun HomeScreen(
                         }
                         Text(
                             text = "Manage 💗",
-                            color = BabyPinkTextPrimary,
+                            color = TextPrimary,
                             fontWeight = FontWeight.Bold,
                             fontSize = 12.sp
                         )
@@ -433,7 +433,7 @@ fun HomeScreen(
                             modifier = Modifier.fillMaxSize(),
                             contentAlignment = Alignment.Center
                         ) {
-                            CircularProgressIndicator(color = BabyPinkPrimary)
+                            CircularProgressIndicator(color = AccentColor)
                         }
                     }
 
@@ -457,7 +457,7 @@ fun HomeScreen(
                                     Text(
                                         text = if (selectedTab == HomeTab.Downloaded) "Library (${tracks.size})" else "Results for '$searchQuery'",
                                         style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                                        color = BabyPinkTextPrimary,
+                                        color = TextPrimary,
                                         modifier = Modifier.padding(bottom = 8.dp)
                                     )
                                 }
@@ -471,7 +471,7 @@ fun HomeScreen(
                                 }
                             }
                         } else {
-                            // Glassmorphism Baby Pink Shelves / Carousels Feed
+                            // Shelves / carousels feed
                             val quickPicks = tracks.take(4)
                             val trendingNow = tracks.drop(4).take(6)
                             val recommended = tracks.drop(10)
@@ -487,18 +487,18 @@ fun HomeScreen(
                                         modifier = Modifier
                                             .fillMaxWidth()
                                             .padding(horizontal = 16.dp)
-                                            .glassCard(cornerRadius = 20.dp)
+                                            .surfaceCard(cornerRadius = 20.dp)
                                             .padding(16.dp)
                                     ) {
                                         Text(
                                             text = timeGreeting,
-                                            color = BabyPinkPrimary,
+                                            color = AccentColor,
                                             fontWeight = FontWeight.Bold,
                                             fontSize = 18.sp
                                         )
                                         Text(
                                             text = timeSubtitle,
-                                            color = BabyPinkTextSecondary,
+                                            color = TextSecondary,
                                             fontSize = 13.sp,
                                             modifier = Modifier.padding(top = 2.dp)
                                         )
@@ -506,7 +506,7 @@ fun HomeScreen(
                                             Spacer(modifier = Modifier.height(8.dp))
                                             Text(
                                                 text = "Favorites: " + topArtists.take(3).joinToString(" • "),
-                                                color = BabyPinkTextPrimary,
+                                                color = TextPrimary,
                                                 fontWeight = FontWeight.SemiBold,
                                                 fontSize = 11.sp
                                             )
@@ -531,7 +531,7 @@ fun HomeScreen(
                                                 Icon(
                                                     imageVector = Icons.Default.AutoAwesome,
                                                     contentDescription = null,
-                                                    tint = BabyPinkPrimary,
+                                                    tint = AccentColor,
                                                     modifier = Modifier.size(18.dp)
                                                 )
                                                 Text(
@@ -539,12 +539,12 @@ fun HomeScreen(
                                                     style = MaterialTheme.typography.titleMedium.copy(
                                                         fontWeight = FontWeight.Bold
                                                     ),
-                                                    color = BabyPinkTextPrimary
+                                                    color = TextPrimary
                                                 )
                                             }
                                             Text(
                                                 text = "Quick Studio",
-                                                color = BabyPinkPrimary,
+                                                color = AccentColor,
                                                 fontSize = 11.sp,
                                                 fontWeight = FontWeight.Bold
                                             )
@@ -561,7 +561,7 @@ fun HomeScreen(
                                                 Box(
                                                     modifier = Modifier
                                                         .width(180.dp)
-                                                        .glassCard(cornerRadius = 18.dp)
+                                                        .surfaceCard(cornerRadius = 18.dp)
                                                         .hapticPress(scaleDown = 0.94f)
                                                         .clickable { showJamDialog = true }
                                                         .padding(12.dp)
@@ -576,19 +576,19 @@ fun HomeScreen(
                                                                 modifier = Modifier
                                                                     .size(32.dp)
                                                                     .clip(CircleShape)
-                                                                    .background(BabyPinkPrimary),
+                                                                    .background(AccentColor),
                                                                 contentAlignment = Alignment.Center
                                                             ) {
                                                                 Icon(
                                                                     Icons.Default.Favorite,
                                                                     contentDescription = null,
-                                                                    tint = Color.White,
+                                                                    tint = OnAccentColor,
                                                                     modifier = Modifier.size(16.dp)
                                                                 )
                                                             }
                                                             Text(
                                                                 text = if (jamSession != null) "SYNCED 🟢" else "START 💗",
-                                                                color = BabyPinkPrimary,
+                                                                color = AccentColor,
                                                                 fontWeight = FontWeight.Bold,
                                                                 fontSize = 10.sp
                                                             )
@@ -596,13 +596,13 @@ fun HomeScreen(
                                                         Spacer(modifier = Modifier.height(8.dp))
                                                         Text(
                                                             text = "Listen Together",
-                                                            color = BabyPinkTextPrimary,
+                                                            color = TextPrimary,
                                                             fontWeight = FontWeight.Bold,
                                                             fontSize = 13.sp
                                                         )
                                                         Text(
                                                             text = "Sync music live with partner",
-                                                            color = BabyPinkTextSecondary,
+                                                            color = TextSecondary,
                                                             fontSize = 11.sp,
                                                             maxLines = 1,
                                                             overflow = TextOverflow.Ellipsis
@@ -617,7 +617,7 @@ fun HomeScreen(
                                                 Box(
                                                     modifier = Modifier
                                                         .width(170.dp)
-                                                        .glassCard(cornerRadius = 18.dp)
+                                                        .surfaceCard(cornerRadius = 18.dp)
                                                         .hapticPress(scaleDown = 0.94f)
                                                         .clickable { showSleepTimerSheet = true }
                                                         .padding(12.dp)
@@ -632,19 +632,19 @@ fun HomeScreen(
                                                                 modifier = Modifier
                                                                     .size(32.dp)
                                                                     .clip(CircleShape)
-                                                                    .background(if (isTimerActive) BabyPinkPrimary else GlassSurfaceStrong),
+                                                                    .background(if (isTimerActive) AccentColor else SurfaceElevated),
                                                                 contentAlignment = Alignment.Center
                                                             ) {
                                                                 Icon(
                                                                     Icons.Default.Bedtime,
                                                                     contentDescription = null,
-                                                                    tint = if (isTimerActive) Color.White else BabyPinkPrimary,
+                                                                    tint = if (isTimerActive) OnAccentColor else AccentColor,
                                                                     modifier = Modifier.size(16.dp)
                                                                 )
                                                             }
                                                             Text(
                                                                 text = if (isTimerActive) "${sleepTimerMinutesRemaining}m" else "TIMER",
-                                                                color = BabyPinkPrimary,
+                                                                color = AccentColor,
                                                                 fontWeight = FontWeight.Bold,
                                                                 fontSize = 10.sp
                                                             )
@@ -652,13 +652,13 @@ fun HomeScreen(
                                                         Spacer(modifier = Modifier.height(8.dp))
                                                         Text(
                                                             text = "Sleep Timer",
-                                                            color = BabyPinkTextPrimary,
+                                                            color = TextPrimary,
                                                             fontWeight = FontWeight.Bold,
                                                             fontSize = 13.sp
                                                         )
                                                         Text(
                                                             text = "Gentle 10s volume fade-out",
-                                                            color = BabyPinkTextSecondary,
+                                                            color = TextSecondary,
                                                             fontSize = 11.sp,
                                                             maxLines = 1,
                                                             overflow = TextOverflow.Ellipsis
@@ -673,7 +673,7 @@ fun HomeScreen(
                                                 Box(
                                                     modifier = Modifier
                                                         .width(170.dp)
-                                                        .glassCard(cornerRadius = 18.dp)
+                                                        .surfaceCard(cornerRadius = 18.dp)
                                                         .hapticPress(scaleDown = 0.94f)
                                                         .clickable { showSpeedSheet = true }
                                                         .padding(12.dp)
@@ -688,19 +688,19 @@ fun HomeScreen(
                                                                 modifier = Modifier
                                                                     .size(32.dp)
                                                                     .clip(CircleShape)
-                                                                    .background(if (isSpeedActive) BabyPinkPrimary else GlassSurfaceStrong),
+                                                                    .background(if (isSpeedActive) AccentColor else SurfaceElevated),
                                                                 contentAlignment = Alignment.Center
                                                             ) {
                                                                 Icon(
                                                                     Icons.Default.Speed,
                                                                     contentDescription = null,
-                                                                    tint = if (isSpeedActive) Color.White else BabyPinkPrimary,
+                                                                    tint = if (isSpeedActive) OnAccentColor else AccentColor,
                                                                     modifier = Modifier.size(16.dp)
                                                                 )
                                                             }
                                                             Text(
                                                                 text = "${playbackSpeed}x",
-                                                                color = BabyPinkPrimary,
+                                                                color = AccentColor,
                                                                 fontWeight = FontWeight.Bold,
                                                                 fontSize = 10.sp
                                                             )
@@ -708,13 +708,13 @@ fun HomeScreen(
                                                         Spacer(modifier = Modifier.height(8.dp))
                                                         Text(
                                                             text = "Playback Speed",
-                                                            color = BabyPinkTextPrimary,
+                                                            color = TextPrimary,
                                                             fontWeight = FontWeight.Bold,
                                                             fontSize = 13.sp
                                                         )
                                                         Text(
                                                             text = "0.75x–2.0x pitch preserved",
-                                                            color = BabyPinkTextSecondary,
+                                                            color = TextSecondary,
                                                             fontSize = 11.sp,
                                                             maxLines = 1,
                                                             overflow = TextOverflow.Ellipsis
@@ -728,7 +728,7 @@ fun HomeScreen(
                                                 Box(
                                                     modifier = Modifier
                                                         .width(170.dp)
-                                                        .glassCard(cornerRadius = 18.dp)
+                                                        .surfaceCard(cornerRadius = 18.dp)
                                                         .hapticPress(scaleDown = 0.94f)
                                                         .clickable { onNavigateToSettings() }
                                                         .padding(12.dp)
@@ -743,33 +743,33 @@ fun HomeScreen(
                                                                 modifier = Modifier
                                                                     .size(32.dp)
                                                                     .clip(CircleShape)
-                                                                    .background(GlassSurfaceStrong),
+                                                                    .background(SurfaceElevated),
                                                                 contentAlignment = Alignment.Center
                                                             ) {
                                                                 Icon(
                                                                     Icons.Default.Tune,
                                                                     contentDescription = null,
-                                                                    tint = BabyPinkPrimary,
+                                                                    tint = AccentColor,
                                                                     modifier = Modifier.size(16.dp)
                                                                 )
                                                             }
                                                             Text(
                                                                 text = "CUSTOMIZE",
-                                                                color = BabyPinkPrimary,
+                                                                color = AccentColor,
                                                                 fontWeight = FontWeight.Bold,
                                                                 fontSize = 10.sp
                                                             )
                                                         }
                                                         Spacer(modifier = Modifier.height(8.dp))
                                                         Text(
-                                                            text = "Pink Themes & FX",
-                                                            color = BabyPinkTextPrimary,
+                                                            text = "Appearance & FX",
+                                                            color = TextPrimary,
                                                             fontWeight = FontWeight.Bold,
                                                             fontSize = 13.sp
                                                         )
                                                         Text(
                                                             text = "Theme, lyrics & radio",
-                                                            color = BabyPinkTextSecondary,
+                                                            color = TextSecondary,
                                                             fontSize = 11.sp,
                                                             maxLines = 1,
                                                             overflow = TextOverflow.Ellipsis
@@ -783,7 +783,7 @@ fun HomeScreen(
                                                 Box(
                                                     modifier = Modifier
                                                         .width(170.dp)
-                                                        .glassCard(cornerRadius = 18.dp)
+                                                        .surfaceCard(cornerRadius = 18.dp)
                                                         .hapticPress(scaleDown = 0.94f)
                                                         .clickable {
                                                             viewModel.toggleInfiniteRadioAutoplay(!isInfiniteRadioAutoplayEnabled)
@@ -800,19 +800,19 @@ fun HomeScreen(
                                                                 modifier = Modifier
                                                                     .size(32.dp)
                                                                     .clip(CircleShape)
-                                                                    .background(if (isInfiniteRadioAutoplayEnabled) BabyPinkPrimary else GlassSurfaceStrong),
+                                                                    .background(if (isInfiniteRadioAutoplayEnabled) AccentColor else SurfaceElevated),
                                                                 contentAlignment = Alignment.Center
                                                             ) {
                                                                 Icon(
                                                                     Icons.Default.Radio,
                                                                     contentDescription = null,
-                                                                    tint = if (isInfiniteRadioAutoplayEnabled) Color.White else BabyPinkPrimary,
+                                                                    tint = if (isInfiniteRadioAutoplayEnabled) OnAccentColor else AccentColor,
                                                                     modifier = Modifier.size(16.dp)
                                                                 )
                                                             }
                                                             Text(
                                                                 text = if (isInfiniteRadioAutoplayEnabled) "ACTIVE 📻" else "PAUSED",
-                                                                color = if (isInfiniteRadioAutoplayEnabled) BabyPinkPrimary else BabyPinkTextSecondary,
+                                                                color = if (isInfiniteRadioAutoplayEnabled) AccentColor else TextSecondary,
                                                                 fontWeight = FontWeight.Bold,
                                                                 fontSize = 10.sp
                                                             )
@@ -820,13 +820,13 @@ fun HomeScreen(
                                                         Spacer(modifier = Modifier.height(8.dp))
                                                         Text(
                                                             text = "Infinite Radio",
-                                                            color = BabyPinkTextPrimary,
+                                                            color = TextPrimary,
                                                             fontWeight = FontWeight.Bold,
                                                             fontSize = 13.sp
                                                         )
                                                         Text(
                                                             text = if (isInfiniteRadioAutoplayEnabled) "Endless smart stream ON" else "Tap to enable autoplay",
-                                                            color = BabyPinkTextSecondary,
+                                                            color = TextSecondary,
                                                             fontSize = 11.sp,
                                                             maxLines = 1,
                                                             overflow = TextOverflow.Ellipsis
@@ -856,7 +856,7 @@ fun HomeScreen(
                                                     Icon(
                                                         imageVector = Icons.Default.History,
                                                         contentDescription = null,
-                                                        tint = BabyPinkPrimary,
+                                                        tint = AccentColor,
                                                         modifier = Modifier.size(20.dp)
                                                     )
                                                     Text(
@@ -864,12 +864,12 @@ fun HomeScreen(
                                                         style = MaterialTheme.typography.titleLarge.copy(
                                                             fontWeight = FontWeight.Bold
                                                         ),
-                                                        color = BabyPinkTextPrimary
+                                                        color = TextPrimary
                                                     )
                                                 }
                                                 Text(
                                                     text = "Recently Played",
-                                                    color = BabyPinkTextSecondary,
+                                                    color = TextSecondary,
                                                     fontSize = 12.sp,
                                                     fontWeight = FontWeight.Medium
                                                 )
@@ -901,14 +901,14 @@ fun HomeScreen(
                                                     letterSpacing = 1.sp,
                                                     fontWeight = FontWeight.Bold
                                                 ),
-                                                color = BabyPinkTextSecondary
+                                                color = TextSecondary
                                             )
                                             Text(
                                                 text = if (selectedMood == "All") "Start radio from a song" else "$selectedMood Vibes",
                                                 style = MaterialTheme.typography.titleLarge.copy(
                                                     fontWeight = FontWeight.Bold
                                                 ),
-                                                color = BabyPinkTextPrimary
+                                                color = TextPrimary
                                             )
                                             Spacer(modifier = Modifier.height(10.dp))
                                             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -934,7 +934,7 @@ fun HomeScreen(
                                                 style = MaterialTheme.typography.titleLarge.copy(
                                                     fontWeight = FontWeight.Bold
                                                 ),
-                                                color = BabyPinkTextPrimary,
+                                                color = TextPrimary,
                                                 modifier = Modifier.padding(horizontal = 16.dp)
                                             )
                                             Spacer(modifier = Modifier.height(10.dp))
@@ -963,7 +963,7 @@ fun HomeScreen(
                                                 style = MaterialTheme.typography.titleLarge.copy(
                                                     fontWeight = FontWeight.Bold
                                                 ),
-                                                color = BabyPinkTextPrimary,
+                                                color = TextPrimary,
                                                 modifier = Modifier.padding(horizontal = 16.dp)
                                             )
                                             Spacer(modifier = Modifier.height(10.dp))
@@ -996,7 +996,7 @@ fun HomeScreen(
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                 Text(
                                     text = state.message,
-                                    color = BabyPinkTextSecondary,
+                                    color = TextSecondary,
                                     fontSize = 14.sp,
                                     modifier = Modifier.padding(bottom = 16.dp)
                                 )
@@ -1008,11 +1008,11 @@ fun HomeScreen(
                                 }
                                 Button(
                                     onClick = { viewModel.loadTrendingTracks() },
-                                    colors = ButtonDefaults.buttonColors(containerColor = BabyPinkPrimary)
+                                    colors = ButtonDefaults.buttonColors(containerColor = AccentColor)
                                 ) {
-                                    Icon(Icons.Default.Refresh, contentDescription = null, tint = Color.White)
+                                    Icon(Icons.Default.Refresh, contentDescription = null, tint = OnAccentColor)
                                     Spacer(modifier = Modifier.width(8.dp))
-                                    Text("Retry", color = Color.White, fontWeight = FontWeight.Bold)
+                                    Text("Retry", color = OnAccentColor, fontWeight = FontWeight.Bold)
                                 }
                             }
                         }
@@ -1034,7 +1034,7 @@ fun GlassTrackListItem(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .glassCard(cornerRadius = 16.dp)
+            .surfaceCard(cornerRadius = 16.dp)
             .hapticPress(scaleDown = 0.98f)
             .clickable { onClick() }
             .padding(vertical = 8.dp, horizontal = 10.dp),
@@ -1050,7 +1050,7 @@ fun GlassTrackListItem(
             modifier = Modifier
                 .size(52.dp)
                 .clip(RoundedCornerShape(12.dp))
-                .background(BabyPinkBgMiddle)
+                .background(BackgroundElevated)
         )
 
         Spacer(modifier = Modifier.width(14.dp))
@@ -1058,7 +1058,7 @@ fun GlassTrackListItem(
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = track.title,
-                color = BabyPinkTextPrimary,
+                color = TextPrimary,
                 fontWeight = FontWeight.Bold,
                 fontSize = 15.sp,
                 maxLines = 1,
@@ -1071,14 +1071,14 @@ fun GlassTrackListItem(
             ) {
                 Text(
                     text = track.artist,
-                    color = BabyPinkTextSecondary,
+                    color = TextSecondary,
                     fontSize = 13.sp,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f, fill = false)
                 )
-                Text(text = "•", color = BabyPinkTextSecondary, fontSize = 11.sp)
-                Text(text = track.source, color = BabyPinkTextSecondary, fontSize = 11.sp)
+                Text(text = "•", color = TextSecondary, fontSize = 11.sp)
+                Text(text = track.source, color = TextSecondary, fontSize = 11.sp)
             }
         }
 
@@ -1091,14 +1091,14 @@ fun GlassTrackListItem(
                 Icon(
                     imageVector = Icons.Default.CheckCircle,
                     contentDescription = "Downloaded",
-                    tint = BabyPinkPrimary,
+                    tint = AccentColor,
                     modifier = Modifier.size(22.dp)
                 )
             } else {
                 Icon(
                     imageVector = Icons.Default.Download,
                     contentDescription = "Download",
-                    tint = BabyPinkTextSecondary,
+                    tint = TextSecondary,
                     modifier = Modifier.size(22.dp)
                 )
             }
@@ -1112,7 +1112,7 @@ fun GlassTrackListItem(
             Icon(
                 imageVector = Icons.Default.MoreVert,
                 contentDescription = "More Options",
-                tint = BabyPinkTextSecondary,
+                tint = TextSecondary,
                 modifier = Modifier.size(20.dp)
             )
         }
@@ -1135,7 +1135,7 @@ fun GlassMusicCardItem(
         Box(
             modifier = Modifier
                 .size(140.dp)
-                .doubleBezelCard(outerRadius = 20.dp)
+                .artworkFrame(outerRadius = 20.dp)
         ) {
             AsyncImage(
                 model = ImageRequest.Builder(context)
@@ -1158,7 +1158,7 @@ fun GlassMusicCardItem(
                     .border(
                         1.dp,
                         Brush.verticalGradient(
-                            listOf(Color.White, BabyPinkSoftRose.copy(0.4f))
+                            listOf(BorderHighlight, AccentColorSoft.copy(0.4f))
                         ),
                         RoundedCornerShape(8.dp)
                     )
@@ -1166,7 +1166,7 @@ fun GlassMusicCardItem(
             ) {
                 Text(
                     text = track.qualityBadge,
-                    color = BabyPinkPrimary,
+                    color = AccentColor,
                     fontSize = 9.sp,
                     fontWeight = FontWeight.Bold
                 )
@@ -1185,7 +1185,7 @@ fun GlassMusicCardItem(
                     Icon(
                         imageVector = Icons.Default.MoreVert,
                         contentDescription = "More",
-                        tint = BabyPinkTextPrimary,
+                        tint = TextPrimary,
                         modifier = Modifier.size(16.dp)
                     )
                 }
@@ -1194,7 +1194,7 @@ fun GlassMusicCardItem(
         Spacer(modifier = Modifier.height(8.dp))
         Text(
             text = track.title,
-            color = BabyPinkTextPrimary,
+            color = TextPrimary,
             fontWeight = FontWeight.Bold,
             fontSize = 13.sp,
             maxLines = 1,
@@ -1202,7 +1202,7 @@ fun GlassMusicCardItem(
         )
         Text(
             text = track.artist,
-            color = BabyPinkTextSecondary,
+            color = TextSecondary,
             fontSize = 11.sp,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
@@ -1216,7 +1216,7 @@ private fun LocalAudioPermissionCard(onGrantClick: () -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .padding(bottom = 12.dp)
-            .glassCard(cornerRadius = 18.dp)
+            .surfaceCard(cornerRadius = 18.dp)
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
@@ -1227,28 +1227,28 @@ private fun LocalAudioPermissionCard(onGrantClick: () -> Unit) {
             Icon(
                 imageVector = Icons.Default.LibraryMusic,
                 contentDescription = null,
-                tint = BabyPinkPrimary,
+                tint = AccentColor,
                 modifier = Modifier.size(22.dp)
             )
             Text(
                 text = "Play music on this device",
-                color = BabyPinkTextPrimary,
+                color = TextPrimary,
                 fontWeight = FontWeight.Bold,
                 fontSize = 15.sp
             )
         }
         Text(
             text = "Allow access to your audio files and they appear here alongside your downloads.",
-            color = BabyPinkTextSecondary,
+            color = TextSecondary,
             fontSize = 13.sp
         )
         Button(
             onClick = onGrantClick,
-            colors = ButtonDefaults.buttonColors(containerColor = BabyPinkPrimary),
+            colors = ButtonDefaults.buttonColors(containerColor = AccentColor),
             shape = RoundedCornerShape(16.dp),
             modifier = Modifier.hapticPress(scaleDown = 0.96f)
         ) {
-            Text("Allow access", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+            Text("Allow access", color = OnAccentColor, fontWeight = FontWeight.Bold, fontSize = 13.sp)
         }
     }
 }

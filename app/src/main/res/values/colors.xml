@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Window background for the cold-start frame, before Compose draws. Must match the
+         Compose background token or the launch flashes the wrong colour. -->
+    <color name="window_background">#FFFAFAFC</color>
+</resources>

@@ -65,16 +65,16 @@ fun TogetherModeButton(
             .background(
                 Brush.horizontalGradient(
                     if (isTogetherActive) {
-                        listOf(BabyPinkPrimary, BabyPinkAccent)
+                        listOf(AccentColor, AccentColorBright)
                     } else {
-                        listOf(Color(0xFFFFDDE8), Color(0xFFFFC0CB))
+                        listOf(AccentColorSoft, AccentColor)
                     }
                 )
             )
             .border(
                 1.dp,
                 Brush.verticalGradient(
-                    listOf(Color.White.copy(alpha = 0.90f), BabyPinkPrimary.copy(alpha = 0.40f))
+                    listOf(OnAccentColor.copy(alpha = 0.55f), AccentColor.copy(alpha = 0.40f))
                 ),
                 RoundedCornerShape(22.dp)
             )
@@ -89,12 +89,12 @@ fun TogetherModeButton(
             Icon(
                 imageVector = Icons.Default.Favorite,
                 contentDescription = "Together",
-                tint = if (isTogetherActive) Color.White else BabyPinkTextPrimary,
+                tint = if (isTogetherActive) OnAccentColor else TextPrimary,
                 modifier = Modifier.size(16.dp)
             )
             Text(
                 text = if (isTogetherActive) "With $partnerName 💗" else "Listen Together 💗",
-                color = if (isTogetherActive) Color.White else BabyPinkTextPrimary,
+                color = if (isTogetherActive) OnAccentColor else TextPrimary,
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Bold
             )
@@ -104,7 +104,7 @@ fun TogetherModeButton(
 
 /**
  * Top Glass Strip for Together Now Playing Screen.
- * Two small circular partner avatars with pink border + text + pulsing heart + "Synced" indicator.
+ * Two small circular partner avatars with an accent border + text + pulsing heart + "Synced" indicator.
  * Adheres strictly to Section 11.3 C.
  */
 @Composable
@@ -129,7 +129,7 @@ fun TogetherTopGlassStrip(
         modifier = modifier
             .fillMaxWidth()
             .hapticPress(scaleDown = 0.97f)
-            .glassPanel(cornerRadius = 20.dp)
+            .surfacePanel(cornerRadius = 20.dp)
             .clickable { onClick() }
             .padding(horizontal = 14.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -145,13 +145,13 @@ fun TogetherTopGlassStrip(
                 modifier = Modifier
                     .size(30.dp)
                     .clip(CircleShape)
-                    .background(BabyPinkPrimary)
-                    .border(1.5.dp, Color.White, CircleShape),
+                    .background(AccentColor)
+                    .border(1.5.dp, OnAccentColor, CircleShape),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
                     text = userName.take(1).uppercase().ifEmpty { "B" },
-                    color = Color.White,
+                    color = OnAccentColor,
                     fontWeight = FontWeight.Bold,
                     fontSize = 12.sp
                 )
@@ -162,13 +162,13 @@ fun TogetherTopGlassStrip(
                 modifier = Modifier
                     .size(30.dp)
                     .clip(CircleShape)
-                    .background(BabyPinkAccent)
-                    .border(1.5.dp, Color.White, CircleShape),
+                    .background(AccentColorBright)
+                    .border(1.5.dp, OnAccentColor, CircleShape),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
                     text = partnerName.take(1).uppercase().ifEmpty { "L" },
-                    color = Color.White,
+                    color = OnAccentColor,
                     fontWeight = FontWeight.Bold,
                     fontSize = 12.sp
                 )
@@ -185,13 +185,13 @@ fun TogetherTopGlassStrip(
             Text(
                 text = "Together with $partnerName 💗",
                 style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
-                color = BabyPinkTextPrimary,
+                color = TextPrimary,
                 fontSize = 13.sp
             )
             Text(
                 text = "Laddu Sync • Babu & Wifeeee Session",
                 style = MaterialTheme.typography.labelSmall,
-                color = BabyPinkTextSecondary,
+                color = TextSecondary,
                 fontSize = 10.sp
             )
         }
@@ -203,20 +203,20 @@ fun TogetherTopGlassStrip(
             modifier = Modifier
                 .clip(RoundedCornerShape(12.dp))
                 .background(Color(0x33FFB6C1))
-                .border(0.5.dp, BabyPinkPrimary, RoundedCornerShape(12.dp))
+                .border(0.5.dp, AccentColor, RoundedCornerShape(12.dp))
                 .padding(horizontal = 8.dp, vertical = 4.dp)
         ) {
             Icon(
                 imageVector = Icons.Default.Favorite,
                 contentDescription = "Synced",
-                tint = BabyPinkPrimary,
+                tint = AccentColor,
                 modifier = Modifier
                     .size(12.dp)
                     .scale(heartScale)
             )
             Text(
                 text = "Synced",
-                color = BabyPinkTextPrimary,
+                color = TextPrimary,
                 fontSize = 10.sp,
                 fontWeight = FontWeight.Bold
             )
@@ -238,7 +238,7 @@ fun TogetherLiveReactionsTray(
 
     Box(
         modifier = modifier
-            .glassPanel(cornerRadius = 24.dp)
+            .surfacePanel(cornerRadius = 24.dp)
             .padding(horizontal = 10.dp, vertical = 6.dp)
     ) {
         Row(
@@ -251,8 +251,8 @@ fun TogetherLiveReactionsTray(
                         .size(36.dp)
                         .hapticPress(scaleDown = 0.85f)
                         .clip(CircleShape)
-                        .background(Color.White.copy(alpha = 0.65f))
-                        .border(1.dp, GlassBorder, CircleShape)
+                        .background(OnAccentColor.copy(alpha = 0.65f))
+                        .border(1.dp, BorderColor, CircleShape)
                         .clickable { onSendReaction(emoji) },
                     contentAlignment = Alignment.Center
                 ) {
@@ -270,9 +270,9 @@ fun TogetherLiveReactionsTray(
                     .hapticPress(scaleDown = 0.90f)
                     .clip(RoundedCornerShape(18.dp))
                     .background(
-                        Brush.horizontalGradient(listOf(BabyPinkPrimary, BabyPinkAccent))
+                        Brush.horizontalGradient(listOf(AccentColor, AccentColorBright))
                     )
-                    .border(1.dp, Color.White.copy(alpha = 0.85f), RoundedCornerShape(18.dp))
+                    .border(1.dp, OnAccentColor.copy(alpha = 0.55f), RoundedCornerShape(18.dp))
                     .clickable { onTriggerQuote() }
                     .padding(horizontal = 10.dp),
                 contentAlignment = Alignment.Center
@@ -284,7 +284,7 @@ fun TogetherLiveReactionsTray(
                     Text(text = "💋", fontSize = 14.sp)
                     Text(
                         text = "jaanaa",
-                        color = Color.White,
+                        color = OnAccentColor,
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold
                     )
@@ -296,7 +296,7 @@ fun TogetherLiveReactionsTray(
 
 /**
  * Floating Reaction Particles:
- * When one user sends a reaction, it gently floats upward on the screen with soft pink particles.
+ * When one user sends a reaction, it gently floats upward on the screen with soft accent particles.
  * Adheres strictly to Section 11.3 E.
  */
 data class FloatingParticle(
@@ -410,11 +410,11 @@ fun MemoryQuoteOverlay(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 24.dp, vertical = 16.dp)
-                    .glassPanel(cornerRadius = 24.dp)
+                    .surfacePanel(cornerRadius = 24.dp)
                     .border(
                         1.5.dp,
                         Brush.verticalGradient(
-                            listOf(Color.White, BabyPinkPrimary)
+                            listOf(OnAccentColor.copy(alpha = 0.55f), AccentColor)
                         ),
                         RoundedCornerShape(24.dp)
                     )
@@ -427,7 +427,7 @@ fun MemoryQuoteOverlay(
                 ) {
                     Text(
                         text = "💌 Memory From Chats",
-                        color = BabyPinkPrimary,
+                        color = AccentColor,
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
                         letterSpacing = 1.sp
@@ -435,13 +435,13 @@ fun MemoryQuoteOverlay(
                     Text(
                         text = "\"$quote\"",
                         style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.ExtraBold),
-                        color = BabyPinkTextPrimary,
+                        color = TextPrimary,
                         fontSize = 17.sp,
                         textAlign = TextAlign.Center
                     )
                     Text(
                         text = "— With love, ${sender ?: "Your Partner"} 💗",
-                        color = BabyPinkTextSecondary,
+                        color = TextSecondary,
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Medium
                     )
@@ -453,7 +453,7 @@ fun MemoryQuoteOverlay(
 
 /**
  * End Session Romantic Confirmation Dialog:
- * Floating pink hearts + "Miss you already 💗".
+ * Floating hearts + "Miss you already 💗".
  * Adheres strictly to Section 11.2 (5) & 11.4.
  */
 @Composable
@@ -472,7 +472,7 @@ fun EndSessionRomanticDialog(
                 .border(
                     1.2.dp,
                     Brush.verticalGradient(
-                        listOf(Color.White.copy(alpha = 0.90f), BabyPinkPrimary.copy(alpha = 0.40f))
+                        listOf(OnAccentColor.copy(alpha = 0.55f), AccentColor.copy(alpha = 0.40f))
                     ),
                     RoundedCornerShape(26.dp)
                 )
@@ -493,7 +493,7 @@ fun EndSessionRomanticDialog(
                 Text(
                     text = "Miss you already 💗",
                     style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
-                    color = BabyPinkTextPrimary,
+                    color = TextPrimary,
                     textAlign = TextAlign.Center
                 )
 
@@ -502,7 +502,7 @@ fun EndSessionRomanticDialog(
                 Text(
                     text = "Are you sure you want to end this Together Mode session with $partnerName? Your playback will no longer be synchronized.",
                     style = MaterialTheme.typography.bodySmall,
-                    color = BabyPinkTextSecondary,
+                    color = TextSecondary,
                     textAlign = TextAlign.Center
                 )
 
@@ -514,11 +514,11 @@ fun EndSessionRomanticDialog(
                 ) {
                     Button(
                         onClick = onDismiss,
-                        colors = ButtonDefaults.buttonColors(containerColor = BabyPinkPrimary),
+                        colors = ButtonDefaults.buttonColors(containerColor = AccentColor),
                         shape = RoundedCornerShape(20.dp),
                         modifier = Modifier.weight(1f)
                     ) {
-                        Text("Stay Together 💗", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                        Text("Stay Together 💗", color = OnAccentColor, fontWeight = FontWeight.Bold, fontSize = 13.sp)
                     }
 
                     Button(
@@ -526,12 +526,12 @@ fun EndSessionRomanticDialog(
                             onConfirmLeave()
                             onDismiss()
                         },
-                        colors = ButtonDefaults.buttonColors(containerColor = GlassSurfaceStrong),
-                        border = BorderStroke(1.dp, GlassBorder),
+                        colors = ButtonDefaults.buttonColors(containerColor = SurfaceElevated),
+                        border = BorderStroke(1.dp, BorderColor),
                         shape = RoundedCornerShape(20.dp),
                         modifier = Modifier.weight(1f)
                     ) {
-                        Text("Leave", color = BabyPinkTextPrimary, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                        Text("Leave", color = TextPrimary, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
                     }
                 }
             }
@@ -541,7 +541,7 @@ fun EndSessionRomanticDialog(
 
 /**
  * "Our Song" Special Double-Heart Badge:
- * Songs you both loved get a special pink heart.
+ * Songs you both loved get a special heart.
  * Adheres strictly to Section 11.4.
  */
 @Composable
@@ -550,9 +550,9 @@ fun OurSongBadge(modifier: Modifier = Modifier) {
         modifier = modifier
             .clip(RoundedCornerShape(12.dp))
             .background(
-                Brush.horizontalGradient(listOf(BabyPinkPrimary, BabyPinkAccent))
+                Brush.horizontalGradient(listOf(AccentColor, AccentColorBright))
             )
-            .border(0.8.dp, Color.White.copy(alpha = 0.85f), RoundedCornerShape(12.dp))
+            .border(0.8.dp, OnAccentColor.copy(alpha = 0.55f), RoundedCornerShape(12.dp))
             .padding(horizontal = 8.dp, vertical = 3.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(4.dp)
@@ -560,12 +560,12 @@ fun OurSongBadge(modifier: Modifier = Modifier) {
         Icon(
             imageVector = Icons.Default.Favorite,
             contentDescription = "Our Song",
-            tint = Color.White,
+            tint = OnAccentColor,
             modifier = Modifier.size(12.dp)
         )
         Text(
             text = "Our Song 💖",
-            color = Color.White,
+            color = OnAccentColor,
             fontSize = 10.sp,
             fontWeight = FontWeight.Bold
         )

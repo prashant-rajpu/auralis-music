@@ -39,7 +39,7 @@ import kotlin.random.Random
 /**
  * Together Mode (Couple Sync) Bottom Sheet Modal
  * "Laddu Sync" / "Babu & Wifeeee Session"
- * Strictly complies with Section 11 of Glassmorphism_BabyPink_MusicPlayer_Theme-1.md.
+ * Listen-together dialog: create or join a session.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -80,14 +80,14 @@ fun TogetherModeBottomSheet(
     Dialog(onDismissRequest = onDismiss) {
         Surface(
             shape = RoundedCornerShape(28.dp),
-            color = Color(0xF7FFF5F8),
+            color = SurfaceElevated,
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(vertical = 12.dp)
                 .border(
                     1.2.dp,
                     Brush.verticalGradient(
-                        listOf(Color.White.copy(alpha = 0.95f), BabyPinkPrimary.copy(alpha = 0.45f))
+                        listOf(BorderHighlight, AccentColor.copy(alpha = 0.45f))
                     ),
                     RoundedCornerShape(28.dp)
                 )
@@ -107,13 +107,13 @@ fun TogetherModeBottomSheet(
                         modifier = Modifier
                             .size(46.dp)
                             .clip(CircleShape)
-                            .background(BabyPinkPrimary)
-                            .border(2.dp, Color.White, CircleShape),
+                            .background(AccentColor)
+                            .border(2.dp, SurfaceElevated, CircleShape),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
                             text = if (session != null) session.username.take(1).uppercase() else "B",
-                            color = Color.White,
+                            color = OnAccentColor,
                             fontWeight = FontWeight.Bold,
                             fontSize = 18.sp
                         )
@@ -136,8 +136,8 @@ fun TogetherModeBottomSheet(
                             .size(32.dp)
                             .scale(heartScale)
                             .clip(CircleShape)
-                            .background(Color.White)
-                            .border(1.dp, BabyPinkPrimary, CircleShape),
+                            .background(SurfaceElevated)
+                            .border(1.dp, AccentColor, CircleShape),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(text = "💗", fontSize = 16.sp)
@@ -147,13 +147,13 @@ fun TogetherModeBottomSheet(
                         modifier = Modifier
                             .size(46.dp)
                             .clip(CircleShape)
-                            .background(BabyPinkAccent)
-                            .border(2.dp, Color.White, CircleShape),
+                            .background(AccentColorBright)
+                            .border(2.dp, SurfaceElevated, CircleShape),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
                             text = if (session != null) partnerName.take(1).uppercase() else "L",
-                            color = Color.White,
+                            color = OnAccentColor,
                             fontWeight = FontWeight.Bold,
                             fontSize = 18.sp
                         )
@@ -165,7 +165,7 @@ fun TogetherModeBottomSheet(
                 Text(
                     text = if (session != null) "Together Mode Active 💗" else "Together Mode 💗",
                     style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.ExtraBold),
-                    color = BabyPinkTextPrimary
+                    color = TextPrimary
                 )
 
                 Text(
@@ -174,7 +174,7 @@ fun TogetherModeBottomSheet(
                     else
                         "Laddu Sync • Babu & Wifeeee Session\nListen in real-time sync with your partner",
                     style = MaterialTheme.typography.bodySmall,
-                    color = BabyPinkTextSecondary,
+                    color = TextSecondary,
                     textAlign = TextAlign.Center,
                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
                 )
@@ -186,7 +186,7 @@ fun TogetherModeBottomSheet(
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .glassCard(cornerRadius = 18.dp)
+                            .surfaceCard(cornerRadius = 18.dp)
                             .padding(14.dp)
                     ) {
                         Column(
@@ -212,13 +212,13 @@ fun TogetherModeBottomSheet(
                                         .size(10.dp)
                                         .clip(CircleShape)
                                         .background(
-                                            if (isConnected) Color(0xFF4CAF50).copy(alpha = statusAlpha)
-                                            else Color(0xFFFF9800).copy(alpha = statusAlpha)
+                                            if (isConnected) SuccessColor.copy(alpha = statusAlpha)
+                                            else WarningColor.copy(alpha = statusAlpha)
                                         )
                                 )
                                 Text(
                                     text = if (isConnected) "REAL-TIME SYNC ACTIVE 🟢" else "RECONNECTING... 🟡",
-                                    color = if (isConnected) Color(0xFF2E7D32) else Color(0xFFE65100),
+                                    color = if (isConnected) SuccessColor else WarningColor,
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.Bold,
                                     letterSpacing = 1.sp
@@ -227,7 +227,7 @@ fun TogetherModeBottomSheet(
                                     Spacer(modifier = Modifier.width(6.dp))
                                     Text(
                                         text = "Retry",
-                                        color = BabyPinkPrimary,
+                                        color = AccentColor,
                                         fontSize = 11.sp,
                                         fontWeight = FontWeight.ExtraBold,
                                         modifier = Modifier.clickable { onReconnect() }
@@ -244,7 +244,7 @@ fun TogetherModeBottomSheet(
                                     fontFamily = FontFamily.Monospace,
                                     letterSpacing = 2.sp
                                 ),
-                                color = BabyPinkTextPrimary
+                                color = TextPrimary
                             )
 
                             Spacer(modifier = Modifier.height(12.dp))
@@ -260,14 +260,14 @@ fun TogetherModeBottomSheet(
                                         clipboard.setPrimaryClip(ClipData.newPlainText("Together Code", session.jamId))
                                         Toast.makeText(context, "Session code copied: ${session.jamId}", Toast.LENGTH_SHORT).show()
                                     },
-                                    colors = ButtonDefaults.buttonColors(containerColor = GlassSurfaceStrong),
-                                    border = BorderStroke(1.dp, GlassBorder),
+                                    colors = ButtonDefaults.buttonColors(containerColor = SurfaceElevated),
+                                    border = BorderStroke(1.dp, BorderColor),
                                     shape = RoundedCornerShape(18.dp),
                                     modifier = Modifier.weight(1f)
                                 ) {
-                                    Icon(Icons.Default.ContentCopy, contentDescription = null, tint = BabyPinkTextPrimary, modifier = Modifier.size(16.dp))
+                                    Icon(Icons.Default.ContentCopy, contentDescription = null, tint = TextPrimary, modifier = Modifier.size(16.dp))
                                     Spacer(modifier = Modifier.width(4.dp))
-                                    Text("Copy Code", color = BabyPinkTextPrimary, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                    Text("Copy Code", color = TextPrimary, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                                 }
 
                                 Button(
@@ -282,13 +282,13 @@ fun TogetherModeBottomSheet(
                                         }
                                         context.startActivity(Intent.createChooser(sendIntent, "Invite Partner to Together Mode 💗"))
                                     },
-                                    colors = ButtonDefaults.buttonColors(containerColor = BabyPinkPrimary),
+                                    colors = ButtonDefaults.buttonColors(containerColor = AccentColor),
                                     shape = RoundedCornerShape(18.dp),
                                     modifier = Modifier.weight(1f)
                                 ) {
-                                    Icon(Icons.Default.Share, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
+                                    Icon(Icons.Default.Share, contentDescription = null, tint = OnAccentColor, modifier = Modifier.size(16.dp))
                                     Spacer(modifier = Modifier.width(4.dp))
-                                    Text("Invite Partner", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                    Text("Invite Partner", color = OnAccentColor, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                                 }
                             }
                         }
@@ -300,7 +300,7 @@ fun TogetherModeBottomSheet(
                     Text(
                         text = "Send Live Reaction 💖",
                         style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                        color = BabyPinkTextPrimary,
+                        color = TextPrimary,
                         modifier = Modifier.fillMaxWidth()
                     )
 
@@ -324,7 +324,7 @@ fun TogetherModeBottomSheet(
                     Text(
                         text = "Synced Lovers (${session.participants.size})",
                         style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                        color = BabyPinkTextPrimary,
+                        color = TextPrimary,
                         modifier = Modifier.fillMaxWidth()
                     )
 
@@ -340,8 +340,8 @@ fun TogetherModeBottomSheet(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .clip(RoundedCornerShape(14.dp))
-                                    .background(GlassSurfaceStrong)
-                                    .border(1.dp, GlassBorder, RoundedCornerShape(14.dp))
+                                    .background(SurfaceElevated)
+                                    .border(1.dp, BorderColor, RoundedCornerShape(14.dp))
                                     .padding(horizontal = 12.dp, vertical = 6.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
@@ -349,12 +349,12 @@ fun TogetherModeBottomSheet(
                                     modifier = Modifier
                                         .size(30.dp)
                                         .clip(CircleShape)
-                                        .background(if (isMe) BabyPinkPrimary else BabyPinkAccent),
+                                        .background(if (isMe) AccentColor else AccentColorBright),
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Text(
                                         text = participant.take(1).uppercase(),
-                                        color = Color.White,
+                                        color = OnAccentColor,
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 13.sp
                                     )
@@ -362,7 +362,7 @@ fun TogetherModeBottomSheet(
                                 Spacer(modifier = Modifier.width(10.dp))
                                 Text(
                                     text = participant + if (isMe) " (You)" else " 💗",
-                                    color = BabyPinkTextPrimary,
+                                    color = TextPrimary,
                                     fontWeight = FontWeight.SemiBold,
                                     fontSize = 13.sp,
                                     modifier = Modifier.weight(1f)
@@ -370,7 +370,7 @@ fun TogetherModeBottomSheet(
                                 Icon(
                                     Icons.Default.GraphicEq,
                                     contentDescription = "Synced",
-                                    tint = BabyPinkPrimary,
+                                    tint = AccentColor,
                                     modifier = Modifier.size(18.dp)
                                 )
                             }
@@ -382,13 +382,13 @@ fun TogetherModeBottomSheet(
                     Button(
                         onClick = { showLeaveConfirmation = true },
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0x26FFB6C1)),
-                        border = BorderStroke(1.dp, GlassBorder),
+                        border = BorderStroke(1.dp, BorderColor),
                         shape = RoundedCornerShape(22.dp),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Text(
                             "Leave Together Mode 💗",
-                            color = BabyPinkTextPrimary,
+                            color = TextPrimary,
                             fontWeight = FontWeight.Bold,
                             fontSize = 14.sp
                         )
@@ -400,8 +400,8 @@ fun TogetherModeBottomSheet(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(20.dp))
-                            .background(GlassSurfaceStrong)
-                            .border(1.dp, GlassBorder, RoundedCornerShape(20.dp))
+                            .background(SurfaceElevated)
+                            .border(1.dp, BorderColor, RoundedCornerShape(20.dp))
                             .padding(4.dp),
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
@@ -410,10 +410,10 @@ fun TogetherModeBottomSheet(
                                 .weight(1f)
                                 .hapticPress(scaleDown = 0.94f)
                                 .clip(RoundedCornerShape(16.dp))
-                                .background(if (isHostTab) BabyPinkPrimary else Color.Transparent)
+                                .background(if (isHostTab) AccentColor else Color.Transparent)
                                 .border(
                                     1.dp,
-                                    if (isHostTab) Color.White.copy(alpha = 0.85f) else Color.Transparent,
+                                    if (isHostTab) OnAccentColor.copy(alpha = 0.85f) else Color.Transparent,
                                     RoundedCornerShape(16.dp)
                                 )
                                 .clickable { isHostTab = true }
@@ -422,7 +422,7 @@ fun TogetherModeBottomSheet(
                         ) {
                             Text(
                                 text = "Start Session 💗",
-                                color = if (isHostTab) Color.White else BabyPinkTextSecondary,
+                                color = if (isHostTab) OnAccentColor else TextSecondary,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 13.sp
                             )
@@ -433,10 +433,10 @@ fun TogetherModeBottomSheet(
                                 .weight(1f)
                                 .hapticPress(scaleDown = 0.94f)
                                 .clip(RoundedCornerShape(16.dp))
-                                .background(if (!isHostTab) BabyPinkPrimary else Color.Transparent)
+                                .background(if (!isHostTab) AccentColor else Color.Transparent)
                                 .border(
                                     1.dp,
-                                    if (!isHostTab) Color.White.copy(alpha = 0.85f) else Color.Transparent,
+                                    if (!isHostTab) OnAccentColor.copy(alpha = 0.85f) else Color.Transparent,
                                     RoundedCornerShape(16.dp)
                                 )
                                 .clickable { isHostTab = false }
@@ -445,7 +445,7 @@ fun TogetherModeBottomSheet(
                         ) {
                             Text(
                                 text = "Join Partner 💏",
-                                color = if (!isHostTab) Color.White else BabyPinkTextSecondary,
+                                color = if (!isHostTab) OnAccentColor else TextSecondary,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 13.sp
                             )
@@ -467,8 +467,8 @@ fun TogetherModeBottomSheet(
                                     .weight(1f)
                                     .hapticPress(scaleDown = 0.92f)
                                     .clip(RoundedCornerShape(14.dp))
-                                    .background(if (isSelected) BabyPinkPrimary else GlassSurfaceStrong)
-                                    .border(1.dp, if (isSelected) Color.White else GlassBorder, RoundedCornerShape(14.dp))
+                                    .background(if (isSelected) AccentColor else SurfaceElevated)
+                                    .border(1.dp, if (isSelected) OnAccentColor.copy(alpha = 0.7f) else BorderColor, RoundedCornerShape(14.dp))
                                     .clickable { usernameInput = cleanName }
                                     .padding(vertical = 6.dp),
                                 contentAlignment = Alignment.Center
@@ -477,7 +477,7 @@ fun TogetherModeBottomSheet(
                                     text = preset,
                                     fontSize = 11.sp,
                                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                    color = if (isSelected) Color.White else BabyPinkTextPrimary
+                                    color = if (isSelected) OnAccentColor else TextPrimary
                                 )
                             }
                         }
@@ -490,16 +490,16 @@ fun TogetherModeBottomSheet(
                         OutlinedTextField(
                             value = usernameInput,
                             onValueChange = { usernameInput = it },
-                            label = { Text("Your Name", color = BabyPinkTextSecondary, fontSize = 12.sp) },
+                            label = { Text("Your Name", color = TextSecondary, fontSize = 12.sp) },
                             singleLine = true,
                             shape = RoundedCornerShape(16.dp),
                             colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = BabyPinkPrimary,
-                                unfocusedBorderColor = GlassBorder,
-                                focusedContainerColor = GlassSurfaceStrong,
-                                unfocusedContainerColor = GlassSurfaceStrong,
-                                focusedTextColor = BabyPinkTextPrimary,
-                                unfocusedTextColor = BabyPinkTextPrimary
+                                focusedBorderColor = AccentColor,
+                                unfocusedBorderColor = BorderColor,
+                                focusedContainerColor = SurfaceElevated,
+                                unfocusedContainerColor = SurfaceElevated,
+                                focusedTextColor = TextPrimary,
+                                unfocusedTextColor = TextPrimary
                             ),
                             modifier = Modifier.fillMaxWidth()
                         )
@@ -509,7 +509,7 @@ fun TogetherModeBottomSheet(
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .glassCard(cornerRadius = 16.dp)
+                                .surfaceCard(cornerRadius = 16.dp)
                                 .padding(14.dp)
                         ) {
                             Row(
@@ -518,10 +518,10 @@ fun TogetherModeBottomSheet(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Column {
-                                    Text("Together Session Code", color = BabyPinkTextSecondary, fontSize = 11.sp)
+                                    Text("Together Session Code", color = TextSecondary, fontSize = 11.sp)
                                     Text(
                                         text = generatedCode,
-                                        color = BabyPinkTextPrimary,
+                                        color = TextPrimary,
                                         fontWeight = FontWeight.ExtraBold,
                                         fontSize = 18.sp,
                                         fontFamily = FontFamily.Monospace
@@ -531,7 +531,7 @@ fun TogetherModeBottomSheet(
                                     onClick = { generatedCode = "BABU-${Random.nextInt(1000, 9999)}" },
                                     modifier = Modifier.hapticPress(scaleDown = 0.88f)
                                 ) {
-                                    Icon(Icons.Default.Refresh, contentDescription = "Regenerate", tint = BabyPinkPrimary)
+                                    Icon(Icons.Default.Refresh, contentDescription = "Regenerate", tint = AccentColor)
                                 }
                             }
                         }
@@ -543,20 +543,20 @@ fun TogetherModeBottomSheet(
                                 val name = usernameInput.ifBlank { "Babu" }
                                 onStartTogether(generatedCode, name)
                             },
-                            colors = ButtonDefaults.buttonColors(containerColor = BabyPinkPrimary),
+                            colors = ButtonDefaults.buttonColors(containerColor = AccentColor),
                             shape = RoundedCornerShape(22.dp),
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .border(
                                     1.dp,
                                     Brush.verticalGradient(
-                                        listOf(Color.White.copy(alpha = 0.85f), BabyPinkAccent.copy(alpha = 0.30f))
+                                        listOf(OnAccentColor.copy(alpha = 0.55f), AccentColorBright.copy(alpha = 0.30f))
                                     ),
                                     RoundedCornerShape(22.dp)
                                 )
                                 .hapticPress(scaleDown = 0.94f)
                         ) {
-                            Text("Start & Invite Laddu 💗", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                            Text("Start & Invite Laddu 💗", color = OnAccentColor, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                         }
 
                     } else {
@@ -564,7 +564,7 @@ fun TogetherModeBottomSheet(
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .glassCard(cornerRadius = 16.dp)
+                                .surfaceCard(cornerRadius = 16.dp)
                                 .padding(12.dp)
                         ) {
                             Row(
@@ -574,7 +574,7 @@ fun TogetherModeBottomSheet(
                                 Text(text = "💌", fontSize = 22.sp)
                                 Text(
                                     text = "Babu wants to listen with you 💗",
-                                    color = BabyPinkTextPrimary,
+                                    color = TextPrimary,
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 13.sp
                                 )
@@ -586,16 +586,16 @@ fun TogetherModeBottomSheet(
                         OutlinedTextField(
                             value = joinCodeInput,
                             onValueChange = { joinCodeInput = it.uppercase() },
-                            placeholder = { Text("Enter Partner's Code (e.g. BABU-4829)", color = BabyPinkTextSecondary, fontSize = 12.sp) },
+                            placeholder = { Text("Enter Partner's Code (e.g. BABU-4829)", color = TextSecondary, fontSize = 12.sp) },
                             singleLine = true,
                             shape = RoundedCornerShape(16.dp),
                             colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = BabyPinkPrimary,
-                                unfocusedBorderColor = GlassBorder,
-                                focusedContainerColor = GlassSurfaceStrong,
-                                unfocusedContainerColor = GlassSurfaceStrong,
-                                focusedTextColor = BabyPinkTextPrimary,
-                                unfocusedTextColor = BabyPinkTextPrimary
+                                focusedBorderColor = AccentColor,
+                                unfocusedBorderColor = BorderColor,
+                                focusedContainerColor = SurfaceElevated,
+                                unfocusedContainerColor = SurfaceElevated,
+                                focusedTextColor = TextPrimary,
+                                unfocusedTextColor = TextPrimary
                             ),
                             modifier = Modifier.fillMaxWidth()
                         )
@@ -605,16 +605,16 @@ fun TogetherModeBottomSheet(
                         OutlinedTextField(
                             value = usernameInput,
                             onValueChange = { usernameInput = it },
-                            placeholder = { Text("Your Name (e.g. Laddu)", color = BabyPinkTextSecondary, fontSize = 12.sp) },
+                            placeholder = { Text("Your Name (e.g. Laddu)", color = TextSecondary, fontSize = 12.sp) },
                             singleLine = true,
                             shape = RoundedCornerShape(16.dp),
                             colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = BabyPinkPrimary,
-                                unfocusedBorderColor = GlassBorder,
-                                focusedContainerColor = GlassSurfaceStrong,
-                                unfocusedContainerColor = GlassSurfaceStrong,
-                                focusedTextColor = BabyPinkTextPrimary,
-                                unfocusedTextColor = BabyPinkTextPrimary
+                                focusedBorderColor = AccentColor,
+                                unfocusedBorderColor = BorderColor,
+                                focusedContainerColor = SurfaceElevated,
+                                unfocusedContainerColor = SurfaceElevated,
+                                focusedTextColor = TextPrimary,
+                                unfocusedTextColor = TextPrimary
                             ),
                             modifier = Modifier.fillMaxWidth()
                         )
@@ -627,12 +627,12 @@ fun TogetherModeBottomSheet(
                         ) {
                             Button(
                                 onClick = onDismiss,
-                                colors = ButtonDefaults.buttonColors(containerColor = GlassSurfaceStrong),
-                                border = BorderStroke(1.dp, GlassBorder),
+                                colors = ButtonDefaults.buttonColors(containerColor = SurfaceElevated),
+                                border = BorderStroke(1.dp, BorderColor),
                                 shape = RoundedCornerShape(20.dp),
                                 modifier = Modifier.weight(1f)
                             ) {
-                                Text("Maybe later", color = BabyPinkTextPrimary, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                                Text("Maybe later", color = TextPrimary, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
                             }
 
                             Button(
@@ -644,15 +644,15 @@ fun TogetherModeBottomSheet(
                                 },
                                 enabled = JamProtocolHelper.isValidJamCode(joinCodeInput),
                                 colors = ButtonDefaults.buttonColors(
-                                    containerColor = BabyPinkPrimary,
-                                    disabledContainerColor = BabyPinkPrimary.copy(alpha = 0.4f)
+                                    containerColor = AccentColor,
+                                    disabledContainerColor = AccentColor.copy(alpha = 0.4f)
                                 ),
                                 shape = RoundedCornerShape(20.dp),
                                 modifier = Modifier
                                     .weight(1.2f)
                                     .hapticPress(scaleDown = 0.94f)
                             ) {
-                                Text("Join Together 💗", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                Text("Join Together 💗", color = OnAccentColor, fontWeight = FontWeight.Bold, fontSize = 13.sp)
                             }
                         }
                     }

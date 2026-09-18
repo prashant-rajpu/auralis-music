@@ -51,7 +51,7 @@ fun AuralisNavGraph() {
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(BabyPinkBackgroundBrush)
+            .background(BackgroundBrush)
     ) {
         Scaffold(
             containerColor = Color.Transparent,
@@ -72,7 +72,7 @@ fun AuralisNavGraph() {
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(start = 24.dp, end = 24.dp, bottom = 12.dp, top = 2.dp)
-                                .glassPanel(cornerRadius = 28.dp)
+                                .surfacePanel(cornerRadius = 28.dp)
                         ) {
                             Row(
                                 modifier = Modifier
@@ -220,7 +220,7 @@ private fun NavPillItem(
         Icon(
             imageVector = icon,
             contentDescription = label,
-            tint = if (isSelected) BabyPinkPrimary else BabyPinkTextSecondary,
+            tint = if (isSelected) AccentColor else TextSecondary,
             modifier = Modifier.size(22.dp)
         )
         Spacer(modifier = Modifier.height(2.dp))
@@ -228,7 +228,7 @@ private fun NavPillItem(
             text = label,
             fontSize = 11.sp,
             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-            color = if (isSelected) BabyPinkPrimary else BabyPinkTextSecondary
+            color = if (isSelected) AccentColor else TextSecondary
         )
         Spacer(modifier = Modifier.height(3.dp))
         // Active indicator dot
@@ -236,7 +236,7 @@ private fun NavPillItem(
             modifier = Modifier
                 .size(4.dp)
                 .clip(CircleShape)
-                .background(if (isSelected) BabyPinkPrimary else Color.Transparent)
+                .background(if (isSelected) AccentColor else Color.Transparent)
         )
     }
 }

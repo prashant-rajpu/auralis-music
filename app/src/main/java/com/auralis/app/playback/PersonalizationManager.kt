@@ -2,9 +2,7 @@ package com.auralis.app.playback
 
 import android.content.Context
 import android.content.SharedPreferences
-import androidx.compose.ui.graphics.Color
 import com.auralis.app.domain.model.Track
-import com.auralis.app.ui.theme.*
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -14,13 +12,6 @@ import org.json.JSONObject
 import java.util.Calendar
 import javax.inject.Inject
 import javax.inject.Singleton
-
-enum class PinkAccentTheme(val id: String, val displayName: String, val color: Color, val hex: String) {
-    BABY_ROSE("baby_rose", "Baby Rose (Original)", BabyPinkPrimary, "#FFB6C1"),
-    SAKURA_BLOSSOM("sakura", "Sakura Blossom", Color(0xFFFFC0CB), "#FFC0CB"),
-    COTTON_CANDY("cotton_candy", "Cotton Candy Pink", Color(0xFFFF99B8), "#FF99B8"),
-    ROSE_GOLD("rose_gold", "Sunset Rose Gold", Color(0xFFFFAEBA), "#FFAEBA")
-}
 
 @Singleton
 class PersonalizationManager @Inject constructor(
@@ -34,9 +25,6 @@ class PersonalizationManager @Inject constructor(
 
     private val _topArtists = MutableStateFlow<List<String>>(loadTopArtists())
     val topArtists: StateFlow<List<String>> = _topArtists.asStateFlow()
-
-    private val _accentTheme = MutableStateFlow(loadAccentTheme())
-    val accentTheme: StateFlow<PinkAccentTheme> = _accentTheme.asStateFlow()
 
     fun recordTrackPlay(track: Track) {
         // Increment play count
@@ -63,16 +51,6 @@ class PersonalizationManager @Inject constructor(
 
     fun getPlayCount(trackId: String): Int {
         return prefs.getInt("play_count_$trackId", 0)
-    }
-
-    fun setAccentTheme(theme: PinkAccentTheme) {
-        prefs.edit().putString("accent_theme_id", theme.id).apply()
-        _accentTheme.value = theme
-    }
-
-    private fun loadAccentTheme(): PinkAccentTheme {
-        val id = prefs.getString("accent_theme_id", PinkAccentTheme.BABY_ROSE.id)
-        return PinkAccentTheme.values().find { it.id == id } ?: PinkAccentTheme.BABY_ROSE
     }
 
     private fun updateTopArtists() {

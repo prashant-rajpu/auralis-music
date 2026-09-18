@@ -22,9 +22,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.auralis.app.domain.model.LyricLine
 import com.auralis.app.playback.LyricsFontSize
-import com.auralis.app.ui.theme.BabyPinkPrimary
-import com.auralis.app.ui.theme.BabyPinkTextPrimary
-import com.auralis.app.ui.theme.BabyPinkTextSecondary
+import com.auralis.app.ui.theme.AccentColor
+import com.auralis.app.ui.theme.TextPrimary
+import com.auralis.app.ui.theme.TextSecondary
 import kotlinx.coroutines.flow.StateFlow
 
 @Composable
@@ -65,14 +65,14 @@ fun SyncedLyricsView(
                 Text(
                     text = "Lyrics not available for this track",
                     style = MaterialTheme.typography.titleMedium,
-                    color = BabyPinkTextPrimary,
+                    color = TextPrimary,
                     textAlign = TextAlign.Center
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = "Synced LRC will load automatically when found",
                     style = MaterialTheme.typography.bodySmall,
-                    color = BabyPinkTextSecondary,
+                    color = TextSecondary,
                     textAlign = TextAlign.Center
                 )
             }
@@ -109,7 +109,7 @@ fun SyncedLyricsView(
             val alpha by animateFloatAsState(targetValue = if (isActive) 1.0f else 0.38f, label = "lyric_alpha")
             val fontSize = if (isActive) activeSp.sp else baseSp.sp
             val fontWeight = if (isActive) FontWeight.Bold else FontWeight.Medium
-            val color = if (isActive) BabyPinkTextPrimary else BabyPinkTextSecondary
+            val color = if (isActive) TextPrimary else TextSecondary
 
             Text(
                 text = line.text,

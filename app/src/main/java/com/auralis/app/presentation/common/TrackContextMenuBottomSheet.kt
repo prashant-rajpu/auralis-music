@@ -45,11 +45,11 @@ fun TrackContextMenuBottomSheet(
     Dialog(onDismissRequest = onDismiss) {
         Surface(
             shape = RoundedCornerShape(26.dp),
-            color = GlassSurfaceStrong,
+            color = SurfaceElevated,
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(vertical = 16.dp)
-                .border(1.2.dp, GlassBorder, RoundedCornerShape(26.dp))
+                .border(1.2.dp, BorderColor, RoundedCornerShape(26.dp))
         ) {
             Column(
                 modifier = Modifier
@@ -71,7 +71,7 @@ fun TrackContextMenuBottomSheet(
                         modifier = Modifier
                             .size(52.dp)
                             .clip(RoundedCornerShape(12.dp))
-                            .background(BabyPinkBgMiddle)
+                            .background(BackgroundElevated)
                     )
 
                     Spacer(modifier = Modifier.width(14.dp))
@@ -79,7 +79,7 @@ fun TrackContextMenuBottomSheet(
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
                             text = track.title,
-                            color = BabyPinkTextPrimary,
+                            color = TextPrimary,
                             fontWeight = FontWeight.Bold,
                             fontSize = 16.sp,
                             maxLines = 1,
@@ -89,7 +89,7 @@ fun TrackContextMenuBottomSheet(
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
                                 text = track.artist,
-                                color = BabyPinkTextSecondary,
+                                color = TextSecondary,
                                 fontSize = 13.sp,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
@@ -99,12 +99,12 @@ fun TrackContextMenuBottomSheet(
                             Box(
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(6.dp))
-                                    .background(BabyPinkSoftRose.copy(alpha = 0.3f))
+                                    .background(AccentColorSoft.copy(alpha = 0.3f))
                                     .padding(horizontal = 6.dp, vertical = 2.dp)
                             ) {
                                 Text(
                                     text = track.qualityBadge,
-                                    color = BabyPinkPrimary,
+                                    color = AccentColor,
                                     fontSize = 9.sp,
                                     fontWeight = FontWeight.Bold
                                 )
@@ -119,13 +119,13 @@ fun TrackContextMenuBottomSheet(
                         Icon(
                             imageVector = Icons.Default.Close,
                             contentDescription = "Close",
-                            tint = BabyPinkTextSecondary
+                            tint = TextSecondary
                         )
                     }
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
-                HorizontalDivider(color = GlassBorder, thickness = 1.dp)
+                HorizontalDivider(color = BorderColor, thickness = 1.dp)
                 Spacer(modifier = Modifier.height(8.dp))
 
                 // Action 1: Play Next (Spotify / YT Music feature)
@@ -231,14 +231,14 @@ private fun ContextMenuOptionRow(
             modifier = Modifier
                 .size(38.dp)
                 .clip(RoundedCornerShape(10.dp))
-                .background(GlassSurfaceStrong)
-                .border(1.dp, GlassBorder, RoundedCornerShape(10.dp)),
+                .background(SurfaceElevated)
+                .border(1.dp, BorderColor, RoundedCornerShape(10.dp)),
             contentAlignment = Alignment.Center
         ) {
             Icon(
                 imageVector = icon,
                 contentDescription = null,
-                tint = BabyPinkPrimary,
+                tint = AccentColor,
                 modifier = Modifier.size(20.dp)
             )
         }
@@ -248,13 +248,13 @@ private fun ContextMenuOptionRow(
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = title,
-                color = BabyPinkTextPrimary,
+                color = TextPrimary,
                 fontWeight = FontWeight.Bold,
                 fontSize = 14.sp
             )
             Text(
                 text = subtitle,
-                color = BabyPinkTextSecondary,
+                color = TextSecondary,
                 fontSize = 11.sp
             )
         }
