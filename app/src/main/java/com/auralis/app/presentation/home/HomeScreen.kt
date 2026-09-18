@@ -245,12 +245,14 @@ fun HomeScreen(
                             },
                             singleLine = true,
                             shape = RoundedCornerShape(24.dp),
-                            colors = TextFieldDefaults.outlinedTextFieldColors(
+                            colors = OutlinedTextFieldDefaults.colors(
                                 focusedBorderColor = BabyPinkPrimary,
                                 unfocusedBorderColor = GlassBorder,
-                                containerColor = GlassSurfaceStrong,
+                                focusedContainerColor = GlassSurfaceStrong,
+                                unfocusedContainerColor = GlassSurfaceStrong,
                                 cursorColor = BabyPinkPrimary,
-                                textColor = BabyPinkTextPrimary
+                                focusedTextColor = BabyPinkTextPrimary,
+                                unfocusedTextColor = BabyPinkTextPrimary
                             ),
                             modifier = Modifier
                                 .fillMaxWidth()

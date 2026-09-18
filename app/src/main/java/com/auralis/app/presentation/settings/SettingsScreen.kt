@@ -13,6 +13,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -95,7 +96,7 @@ fun SettingsScreen(
                         .hapticPress(scaleDown = 0.88f)
                 ) {
                     Icon(
-                        imageVector = Icons.Default.ArrowBack,
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                         contentDescription = "Back",
                         tint = BabyPinkTextPrimary
                     )
@@ -209,7 +210,7 @@ fun SettingsScreen(
                                 }
                             }
 
-                            Divider(color = BabyPinkBorder, thickness = 0.5.dp)
+                            HorizontalDivider(color = BabyPinkBorder, thickness = 0.5.dp)
 
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
@@ -293,7 +294,7 @@ fun SettingsScreen(
                                 }
                             }
 
-                            Divider(color = BabyPinkBorder, thickness = 0.5.dp)
+                            HorizontalDivider(color = BabyPinkBorder, thickness = 0.5.dp)
 
                             // Lyrics Font Size
                             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -335,7 +336,7 @@ fun SettingsScreen(
                                 }
                             }
 
-                            Divider(color = BabyPinkBorder, thickness = 0.5.dp)
+                            HorizontalDivider(color = BabyPinkBorder, thickness = 0.5.dp)
 
                             // Auto Scroll Toggle
                             SettingsToggleRow(
@@ -422,11 +423,13 @@ fun SettingsScreen(
                                     )
                                 },
                                 maxLines = 4,
-                                colors = TextFieldDefaults.outlinedTextFieldColors(
+                                colors = OutlinedTextFieldDefaults.colors(
                                     focusedBorderColor = BabyPinkPrimary,
                                     unfocusedBorderColor = BabyPinkBorder,
-                                    containerColor = BabyPinkCardBg,
-                                    textColor = BabyPinkTextPrimary,
+                                    focusedContainerColor = BabyPinkCardBg,
+                                    unfocusedContainerColor = BabyPinkCardBg,
+                                    focusedTextColor = BabyPinkTextPrimary,
+                                    unfocusedTextColor = BabyPinkTextPrimary,
                                     cursorColor = BabyPinkPrimary
                                 ),
                                 shape = RoundedCornerShape(14.dp)
@@ -627,7 +630,7 @@ fun SettingsScreen(
                                 onCheckedChange = { viewModel.toggleInfiniteRadio(it) }
                             )
 
-                            Divider(color = BabyPinkBorder, thickness = 0.5.dp)
+                            HorizontalDivider(color = BabyPinkBorder, thickness = 0.5.dp)
 
                             // SponsorBlock
                             SettingsToggleRow(
@@ -637,7 +640,7 @@ fun SettingsScreen(
                                 onCheckedChange = { viewModel.toggleSponsorBlock(it) }
                             )
 
-                            Divider(color = BabyPinkBorder, thickness = 0.5.dp)
+                            HorizontalDivider(color = BabyPinkBorder, thickness = 0.5.dp)
 
                             // Audio Quality
                             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {

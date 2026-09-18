@@ -124,7 +124,7 @@ fun TrackContextMenuBottomSheet(
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
-                Divider(color = GlassBorder, thickness = 1.dp)
+                HorizontalDivider(color = GlassBorder, thickness = 1.dp)
                 Spacer(modifier = Modifier.height(8.dp))
 
                 // Action 1: Play Next (Spotify / YT Music feature)

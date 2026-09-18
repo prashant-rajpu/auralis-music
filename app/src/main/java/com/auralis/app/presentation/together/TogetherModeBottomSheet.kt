@@ -492,11 +492,13 @@ fun TogetherModeBottomSheet(
                             label = { Text("Your Name", color = BabyPinkTextSecondary, fontSize = 12.sp) },
                             singleLine = true,
                             shape = RoundedCornerShape(16.dp),
-                            colors = TextFieldDefaults.outlinedTextFieldColors(
+                            colors = OutlinedTextFieldDefaults.colors(
                                 focusedBorderColor = BabyPinkPrimary,
                                 unfocusedBorderColor = GlassBorder,
-                                containerColor = GlassSurfaceStrong,
-                                textColor = BabyPinkTextPrimary
+                                focusedContainerColor = GlassSurfaceStrong,
+                                unfocusedContainerColor = GlassSurfaceStrong,
+                                focusedTextColor = BabyPinkTextPrimary,
+                                unfocusedTextColor = BabyPinkTextPrimary
                             ),
                             modifier = Modifier.fillMaxWidth()
                         )
@@ -586,11 +588,13 @@ fun TogetherModeBottomSheet(
                             placeholder = { Text("Enter Partner's Code (e.g. BABU-4829)", color = BabyPinkTextSecondary, fontSize = 12.sp) },
                             singleLine = true,
                             shape = RoundedCornerShape(16.dp),
-                            colors = TextFieldDefaults.outlinedTextFieldColors(
+                            colors = OutlinedTextFieldDefaults.colors(
                                 focusedBorderColor = BabyPinkPrimary,
                                 unfocusedBorderColor = GlassBorder,
-                                containerColor = GlassSurfaceStrong,
-                                textColor = BabyPinkTextPrimary
+                                focusedContainerColor = GlassSurfaceStrong,
+                                unfocusedContainerColor = GlassSurfaceStrong,
+                                focusedTextColor = BabyPinkTextPrimary,
+                                unfocusedTextColor = BabyPinkTextPrimary
                             ),
                             modifier = Modifier.fillMaxWidth()
                         )
@@ -603,11 +607,13 @@ fun TogetherModeBottomSheet(
                             placeholder = { Text("Your Name (e.g. Laddu)", color = BabyPinkTextSecondary, fontSize = 12.sp) },
                             singleLine = true,
                             shape = RoundedCornerShape(16.dp),
-                            colors = TextFieldDefaults.outlinedTextFieldColors(
+                            colors = OutlinedTextFieldDefaults.colors(
                                 focusedBorderColor = BabyPinkPrimary,
                                 unfocusedBorderColor = GlassBorder,
-                                containerColor = GlassSurfaceStrong,
-                                textColor = BabyPinkTextPrimary
+                                focusedContainerColor = GlassSurfaceStrong,
+                                unfocusedContainerColor = GlassSurfaceStrong,
+                                focusedTextColor = BabyPinkTextPrimary,
+                                unfocusedTextColor = BabyPinkTextPrimary
                             ),
                             modifier = Modifier.fillMaxWidth()
                         )
