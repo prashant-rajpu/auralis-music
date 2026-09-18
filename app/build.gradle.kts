@@ -168,6 +168,9 @@ dependencies {
     testImplementation(libs.junit)
     testImplementation(libs.mockk)
     testImplementation(libs.kotlinx.coroutines.test)
+    // A real SQLite engine on the JVM, so the Room migration can be run and checked in CI
+    // without an emulator — MigrationTestHelper needs a device, and this container has none.
+    testImplementation(libs.sqlite.jdbc)
     androidTestImplementation(libs.androidx.test.ext.junit)
     androidTestImplementation(libs.androidx.test.espresso.core)
     androidTestImplementation(platform(libs.androidx.compose.bom))
