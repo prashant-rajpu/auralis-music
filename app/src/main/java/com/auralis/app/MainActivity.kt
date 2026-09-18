@@ -34,8 +34,10 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             val hapticIntensity by settingsPreferences.hapticIntensity.collectAsState()
+            val themeMode by settingsPreferences.themeMode.collectAsState()
+            val accent by settingsPreferences.accentPalette.collectAsState()
             CompositionLocalProvider(LocalHapticIntensity provides hapticIntensity) {
-                AuralisTheme {
+                AuralisTheme(themeMode = themeMode, accent = accent) {
                     AuralisNavGraph()
                 }
             }

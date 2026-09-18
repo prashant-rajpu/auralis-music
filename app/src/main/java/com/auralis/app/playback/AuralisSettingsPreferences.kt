@@ -3,6 +3,8 @@ package com.auralis.app.playback
 import android.content.Context
 import android.content.SharedPreferences
 import com.auralis.app.domain.model.AudioQualitySetting
+import com.auralis.app.ui.theme.AccentPalette
+import com.auralis.app.ui.theme.ThemeMode
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -62,6 +64,13 @@ class AuralisSettingsPreferences @Inject constructor(
     private val _hapticIntensity = MutableStateFlow(readHapticIntensity())
     val hapticIntensity: StateFlow<HapticIntensity> = _hapticIntensity.asStateFlow()
 
+    // Appearance StateFlows
+    private val _themeMode = MutableStateFlow(ThemeMode.fromId(prefs.getString(KEY_THEME_MODE, null)))
+    val themeMode: StateFlow<ThemeMode> = _themeMode.asStateFlow()
+
+    private val _accentPalette = MutableStateFlow(AccentPalette.fromId(prefs.getString(KEY_ACCENT_PALETTE, null)))
+    val accentPalette: StateFlow<AccentPalette> = _accentPalette.asStateFlow()
+
     // Lyrics Adjustments
     fun setLyricsProvider(provider: LyricsProvider) {
         prefs.edit().putString(KEY_LYRICS_PROVIDER, provider.name).apply()
@@ -104,6 +113,17 @@ class AuralisSettingsPreferences @Inject constructor(
         _hapticIntensity.value = intensity
     }
 
+    // Appearance Adjustments
+    fun setThemeMode(mode: ThemeMode) {
+        prefs.edit().putString(KEY_THEME_MODE, mode.id).apply()
+        _themeMode.value = mode
+    }
+
+    fun setAccentPalette(accent: AccentPalette) {
+        prefs.edit().putString(KEY_ACCENT_PALETTE, accent.id).apply()
+        _accentPalette.value = accent
+    }
+
     // Readers
     private fun readLyricsProvider(): LyricsProvider {
         val name = prefs.getString(KEY_LYRICS_PROVIDER, LyricsProvider.AUTO.name)
@@ -135,5 +155,8 @@ class AuralisSettingsPreferences @Inject constructor(
         private const val KEY_SPONSOR_BLOCK = "settings_sponsor_block"
         private const val KEY_AUDIO_QUALITY = "settings_audio_quality"
         private const val KEY_HAPTIC_INTENSITY = "settings_haptic_intensity"
+
+        private const val KEY_THEME_MODE = "settings_theme_mode"
+        private const val KEY_ACCENT_PALETTE = "settings_accent_palette"
     }
 }

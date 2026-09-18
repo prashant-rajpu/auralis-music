@@ -31,11 +31,11 @@ fun SleepTimerBottomSheet(
     Dialog(onDismissRequest = onDismiss) {
         Surface(
             shape = RoundedCornerShape(26.dp),
-            color = GlassSurfaceStrong,
+            color = SurfaceElevated,
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(vertical = 16.dp)
-                .border(1.2.dp, GlassBorder, RoundedCornerShape(26.dp))
+                .border(1.2.dp, BorderColor, RoundedCornerShape(26.dp))
         ) {
             Column(
                 modifier = Modifier
@@ -56,26 +56,26 @@ fun SleepTimerBottomSheet(
                             modifier = Modifier
                                 .size(38.dp)
                                 .clip(RoundedCornerShape(12.dp))
-                                .background(BabyPinkPrimary),
+                                .background(AccentColor),
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Bedtime,
                                 contentDescription = null,
-                                tint = Color.White,
+                                tint = OnAccentColor,
                                 modifier = Modifier.size(20.dp)
                             )
                         }
                         Column {
                             Text(
                                 text = "Sleep Timer",
-                                color = BabyPinkTextPrimary,
+                                color = TextPrimary,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 18.sp
                             )
                             Text(
                                 text = "Gentle 10s volume fade-out",
-                                color = BabyPinkTextSecondary,
+                                color = TextSecondary,
                                 fontSize = 12.sp
                             )
                         }
@@ -88,7 +88,7 @@ fun SleepTimerBottomSheet(
                         Icon(
                             imageVector = Icons.Default.Close,
                             contentDescription = "Close",
-                            tint = BabyPinkTextSecondary
+                            tint = TextSecondary
                         )
                     }
                 }
@@ -100,7 +100,7 @@ fun SleepTimerBottomSheet(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .glassCard(cornerRadius = 16.dp)
+                            .surfaceCard(cornerRadius = 16.dp)
                             .padding(horizontal = 14.dp, vertical = 12.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
@@ -108,13 +108,13 @@ fun SleepTimerBottomSheet(
                         Column {
                             Text(
                                 text = "Timer Active 🌙",
-                                color = BabyPinkPrimary,
+                                color = AccentColor,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 13.sp
                             )
                             Text(
                                 text = "$remainingMinutes minutes remaining",
-                                color = BabyPinkTextPrimary,
+                                color = TextPrimary,
                                 fontWeight = FontWeight.SemiBold,
                                 fontSize = 14.sp
                             )
@@ -124,7 +124,7 @@ fun SleepTimerBottomSheet(
                                 onSetTimer(null)
                                 onDismiss()
                             },
-                            colors = ButtonDefaults.textButtonColors(contentColor = BabyPinkPrimary)
+                            colors = ButtonDefaults.textButtonColors(contentColor = AccentColor)
                         ) {
                             Text("Turn Off", fontWeight = FontWeight.Bold)
                         }
@@ -134,7 +134,7 @@ fun SleepTimerBottomSheet(
 
                 Text(
                     text = "Select Duration",
-                    color = BabyPinkTextSecondary,
+                    color = TextSecondary,
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.padding(bottom = 8.dp)
@@ -151,14 +151,14 @@ fun SleepTimerBottomSheet(
                             .clip(RoundedCornerShape(14.dp))
                             .background(
                                 if (isCurrent) {
-                                    Brush.horizontalGradient(listOf(BabyPinkPrimary, BabyPinkAccent))
+                                    Brush.horizontalGradient(listOf(AccentColor, AccentColorBright))
                                 } else {
-                                    Brush.linearGradient(listOf(GlassSurfaceStrong, GlassSurface))
+                                    Brush.linearGradient(listOf(SurfaceElevated, SurfaceColor))
                                 }
                             )
                             .border(
                                 1.dp,
-                                if (isCurrent) Color.White.copy(alpha = 0.8f) else GlassBorder,
+                                if (isCurrent) OnAccentColor.copy(alpha = 0.6f) else BorderColor,
                                 RoundedCornerShape(14.dp)
                             )
                             .hapticPress(scaleDown = 0.97f)
@@ -172,14 +172,14 @@ fun SleepTimerBottomSheet(
                     ) {
                         Text(
                             text = "$minutes Minutes",
-                            color = if (isCurrent) Color.White else BabyPinkTextPrimary,
+                            color = if (isCurrent) OnAccentColor else TextPrimary,
                             fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Medium,
                             fontSize = 14.sp
                         )
                         Icon(
                             imageVector = Icons.Default.Timer,
                             contentDescription = null,
-                            tint = if (isCurrent) Color.White else BabyPinkPrimary,
+                            tint = if (isCurrent) OnAccentColor else AccentColor,
                             modifier = Modifier.size(18.dp)
                         )
                     }

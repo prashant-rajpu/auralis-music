@@ -32,11 +32,11 @@ fun PlaybackSpeedBottomSheet(
     Dialog(onDismissRequest = onDismiss) {
         Surface(
             shape = RoundedCornerShape(26.dp),
-            color = GlassSurfaceStrong,
+            color = SurfaceElevated,
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(vertical = 16.dp)
-                .border(1.2.dp, GlassBorder, RoundedCornerShape(26.dp))
+                .border(1.2.dp, BorderColor, RoundedCornerShape(26.dp))
         ) {
             Column(
                 modifier = Modifier
@@ -56,26 +56,26 @@ fun PlaybackSpeedBottomSheet(
                             modifier = Modifier
                                 .size(38.dp)
                                 .clip(RoundedCornerShape(12.dp))
-                                .background(BabyPinkPrimary),
+                                .background(AccentColor),
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Speed,
                                 contentDescription = null,
-                                tint = Color.White,
+                                tint = OnAccentColor,
                                 modifier = Modifier.size(20.dp)
                             )
                         }
                         Column {
                             Text(
                                 text = "Playback Speed",
-                                color = BabyPinkTextPrimary,
+                                color = TextPrimary,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 18.sp
                             )
                             Text(
                                 text = "Pitch-preserved audio rate",
-                                color = BabyPinkTextSecondary,
+                                color = TextSecondary,
                                 fontSize = 12.sp
                             )
                         }
@@ -88,7 +88,7 @@ fun PlaybackSpeedBottomSheet(
                         Icon(
                             imageVector = Icons.Default.Close,
                             contentDescription = "Close",
-                            tint = BabyPinkTextSecondary
+                            tint = TextSecondary
                         )
                     }
                 }
@@ -105,14 +105,14 @@ fun PlaybackSpeedBottomSheet(
                             .clip(RoundedCornerShape(14.dp))
                             .background(
                                 if (isSelected) {
-                                    Brush.horizontalGradient(listOf(BabyPinkPrimary, BabyPinkAccent))
+                                    Brush.horizontalGradient(listOf(AccentColor, AccentColorBright))
                                 } else {
-                                    Brush.linearGradient(listOf(GlassSurfaceStrong, GlassSurface))
+                                    Brush.linearGradient(listOf(SurfaceElevated, SurfaceColor))
                                 }
                             )
                             .border(
                                 1.dp,
-                                if (isSelected) Color.White.copy(alpha = 0.8f) else GlassBorder,
+                                if (isSelected) OnAccentColor.copy(alpha = 0.6f) else BorderColor,
                                 RoundedCornerShape(14.dp)
                             )
                             .hapticPress(scaleDown = 0.97f)
@@ -126,14 +126,14 @@ fun PlaybackSpeedBottomSheet(
                     ) {
                         Text(
                             text = label,
-                            color = if (isSelected) Color.White else BabyPinkTextPrimary,
+                            color = if (isSelected) OnAccentColor else TextPrimary,
                             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
                             fontSize = 14.sp
                         )
                         if (isSelected) {
                             Text(
                                 text = "Active",
-                                color = Color.White,
+                                color = OnAccentColor,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 11.sp
                             )

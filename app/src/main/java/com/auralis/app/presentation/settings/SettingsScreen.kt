@@ -22,6 +22,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
@@ -58,7 +60,8 @@ fun SettingsScreen(
     val currentQueue by viewModel.currentQueue.collectAsState()
     val importInputText by viewModel.importInputText.collectAsState()
     val toastEvent by viewModel.toastEvent.collectAsState()
-    val accentTheme by viewModel.accentTheme.collectAsState()
+    val themeMode by viewModel.themeMode.collectAsState()
+    val accentPalette by viewModel.accentPalette.collectAsState()
     val topArtists by viewModel.topArtists.collectAsState()
 
     LaunchedEffect(toastEvent) {
@@ -74,7 +77,7 @@ fun SettingsScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(BabyPinkBackgroundBrush)
+            .background(BackgroundBrush)
     ) {
         Column(
             modifier = Modifier
@@ -93,13 +96,13 @@ fun SettingsScreen(
                     onClick = onNavigateBack,
                     modifier = Modifier
                         .size(40.dp)
-                        .glassPill(borderWidth = 1.dp)
+                        .surfacePill(borderWidth = 1.dp)
                         .hapticPress(scaleDown = 0.88f)
                 ) {
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                         contentDescription = "Back",
-                        tint = BabyPinkTextPrimary
+                        tint = TextPrimary
                     )
                 }
 
@@ -110,12 +113,12 @@ fun SettingsScreen(
                     Icon(
                         imageVector = Icons.Default.Tune,
                         contentDescription = null,
-                        tint = BabyPinkPrimary,
+                        tint = AccentColor,
                         modifier = Modifier.size(20.dp)
                     )
                     Text(
                         text = "Settings & Adjustments",
-                        color = BabyPinkTextPrimary,
+                        color = TextPrimary,
                         fontSize = 19.sp,
                         fontWeight = FontWeight.Bold
                     )
@@ -131,12 +134,12 @@ fun SettingsScreen(
                 verticalArrangement = Arrangement.spacedBy(16.dp),
                 contentPadding = PaddingValues(bottom = 96.dp)
             ) {
-                // SECTION 0: PERSONALIZATION & GLASSMORPHISM THEME
+                // SECTION 0: APPEARANCE
                 item {
                     SettingsSectionHeader(
                         icon = Icons.Default.Palette,
-                        title = "Personalization & Pink Palette",
-                        subtitle = "Customize aesthetic accents with zero permissions required"
+                        title = "Appearance",
+                        subtitle = "Theme and accent, applied instantly across every screen"
                     )
                 }
 
@@ -144,32 +147,32 @@ fun SettingsScreen(
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .glassCard(cornerRadius = 20.dp)
+                            .surfaceCard(cornerRadius = 20.dp)
                             .padding(16.dp)
                     ) {
-                        Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                        Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                             Text(
-                                text = "Light Baby Pink Accent Tone",
-                                color = BabyPinkTextPrimary,
+                                text = "Theme",
+                                color = TextPrimary,
                                 fontSize = 14.sp,
                                 fontWeight = FontWeight.SemiBold
                             )
 
                             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                PinkAccentTheme.values().forEach { theme ->
-                                    val isSelected = accentTheme == theme
+                                ThemeMode.entries.forEach { mode ->
+                                    val isSelected = themeMode == mode
                                     Row(
                                         modifier = Modifier
                                             .fillMaxWidth()
                                             .clip(RoundedCornerShape(14.dp))
-                                            .background(if (isSelected) BabyPinkPrimary.copy(alpha = 0.2f) else GlassSurfaceStrong)
+                                            .background(if (isSelected) AccentColor.copy(alpha = 0.16f) else SurfaceElevated)
                                             .border(
                                                 1.dp,
-                                                if (isSelected) BabyPinkPrimary else GlassBorder,
+                                                if (isSelected) AccentColor else BorderColor,
                                                 RoundedCornerShape(14.dp)
                                             )
-                                            .clickable { viewModel.setAccentTheme(theme) }
-                                            .padding(horizontal = 14.dp, vertical = 10.dp),
+                                            .clickable { viewModel.setThemeMode(mode) }
+                                            .padding(horizontal = 14.dp, vertical = 12.dp),
                                         verticalAlignment = Alignment.CenterVertically,
                                         horizontalArrangement = Arrangement.SpaceBetween
                                     ) {
@@ -177,33 +180,30 @@ fun SettingsScreen(
                                             verticalAlignment = Alignment.CenterVertically,
                                             horizontalArrangement = Arrangement.spacedBy(10.dp)
                                         ) {
-                                            Box(
-                                                modifier = Modifier
-                                                    .size(22.dp)
-                                                    .clip(CircleShape)
-                                                    .background(theme.color)
-                                                    .border(1.dp, Color.White, CircleShape)
+                                            Icon(
+                                                imageVector = when (mode) {
+                                                    ThemeMode.SYSTEM -> Icons.Default.PhoneAndroid
+                                                    ThemeMode.LIGHT -> Icons.Default.LightMode
+                                                    ThemeMode.DARK -> Icons.Default.DarkMode
+                                                    ThemeMode.AMOLED -> Icons.Default.Contrast
+                                                },
+                                                contentDescription = null,
+                                                tint = if (isSelected) AccentColor else TextSecondary,
+                                                modifier = Modifier.size(18.dp)
                                             )
-                                            Column {
-                                                Text(
-                                                    text = theme.displayName,
-                                                    color = BabyPinkTextPrimary,
-                                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                                    fontSize = 13.sp
-                                                )
-                                                Text(
-                                                    text = theme.hex,
-                                                    color = BabyPinkTextSecondary,
-                                                    fontSize = 11.sp
-                                                )
-                                            }
+                                            Text(
+                                                text = mode.displayName,
+                                                color = TextPrimary,
+                                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                                fontSize = 13.sp
+                                            )
                                         }
 
                                         if (isSelected) {
                                             Icon(
                                                 imageVector = Icons.Default.CheckCircle,
                                                 contentDescription = "Active",
-                                                tint = BabyPinkPrimary,
+                                                tint = AccentColor,
                                                 modifier = Modifier.size(20.dp)
                                             )
                                         }
@@ -211,25 +211,55 @@ fun SettingsScreen(
                                 }
                             }
 
-                            HorizontalDivider(color = BabyPinkBorder, thickness = 0.5.dp)
+                            HorizontalDivider(color = BorderColor, thickness = 0.5.dp)
+
+                            Text(
+                                text = "Accent",
+                                color = TextPrimary,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
 
                             Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
                             ) {
-                                Icon(
-                                    imageVector = Icons.Default.Lock,
-                                    contentDescription = null,
-                                    tint = BabyPinkPrimary,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                                Text(
-                                    text = "100% Private On-Device • Zero Permissions Needed",
-                                    color = BabyPinkTextSecondary,
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Medium
-                                )
+                                AccentPalette.entries.forEach { palette ->
+                                    val isSelected = accentPalette == palette
+                                    Box(
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .aspectRatio(1f)
+                                            .clip(CircleShape)
+                                            .background(palette.base)
+                                            .border(
+                                                width = if (isSelected) 3.dp else 1.dp,
+                                                color = if (isSelected) TextPrimary else BorderColor,
+                                                shape = CircleShape
+                                            )
+                                            .hapticPress(scaleDown = 0.9f)
+                                            .clickable { viewModel.setAccentPalette(palette) }
+                                            .semantics { contentDescription = palette.displayName },
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        if (isSelected) {
+                                            Icon(
+                                                imageVector = Icons.Default.Check,
+                                                contentDescription = null,
+                                                tint = OnAccentColor,
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                        }
+                                    }
+                                }
                             }
+
+                            Text(
+                                text = accentPalette.displayName,
+                                color = TextSecondary,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Medium
+                            )
                         }
                     }
                 }
@@ -247,13 +277,13 @@ fun SettingsScreen(
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .glassCard(cornerRadius = 20.dp)
+                            .surfaceCard(cornerRadius = 20.dp)
                             .padding(16.dp)
                     ) {
                         Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
                             Text(
                                 text = "Lyrics Source Provider",
-                                color = BabyPinkTextPrimary,
+                                color = TextPrimary,
                                 fontSize = 14.sp,
                                 fontWeight = FontWeight.SemiBold
                             )
@@ -275,10 +305,10 @@ fun SettingsScreen(
                                         modifier = Modifier
                                             .weight(1f)
                                             .clip(RoundedCornerShape(12.dp))
-                                            .background(if (isSelected) BabyPinkPrimary else BabyPinkCardBg)
+                                            .background(if (isSelected) AccentColor else SurfaceColor)
                                             .border(
                                                 width = 1.dp,
-                                                color = if (isSelected) BabyPinkPrimary else BabyPinkBorder,
+                                                color = if (isSelected) AccentColor else BorderColor,
                                                 shape = RoundedCornerShape(12.dp)
                                             )
                                             .clickable { viewModel.setLyricsProvider(provider) }
@@ -287,7 +317,7 @@ fun SettingsScreen(
                                     ) {
                                         Text(
                                             text = shortLabel,
-                                            color = if (isSelected) Color.White else BabyPinkTextPrimary,
+                                            color = if (isSelected) OnAccentColor else TextPrimary,
                                             fontSize = 11.sp,
                                             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
                                         )
@@ -295,13 +325,13 @@ fun SettingsScreen(
                                 }
                             }
 
-                            HorizontalDivider(color = BabyPinkBorder, thickness = 0.5.dp)
+                            HorizontalDivider(color = BorderColor, thickness = 0.5.dp)
 
                             // Lyrics Font Size
                             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                 Text(
                                     text = "Lyrics Font Size",
-                                    color = BabyPinkTextPrimary,
+                                    color = TextPrimary,
                                     fontSize = 14.sp,
                                     fontWeight = FontWeight.SemiBold
                                 )
@@ -316,10 +346,10 @@ fun SettingsScreen(
                                             modifier = Modifier
                                                 .weight(1f)
                                                 .clip(RoundedCornerShape(12.dp))
-                                                .background(if (isSelected) BabyPinkPrimary else BabyPinkCardBg)
+                                                .background(if (isSelected) AccentColor else SurfaceColor)
                                                 .border(
                                                     width = 1.dp,
-                                                    color = if (isSelected) BabyPinkPrimary else BabyPinkBorder,
+                                                    color = if (isSelected) AccentColor else BorderColor,
                                                     shape = RoundedCornerShape(12.dp)
                                                 )
                                                 .clickable { viewModel.setLyricsFontSize(size) }
@@ -328,7 +358,7 @@ fun SettingsScreen(
                                         ) {
                                             Text(
                                                 text = size.label,
-                                                color = if (isSelected) Color.White else BabyPinkTextPrimary,
+                                                color = if (isSelected) OnAccentColor else TextPrimary,
                                                 fontSize = 12.sp,
                                                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
                                             )
@@ -337,7 +367,7 @@ fun SettingsScreen(
                                 }
                             }
 
-                            HorizontalDivider(color = BabyPinkBorder, thickness = 0.5.dp)
+                            HorizontalDivider(color = BorderColor, thickness = 0.5.dp)
 
                             // Auto Scroll Toggle
                             SettingsToggleRow(
@@ -372,7 +402,7 @@ fun SettingsScreen(
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .glassCard(cornerRadius = 20.dp)
+                            .surfaceCard(cornerRadius = 20.dp)
                             .padding(16.dp)
                     ) {
                         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -383,7 +413,7 @@ fun SettingsScreen(
                             ) {
                                 Text(
                                     text = "Import Playlist",
-                                    color = BabyPinkTextPrimary,
+                                    color = TextPrimary,
                                     fontSize = 15.sp,
                                     fontWeight = FontWeight.Bold
                                 )
@@ -398,13 +428,13 @@ fun SettingsScreen(
                                     Icon(
                                         imageVector = Icons.Default.ContentPaste,
                                         contentDescription = null,
-                                        tint = BabyPinkPrimary,
+                                        tint = AccentColor,
                                         modifier = Modifier.size(16.dp)
                                     )
                                     Spacer(modifier = Modifier.width(4.dp))
                                     Text(
                                         text = "Paste",
-                                        color = BabyPinkPrimary,
+                                        color = AccentColor,
                                         fontSize = 12.sp,
                                         fontWeight = FontWeight.SemiBold
                                     )
@@ -419,19 +449,19 @@ fun SettingsScreen(
                                 placeholder = {
                                     Text(
                                         text = "Paste auralis://playlist/... or Artist - Song list",
-                                        color = BabyPinkTextSecondary,
+                                        color = TextSecondary,
                                         fontSize = 12.sp
                                     )
                                 },
                                 maxLines = 4,
                                 colors = OutlinedTextFieldDefaults.colors(
-                                    focusedBorderColor = BabyPinkPrimary,
-                                    unfocusedBorderColor = BabyPinkBorder,
-                                    focusedContainerColor = BabyPinkCardBg,
-                                    unfocusedContainerColor = BabyPinkCardBg,
-                                    focusedTextColor = BabyPinkTextPrimary,
-                                    unfocusedTextColor = BabyPinkTextPrimary,
-                                    cursorColor = BabyPinkPrimary
+                                    focusedBorderColor = AccentColor,
+                                    unfocusedBorderColor = BorderColor,
+                                    focusedContainerColor = SurfaceColor,
+                                    unfocusedContainerColor = SurfaceColor,
+                                    focusedTextColor = TextPrimary,
+                                    unfocusedTextColor = TextPrimary,
+                                    cursorColor = AccentColor
                                 ),
                                 shape = RoundedCornerShape(14.dp)
                             )
@@ -442,19 +472,19 @@ fun SettingsScreen(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .hapticPress(scaleDown = 0.96f),
-                                colors = ButtonDefaults.buttonColors(containerColor = BabyPinkPrimary),
+                                colors = ButtonDefaults.buttonColors(containerColor = AccentColor),
                                 shape = RoundedCornerShape(14.dp)
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.FileDownload,
                                     contentDescription = null,
-                                    tint = Color.White,
+                                    tint = OnAccentColor,
                                     modifier = Modifier.size(18.dp)
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(
                                     text = "Import to Library",
-                                    color = Color.White,
+                                    color = OnAccentColor,
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 14.sp
                                 )
@@ -468,7 +498,7 @@ fun SettingsScreen(
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .glassCard(cornerRadius = 20.dp)
+                            .surfaceCard(cornerRadius = 20.dp)
                             .padding(16.dp)
                     ) {
                         Row(
@@ -479,14 +509,14 @@ fun SettingsScreen(
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
                                     text = "Export Current Queue",
-                                    color = BabyPinkTextPrimary,
+                                    color = TextPrimary,
                                     fontSize = 15.sp,
                                     fontWeight = FontWeight.Bold
                                 )
                                 Spacer(modifier = Modifier.height(2.dp))
                                 Text(
                                     text = "${currentQueue.size} songs currently loaded in queue",
-                                    color = BabyPinkTextSecondary,
+                                    color = TextSecondary,
                                     fontSize = 12.sp
                                 )
                             }
@@ -498,21 +528,21 @@ fun SettingsScreen(
                                         clipboardManager.setText(AnnotatedString(code))
                                     }
                                 },
-                                colors = ButtonDefaults.buttonColors(containerColor = BabyPinkCardBg),
-                                border = ButtonDefaults.outlinedButtonBorder.copy(brush = androidx.compose.ui.graphics.SolidColor(BabyPinkBorder)),
+                                colors = ButtonDefaults.buttonColors(containerColor = SurfaceColor),
+                                border = ButtonDefaults.outlinedButtonBorder.copy(brush = androidx.compose.ui.graphics.SolidColor(BorderColor)),
                                 shape = RoundedCornerShape(14.dp),
                                 modifier = Modifier.hapticPress(scaleDown = 0.92f)
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.ContentCopy,
                                     contentDescription = null,
-                                    tint = BabyPinkPrimary,
+                                    tint = AccentColor,
                                     modifier = Modifier.size(16.dp)
                                 )
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text(
                                     text = "Copy Code",
-                                    color = BabyPinkPrimary,
+                                    color = AccentColor,
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.Bold
                                 )
@@ -526,7 +556,7 @@ fun SettingsScreen(
                     item {
                         Text(
                             text = "Saved & Shared Playlists (${userPlaylists.size})",
-                            color = BabyPinkTextPrimary,
+                            color = TextPrimary,
                             fontSize = 14.sp,
                             fontWeight = FontWeight.Bold,
                             modifier = Modifier.padding(top = 8.dp)
@@ -537,7 +567,7 @@ fun SettingsScreen(
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .glassCard(cornerRadius = 16.dp)
+                                .surfaceCard(cornerRadius = 16.dp)
                                 .padding(12.dp)
                         ) {
                             Row(
@@ -548,7 +578,7 @@ fun SettingsScreen(
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(
                                         text = pl.title,
-                                        color = BabyPinkTextPrimary,
+                                        color = TextPrimary,
                                         fontSize = 14.sp,
                                         fontWeight = FontWeight.Bold,
                                         maxLines = 1,
@@ -556,7 +586,7 @@ fun SettingsScreen(
                                     )
                                     Text(
                                         text = "${pl.trackCount} tracks",
-                                        color = BabyPinkTextSecondary,
+                                        color = TextSecondary,
                                         fontSize = 11.sp
                                     )
                                 }
@@ -564,12 +594,12 @@ fun SettingsScreen(
                                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                     IconButton(
                                         onClick = { viewModel.playSavedPlaylist(pl) },
-                                        modifier = Modifier.size(34.dp).glassPill().hapticPress(scaleDown = 0.88f)
+                                        modifier = Modifier.size(34.dp).surfacePill().hapticPress(scaleDown = 0.88f)
                                     ) {
                                         Icon(
                                             imageVector = Icons.Default.PlayArrow,
                                             contentDescription = "Play",
-                                            tint = BabyPinkPrimary,
+                                            tint = AccentColor,
                                             modifier = Modifier.size(18.dp)
                                         )
                                     }
@@ -579,24 +609,24 @@ fun SettingsScreen(
                                             val code = viewModel.exportSavedPlaylist(pl)
                                             clipboardManager.setText(AnnotatedString(code))
                                         },
-                                        modifier = Modifier.size(34.dp).glassPill().hapticPress(scaleDown = 0.88f)
+                                        modifier = Modifier.size(34.dp).surfacePill().hapticPress(scaleDown = 0.88f)
                                     ) {
                                         Icon(
                                             imageVector = Icons.Default.Share,
                                             contentDescription = "Share",
-                                            tint = BabyPinkTextPrimary,
+                                            tint = TextPrimary,
                                             modifier = Modifier.size(16.dp)
                                         )
                                     }
 
                                     IconButton(
                                         onClick = { viewModel.deleteSavedPlaylist(pl.id) },
-                                        modifier = Modifier.size(34.dp).glassPill().hapticPress(scaleDown = 0.88f)
+                                        modifier = Modifier.size(34.dp).surfacePill().hapticPress(scaleDown = 0.88f)
                                     ) {
                                         Icon(
                                             imageVector = Icons.Default.DeleteOutline,
                                             contentDescription = "Delete",
-                                            tint = Color(0xFFFF5252),
+                                            tint = DangerColor,
                                             modifier = Modifier.size(16.dp)
                                         )
                                     }
@@ -619,7 +649,7 @@ fun SettingsScreen(
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .glassCard(cornerRadius = 20.dp)
+                            .surfaceCard(cornerRadius = 20.dp)
                             .padding(16.dp)
                     ) {
                         Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -632,7 +662,7 @@ fun SettingsScreen(
                             )
 
                             if (viewModel.hasSegmentSkipper) {
-                                HorizontalDivider(color = BabyPinkBorder, thickness = 0.5.dp)
+                                HorizontalDivider(color = BorderColor, thickness = 0.5.dp)
 
                                 SettingsToggleRow(
                                     title = "SponsorBlock Music Auto-Skip",
@@ -642,18 +672,18 @@ fun SettingsScreen(
                                 )
                             }
 
-                            HorizontalDivider(color = BabyPinkBorder, thickness = 0.5.dp)
+                            HorizontalDivider(color = BorderColor, thickness = 0.5.dp)
 
                             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                 Text(
                                     text = "Streaming Quality",
-                                    color = BabyPinkTextPrimary,
+                                    color = TextPrimary,
                                     fontSize = 14.sp,
                                     fontWeight = FontWeight.SemiBold
                                 )
                                 Text(
                                     text = "Applies to catalogs that offer several bitrates",
-                                    color = BabyPinkTextSecondary,
+                                    color = TextSecondary,
                                     fontSize = 11.sp
                                 )
 
@@ -667,10 +697,10 @@ fun SettingsScreen(
                                             modifier = Modifier
                                                 .weight(1f)
                                                 .clip(RoundedCornerShape(12.dp))
-                                                .background(if (isSelected) BabyPinkPrimary else BabyPinkCardBg)
+                                                .background(if (isSelected) AccentColor else SurfaceColor)
                                                 .border(
                                                     width = 1.dp,
-                                                    color = if (isSelected) BabyPinkPrimary else BabyPinkBorder,
+                                                    color = if (isSelected) AccentColor else BorderColor,
                                                     shape = RoundedCornerShape(12.dp)
                                                 )
                                                 .clickable { viewModel.setAudioQuality(quality) }
@@ -683,7 +713,7 @@ fun SettingsScreen(
                                                     AudioQualitySetting.STANDARD -> "160 kbps"
                                                     AudioQualitySetting.DATA_SAVER -> "96 kbps"
                                                 },
-                                                color = if (isSelected) Color.White else BabyPinkTextPrimary,
+                                                color = if (isSelected) OnAccentColor else TextPrimary,
                                                 fontSize = 12.sp,
                                                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
                                             )
@@ -708,7 +738,7 @@ fun SettingsScreen(
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .glassCard(cornerRadius = 20.dp)
+                            .surfaceCard(cornerRadius = 20.dp)
                             .padding(16.dp)
                     ) {
                         Row(
@@ -721,10 +751,10 @@ fun SettingsScreen(
                                     modifier = Modifier
                                         .weight(1f)
                                         .clip(RoundedCornerShape(12.dp))
-                                        .background(if (isSelected) BabyPinkPrimary else BabyPinkCardBg)
+                                        .background(if (isSelected) AccentColor else SurfaceColor)
                                         .border(
                                             width = 1.dp,
-                                            color = if (isSelected) BabyPinkPrimary else BabyPinkBorder,
+                                            color = if (isSelected) AccentColor else BorderColor,
                                             shape = RoundedCornerShape(12.dp)
                                         )
                                         .clickable { viewModel.setHapticIntensity(intensity) }
@@ -733,7 +763,7 @@ fun SettingsScreen(
                                 ) {
                                     Text(
                                         text = intensity.label,
-                                        color = if (isSelected) Color.White else BabyPinkTextPrimary,
+                                        color = if (isSelected) OnAccentColor else TextPrimary,
                                         fontSize = 11.sp,
                                         fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
                                     )
@@ -763,27 +793,27 @@ private fun SettingsSectionHeader(
         Box(
             modifier = Modifier
                 .size(32.dp)
-                .glassPill(borderWidth = 1.dp)
-                .background(BabyPinkPrimary.copy(alpha = 0.15f)),
+                .surfacePill(borderWidth = 1.dp)
+                .background(AccentColor.copy(alpha = 0.15f)),
             contentAlignment = Alignment.Center
         ) {
             Icon(
                 imageVector = icon,
                 contentDescription = null,
-                tint = BabyPinkPrimary,
+                tint = AccentColor,
                 modifier = Modifier.size(16.dp)
             )
         }
         Column {
             Text(
                 text = title,
-                color = BabyPinkTextPrimary,
+                color = TextPrimary,
                 fontSize = 15.sp,
                 fontWeight = FontWeight.Bold
             )
             Text(
                 text = subtitle,
-                color = BabyPinkTextSecondary,
+                color = TextSecondary,
                 fontSize = 11.sp
             )
         }
@@ -805,14 +835,14 @@ private fun SettingsToggleRow(
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = title,
-                color = BabyPinkTextPrimary,
+                color = TextPrimary,
                 fontSize = 14.sp,
                 fontWeight = FontWeight.SemiBold
             )
             Spacer(modifier = Modifier.height(2.dp))
             Text(
                 text = subtitle,
-                color = BabyPinkTextSecondary,
+                color = TextSecondary,
                 fontSize = 11.sp
             )
         }
@@ -821,10 +851,10 @@ private fun SettingsToggleRow(
             checked = checked,
             onCheckedChange = onCheckedChange,
             colors = SwitchDefaults.colors(
-                checkedThumbColor = Color.White,
-                checkedTrackColor = BabyPinkPrimary,
-                uncheckedThumbColor = BabyPinkTextSecondary,
-                uncheckedTrackColor = BabyPinkCardBg
+                checkedThumbColor = OnAccentColor,
+                checkedTrackColor = AccentColor,
+                uncheckedThumbColor = TextSecondary,
+                uncheckedTrackColor = SurfaceColor
             ),
             modifier = Modifier.hapticPress(scaleDown = 0.90f)
         )

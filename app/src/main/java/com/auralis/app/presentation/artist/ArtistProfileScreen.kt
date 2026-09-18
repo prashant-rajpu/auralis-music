@@ -37,7 +37,6 @@ import com.auralis.app.ui.theme.*
 @Composable
 fun ArtistProfileScreen(
     onNavigateBack: () -> Unit,
-    onTrackClick: (Track) -> Unit,
     viewModel: ArtistProfileViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -45,13 +44,13 @@ fun ArtistProfileScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(BabyPinkBackgroundBrush)
+            .background(BackgroundBrush)
     ) {
         when (val state = uiState) {
             is ArtistUiState.Loading -> {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator(
-                        color = BabyPinkPrimary,
+                        color = AccentColor,
                         strokeWidth = 3.dp,
                         modifier = Modifier.size(42.dp)
                     )
@@ -71,15 +70,15 @@ fun ArtistProfileScreen(
                     ) {
                         Text(
                             text = state.message,
-                            color = BabyPinkTextPrimary,
+                            color = TextPrimary,
                             fontSize = 15.sp,
                             fontWeight = FontWeight.Medium
                         )
                         Button(
                             onClick = { viewModel.loadArtistProfile() },
-                            colors = ButtonDefaults.buttonColors(containerColor = BabyPinkPrimary)
+                            colors = ButtonDefaults.buttonColors(containerColor = AccentColor)
                         ) {
-                            Text("Retry", color = Color.White)
+                            Text("Retry", color = OnAccentColor)
                         }
                     }
                 }
@@ -91,7 +90,7 @@ fun ArtistProfileScreen(
                     onNavigateBack = onNavigateBack,
                     onPlayAll = { viewModel.playAllTopSongs() },
                     onStartRadio = { viewModel.startArtistRadio() },
-                    onTrackClick = onTrackClick
+                    onTrackClick = { track -> viewModel.playTrack(track, state.profile.topSongs) }
                 )
             }
         }
@@ -134,7 +133,7 @@ private fun ArtistContent(
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
-                            .background(BabyPinkAccent)
+                            .background(AccentColorBright)
                     )
                 }
 
@@ -145,10 +144,10 @@ private fun ArtistContent(
                         .background(
                             Brush.verticalGradient(
                                 colors = listOf(
-                                    Color.Black.copy(alpha = 0.35f),
+                                    Color.Black.copy(alpha = 0.45f),
                                     Color.Transparent,
-                                    BabyPinkBackgroundStart.copy(alpha = 0.85f),
-                                    BabyPinkBackgroundStart
+                                    BackgroundColor.copy(alpha = 0.85f),
+                                    BackgroundColor
                                 )
                             )
                         )
@@ -161,13 +160,13 @@ private fun ArtistContent(
                         .statusBarsPadding()
                         .padding(16.dp)
                         .size(40.dp)
-                        .glassPill(borderWidth = 1.dp)
+                        .surfacePill(borderWidth = 1.dp)
                         .hapticPress(scaleDown = 0.88f)
                 ) {
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                         contentDescription = "Back",
-                        tint = Color.White
+                        tint = OnAccentColor
                     )
                 }
 
@@ -184,12 +183,12 @@ private fun ArtistContent(
                         Icon(
                             imageVector = Icons.Default.CheckCircle,
                             contentDescription = "Verified",
-                            tint = BabyPinkPrimary,
+                            tint = AccentColor,
                             modifier = Modifier.size(16.dp)
                         )
                         Text(
                             text = profile.monthlyListeners ?: "Verified Artist",
-                            color = BabyPinkTextSecondary,
+                            color = TextSecondary,
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Medium
                         )
@@ -199,7 +198,7 @@ private fun ArtistContent(
 
                     Text(
                         text = profile.name,
-                        color = BabyPinkTextPrimary,
+                        color = TextPrimary,
                         fontSize = 28.sp,
                         fontWeight = FontWeight.ExtraBold,
                         maxLines = 1,
@@ -220,7 +219,7 @@ private fun ArtistContent(
             ) {
                 Button(
                     onClick = onPlayAll,
-                    colors = ButtonDefaults.buttonColors(containerColor = BabyPinkPrimary),
+                    colors = ButtonDefaults.buttonColors(containerColor = AccentColor),
                     shape = RoundedCornerShape(20.dp),
                     modifier = Modifier
                         .weight(1f)
@@ -230,13 +229,13 @@ private fun ArtistContent(
                     Icon(
                         imageVector = Icons.Default.PlayArrow,
                         contentDescription = null,
-                        tint = Color.White,
+                        tint = OnAccentColor,
                         modifier = Modifier.size(20.dp)
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
                         text = "Play All",
-                        color = Color.White,
+                        color = OnAccentColor,
                         fontWeight = FontWeight.Bold,
                         fontSize = 14.sp
                     )
@@ -244,9 +243,9 @@ private fun ArtistContent(
 
                 Button(
                     onClick = onStartRadio,
-                    colors = ButtonDefaults.buttonColors(containerColor = BabyPinkCardBg),
+                    colors = ButtonDefaults.buttonColors(containerColor = SurfaceColor),
                     border = ButtonDefaults.outlinedButtonBorder.copy(
-                        brush = androidx.compose.ui.graphics.SolidColor(BabyPinkBorder)
+                        brush = androidx.compose.ui.graphics.SolidColor(BorderColor)
                     ),
                     shape = RoundedCornerShape(20.dp),
                     modifier = Modifier
@@ -257,13 +256,13 @@ private fun ArtistContent(
                     Icon(
                         imageVector = Icons.Default.Radio,
                         contentDescription = null,
-                        tint = BabyPinkPrimary,
+                        tint = AccentColor,
                         modifier = Modifier.size(18.dp)
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
                         text = "Start Radio",
-                        color = BabyPinkPrimary,
+                        color = AccentColor,
                         fontWeight = FontWeight.Bold,
                         fontSize = 14.sp
                     )
@@ -278,12 +277,12 @@ private fun ArtistContent(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 20.dp, vertical = 6.dp)
-                        .glassCard(cornerRadius = 16.dp)
+                        .surfaceCard(cornerRadius = 16.dp)
                         .padding(14.dp)
                 ) {
                     Text(
                         text = profile.bio,
-                        color = BabyPinkTextSecondary,
+                        color = TextSecondary,
                         fontSize = 12.sp,
                         lineHeight = 18.sp,
                         maxLines = 4,
@@ -297,7 +296,7 @@ private fun ArtistContent(
         item {
             Text(
                 text = "Top Songs",
-                color = BabyPinkTextPrimary,
+                color = TextPrimary,
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.padding(start = 20.dp, top = 16.dp, bottom = 8.dp)
@@ -317,7 +316,7 @@ private fun ArtistContent(
                 // Rank Number
                 Text(
                     text = "${index + 1}",
-                    color = if (index < 3) BabyPinkPrimary else BabyPinkTextSecondary,
+                    color = if (index < 3) AccentColor else TextSecondary,
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.width(28.dp)
@@ -342,7 +341,7 @@ private fun ArtistContent(
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = track.title,
-                        color = BabyPinkTextPrimary,
+                        color = TextPrimary,
                         fontSize = 14.sp,
                         fontWeight = FontWeight.SemiBold,
                         maxLines = 1,
@@ -350,7 +349,7 @@ private fun ArtistContent(
                     )
                     Text(
                         text = track.artist,
-                        color = BabyPinkTextSecondary,
+                        color = TextSecondary,
                         fontSize = 11.sp,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
@@ -362,7 +361,7 @@ private fun ArtistContent(
                 val sec = (track.durationMs / 1000) % 60
                 Text(
                     text = String.format("%d:%02d", min, sec),
-                    color = BabyPinkTextSecondary,
+                    color = TextSecondary,
                     fontSize = 11.sp,
                     modifier = Modifier.padding(start = 8.dp)
                 )
@@ -374,7 +373,7 @@ private fun ArtistContent(
             item {
                 Text(
                     text = "Albums & Singles",
-                    color = BabyPinkTextPrimary,
+                    color = TextPrimary,
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.padding(start = 20.dp, top = 20.dp, bottom = 10.dp)
@@ -391,7 +390,7 @@ private fun ArtistContent(
                             modifier = Modifier
                                 .width(130.dp)
                                 .clip(RoundedCornerShape(14.dp))
-                                .glassCard(cornerRadius = 14.dp)
+                                .surfaceCard(cornerRadius = 14.dp)
                                 .padding(8.dp)
                         ) {
                             AsyncImage(
@@ -410,7 +409,7 @@ private fun ArtistContent(
 
                             Text(
                                 text = release.title,
-                                color = BabyPinkTextPrimary,
+                                color = TextPrimary,
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold,
                                 maxLines = 1,
@@ -419,7 +418,7 @@ private fun ArtistContent(
 
                             Text(
                                 text = release.year ?: "2024",
-                                color = BabyPinkTextSecondary,
+                                color = TextSecondary,
                                 fontSize = 10.sp
                             )
                         }

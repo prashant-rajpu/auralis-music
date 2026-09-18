@@ -5,16 +5,18 @@ import androidx.lifecycle.viewModelScope
 import com.auralis.app.domain.model.LyricLine
 import com.auralis.app.domain.model.SoundProfile
 import com.auralis.app.domain.model.Track
+import com.auralis.app.data.repository.LibraryRepository
 import com.auralis.app.domain.repository.MusicRepository
 import com.auralis.app.lyrics.LyricsRepository
 import com.auralis.app.network.JamSession
 import com.auralis.app.playback.AudioEffectManager
 import com.auralis.app.playback.PlaybackManager
-import com.auralis.app.playback.PinkAccentTheme
 import com.auralis.app.playback.RepeatMode
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -30,7 +32,8 @@ class PlayerViewModel @Inject constructor(
     private val playbackManager: PlaybackManager,
     private val repository: MusicRepository,
     private val lyricsRepository: LyricsRepository,
-    private val audioEffectManager: AudioEffectManager
+    private val audioEffectManager: AudioEffectManager,
+    private val libraryRepository: LibraryRepository
 ) : ViewModel() {
 
     val currentTrack = playbackManager.currentTrack
@@ -48,7 +51,6 @@ class PlayerViewModel @Inject constructor(
     val currentQueueIndex = playbackManager.currentQueueIndex
     val playbackSpeed = playbackManager.playbackSpeed
     val sleepTimerMinutesRemaining = playbackManager.sleepTimerMinutesRemaining
-    val accentTheme = playbackManager.personalizationManager.accentTheme
 
     fun sendJamReaction(emoji: String) {
         playbackManager.sendJamReaction(emoji)
@@ -77,11 +79,12 @@ class PlayerViewModel @Inject constructor(
     private val _soundProfile = MutableStateFlow(audioEffectManager.currentProfile)
     val soundProfile = _soundProfile.asStateFlow()
 
-    private val _likedTrackIds = MutableStateFlow<Set<String>>(emptySet())
-    val likedTrackIds = _likedTrackIds.asStateFlow()
+    // Backed by Room: these used to be in-memory sets, so every like died with the process.
+    val likedTrackIds = libraryRepository.likedTrackIds
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptySet())
 
-    private val _dislikedTrackIds = MutableStateFlow<Set<String>>(emptySet())
-    val dislikedTrackIds = _dislikedTrackIds.asStateFlow()
+    val dislikedTrackIds = libraryRepository.dislikedTrackIds
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptySet())
 
     val lyricsFontSize = playbackManager.settingsPreferences.lyricsFontSize
     val lyricsAutoScroll = playbackManager.settingsPreferences.lyricsAutoScroll
@@ -180,30 +183,20 @@ class PlayerViewModel @Inject constructor(
         playbackManager.setSleepTimer(minutes)
     }
 
-    fun setAccentTheme(theme: PinkAccentTheme) {
-        playbackManager.personalizationManager.setAccentTheme(theme)
+    /**
+     * Takes the whole track, not just an id: the catalog needs enough to render the Liked Songs
+     * list later, and an id alone cannot be turned back into a title.
+     */
+    fun toggleLike(track: Track) {
+        viewModelScope.launch {
+            libraryRepository.setLiked(track, liked = track.id !in likedTrackIds.value)
+        }
     }
 
-    fun toggleLike(trackId: String) {
-        val current = _likedTrackIds.value.toMutableSet()
-        if (current.contains(trackId)) {
-            current.remove(trackId)
-        } else {
-            current.add(trackId)
-            _dislikedTrackIds.value = _dislikedTrackIds.value - trackId
+    fun toggleDislike(track: Track) {
+        viewModelScope.launch {
+            libraryRepository.setDisliked(track, disliked = track.id !in dislikedTrackIds.value)
         }
-        _likedTrackIds.value = current
-    }
-
-    fun toggleDislike(trackId: String) {
-        val current = _dislikedTrackIds.value.toMutableSet()
-        if (current.contains(trackId)) {
-            current.remove(trackId)
-        } else {
-            current.add(trackId)
-            _likedTrackIds.value = _likedTrackIds.value - trackId
-        }
-        _dislikedTrackIds.value = current
     }
 
     fun setSoundProfilesVisible(visible: Boolean) {

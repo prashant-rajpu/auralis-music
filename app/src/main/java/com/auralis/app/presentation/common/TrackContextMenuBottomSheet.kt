@@ -11,6 +11,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -38,18 +42,34 @@ fun TrackContextMenuBottomSheet(
     onViewArtist: (String) -> Unit,
     onToggleDownload: () -> Unit,
     isDownloaded: Boolean = track.isDownloaded,
+    /** Supplied only when the menu is opened from inside a playlist. */
+    onRemoveFromPlaylist: (() -> Unit)? = null,
     onDismiss: () -> Unit
 ) {
     val context = LocalContext.current
+    var addingToPlaylist by remember { mutableStateOf(false) }
+
+    // Nested rather than hoisted to every caller: the menu already has the track, so every screen
+    // that shows the menu gets "Add to playlist" without threading state through itself.
+    if (addingToPlaylist) {
+        AddToPlaylistSheet(
+            track = track,
+            onDismiss = {
+                addingToPlaylist = false
+                onDismiss()
+            }
+        )
+        return
+    }
 
     Dialog(onDismissRequest = onDismiss) {
         Surface(
             shape = RoundedCornerShape(26.dp),
-            color = GlassSurfaceStrong,
+            color = SurfaceElevated,
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(vertical = 16.dp)
-                .border(1.2.dp, GlassBorder, RoundedCornerShape(26.dp))
+                .border(1.2.dp, BorderColor, RoundedCornerShape(26.dp))
         ) {
             Column(
                 modifier = Modifier
@@ -71,7 +91,7 @@ fun TrackContextMenuBottomSheet(
                         modifier = Modifier
                             .size(52.dp)
                             .clip(RoundedCornerShape(12.dp))
-                            .background(BabyPinkBgMiddle)
+                            .background(BackgroundElevated)
                     )
 
                     Spacer(modifier = Modifier.width(14.dp))
@@ -79,7 +99,7 @@ fun TrackContextMenuBottomSheet(
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
                             text = track.title,
-                            color = BabyPinkTextPrimary,
+                            color = TextPrimary,
                             fontWeight = FontWeight.Bold,
                             fontSize = 16.sp,
                             maxLines = 1,
@@ -89,7 +109,7 @@ fun TrackContextMenuBottomSheet(
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
                                 text = track.artist,
-                                color = BabyPinkTextSecondary,
+                                color = TextSecondary,
                                 fontSize = 13.sp,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
@@ -99,12 +119,12 @@ fun TrackContextMenuBottomSheet(
                             Box(
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(6.dp))
-                                    .background(BabyPinkSoftRose.copy(alpha = 0.3f))
+                                    .background(AccentColorSoft.copy(alpha = 0.3f))
                                     .padding(horizontal = 6.dp, vertical = 2.dp)
                             ) {
                                 Text(
                                     text = track.qualityBadge,
-                                    color = BabyPinkPrimary,
+                                    color = AccentColor,
                                     fontSize = 9.sp,
                                     fontWeight = FontWeight.Bold
                                 )
@@ -119,13 +139,13 @@ fun TrackContextMenuBottomSheet(
                         Icon(
                             imageVector = Icons.Default.Close,
                             contentDescription = "Close",
-                            tint = BabyPinkTextSecondary
+                            tint = TextSecondary
                         )
                     }
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
-                HorizontalDivider(color = GlassBorder, thickness = 1.dp)
+                HorizontalDivider(color = BorderColor, thickness = 1.dp)
                 Spacer(modifier = Modifier.height(8.dp))
 
                 // Action 1: Play Next (Spotify / YT Music feature)
@@ -150,7 +170,27 @@ fun TrackContextMenuBottomSheet(
                     }
                 )
 
-                // Action 3: Start Track Radio
+                // Action 3: Add to a playlist
+                ContextMenuOptionRow(
+                    icon = Icons.Default.PlaylistAdd,
+                    title = "Add to Playlist",
+                    subtitle = "Save it somewhere you will find it again",
+                    onClick = { addingToPlaylist = true }
+                )
+
+                if (onRemoveFromPlaylist != null) {
+                    ContextMenuOptionRow(
+                        icon = Icons.Default.PlaylistRemove,
+                        title = "Remove from Playlist",
+                        subtitle = "Take it out of this playlist",
+                        onClick = {
+                            onRemoveFromPlaylist()
+                            onDismiss()
+                        }
+                    )
+                }
+
+                // Action 4: Start Track Radio
                 ContextMenuOptionRow(
                     icon = Icons.Default.Radio,
                     title = "Start Radio",
@@ -231,14 +271,14 @@ private fun ContextMenuOptionRow(
             modifier = Modifier
                 .size(38.dp)
                 .clip(RoundedCornerShape(10.dp))
-                .background(GlassSurfaceStrong)
-                .border(1.dp, GlassBorder, RoundedCornerShape(10.dp)),
+                .background(SurfaceElevated)
+                .border(1.dp, BorderColor, RoundedCornerShape(10.dp)),
             contentAlignment = Alignment.Center
         ) {
             Icon(
                 imageVector = icon,
                 contentDescription = null,
-                tint = BabyPinkPrimary,
+                tint = AccentColor,
                 modifier = Modifier.size(20.dp)
             )
         }
@@ -248,13 +288,13 @@ private fun ContextMenuOptionRow(
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = title,
-                color = BabyPinkTextPrimary,
+                color = TextPrimary,
                 fontWeight = FontWeight.Bold,
                 fontSize = 14.sp
             )
             Text(
                 text = subtitle,
-                color = BabyPinkTextSecondary,
+                color = TextSecondary,
                 fontSize = 11.sp
             )
         }

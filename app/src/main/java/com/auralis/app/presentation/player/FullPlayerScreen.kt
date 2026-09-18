@@ -76,20 +76,10 @@ fun FullPlayerScreen(
 
     val track = currentTrack
 
-    // Soft dreamy light baby pink background gradient
-    val pinkDreamyGradient = remember {
-        Brush.verticalGradient(
-            colors = listOf(
-                BabyPinkBgStart,
-                BabyPinkBgMiddle,
-                BabyPinkBgEnd,
-                BabyPinkBgCard
-            )
-        )
-    }
+    val playerBackground = BackgroundBrush
 
     Scaffold(
-        containerColor = BabyPinkBgStart,
+        containerColor = BackgroundColor,
         topBar = {
             TopAppBar(
                 title = {
@@ -103,7 +93,7 @@ fun FullPlayerScreen(
                                 letterSpacing = 1.2.sp,
                                 fontWeight = FontWeight.Bold
                             ),
-                            color = BabyPinkTextSecondary,
+                            color = TextSecondary,
                             fontSize = 10.sp
                         )
                         Text(
@@ -111,7 +101,7 @@ fun FullPlayerScreen(
                             style = MaterialTheme.typography.titleSmall.copy(
                                 fontWeight = FontWeight.Bold
                             ),
-                            color = BabyPinkTextPrimary,
+                            color = TextPrimary,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
@@ -122,7 +112,7 @@ fun FullPlayerScreen(
                         Icon(
                             Icons.Default.KeyboardArrowDown,
                             contentDescription = "Collapse Player",
-                            tint = BabyPinkTextPrimary,
+                            tint = TextPrimary,
                             modifier = Modifier.size(32.dp)
                         )
                     }
@@ -136,7 +126,7 @@ fun FullPlayerScreen(
                         Icon(
                             Icons.Default.Bedtime,
                             contentDescription = "Sleep Timer",
-                            tint = if (sleepTimerMinutesRemaining != null) BabyPinkPrimary else BabyPinkTextSecondary,
+                            tint = if (sleepTimerMinutesRemaining != null) AccentColor else TextSecondary,
                             modifier = Modifier.size(20.dp)
                         )
                     }
@@ -145,15 +135,15 @@ fun FullPlayerScreen(
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(12.dp))
-                            .background(if (playbackSpeed != 1.0f) BabyPinkPrimary.copy(alpha = 0.2f) else GlassSurfaceStrong)
-                            .border(1.dp, GlassBorder, RoundedCornerShape(12.dp))
+                            .background(if (playbackSpeed != 1.0f) AccentColor.copy(alpha = 0.2f) else SurfaceElevated)
+                            .border(1.dp, BorderColor, RoundedCornerShape(12.dp))
                             .clickable { showSpeedSheet = true }
                             .padding(horizontal = 7.dp, vertical = 4.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
                             text = if (playbackSpeed == 1.0f) "1x" else "${playbackSpeed}x",
-                            color = if (playbackSpeed != 1.0f) BabyPinkPrimary else BabyPinkTextPrimary,
+                            color = if (playbackSpeed != 1.0f) AccentColor else TextPrimary,
                             fontWeight = FontWeight.Bold,
                             fontSize = 11.sp
                         )
@@ -166,7 +156,7 @@ fun FullPlayerScreen(
                         Icon(
                             Icons.Default.Favorite,
                             contentDescription = "Together Mode 💗",
-                            tint = if (jamSession != null) BabyPinkPrimary else BabyPinkTextSecondary,
+                            tint = if (jamSession != null) AccentColor else TextSecondary,
                             modifier = Modifier.size(20.dp)
                         )
                     }
@@ -177,7 +167,7 @@ fun FullPlayerScreen(
                         Icon(
                             Icons.Default.GraphicEq,
                             contentDescription = "Equalizer & FX",
-                            tint = BabyPinkPrimary,
+                            tint = AccentColor,
                             modifier = Modifier.size(22.dp)
                         )
                     }
@@ -195,7 +185,7 @@ fun FullPlayerScreen(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(pinkDreamyGradient)
+                    .background(playerBackground)
                     .padding(paddingValues)
             ) {
                 Column(
@@ -214,11 +204,11 @@ fun FullPlayerScreen(
                             modifier = Modifier
                                 .padding(bottom = 6.dp)
                                 .clip(RoundedCornerShape(18.dp))
-                                .background(BabyPinkPrimary)
+                                .background(AccentColor)
                                 .border(
                                     1.dp,
                                     Brush.verticalGradient(
-                                        listOf(Color.White.copy(0.85f), Color.White.copy(0.2f))
+                                        listOf(BorderHighlight, BorderColor)
                                     ),
                                     RoundedCornerShape(18.dp)
                                 )
@@ -229,12 +219,12 @@ fun FullPlayerScreen(
                             Icon(
                                 imageVector = Icons.Default.Favorite,
                                 contentDescription = null,
-                                tint = Color.White,
+                                tint = OnAccentColor,
                                 modifier = Modifier.size(14.dp)
                             )
                             Text(
                                 text = lastJamAction.orEmpty(),
-                                color = Color.White,
+                                color = OnAccentColor,
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold
                             )
@@ -243,7 +233,7 @@ fun FullPlayerScreen(
 
                     // Together Mode Top Glass Strip (Section 11.3 C)
                     if (jamSession != null) {
-                        val partnerName = jamSession!!.participants.firstOrNull { it != jamSession!!.username } ?: "Laddu"
+                        val partnerName = jamSession!!.participants.firstOrNull { it != jamSession!!.username } ?: "your friend"
                         TogetherTopGlassStrip(
                             partnerName = partnerName,
                             userName = jamSession!!.username,
@@ -266,7 +256,7 @@ fun FullPlayerScreen(
                                         modifier = Modifier
                                             .fillMaxWidth()
                                             .aspectRatio(1f)
-                                            .doubleBezelCard(outerRadius = 28.dp),
+                                            .artworkFrame(outerRadius = 28.dp),
                                         contentAlignment = Alignment.Center
                                     ) {
                                         AsyncImage(
@@ -287,7 +277,7 @@ fun FullPlayerScreen(
                                     Column(
                                         modifier = Modifier
                                             .fillMaxSize()
-                                            .glassCard(cornerRadius = 24.dp)
+                                            .surfaceCard(cornerRadius = 24.dp)
                                             .padding(14.dp)
                                     ) {
                                         val actualCurrentIndex = if (currentQueueIndex >= 0 && currentQueueIndex < queue.size) {
@@ -315,12 +305,12 @@ fun FullPlayerScreen(
                                                 Text(
                                                     text = "Queue & Up Next",
                                                     fontWeight = FontWeight.Bold,
-                                                    color = BabyPinkTextPrimary,
+                                                    color = TextPrimary,
                                                     fontSize = 17.sp
                                                 )
                                                 Text(
                                                     text = "${manualUpcoming.size} queued • ${radioUpcoming.size} autoplay radio",
-                                                    color = BabyPinkTextSecondary,
+                                                    color = TextSecondary,
                                                     fontSize = 11.sp
                                                 )
                                             }
@@ -329,15 +319,15 @@ fun FullPlayerScreen(
                                                 Box(
                                                     modifier = Modifier
                                                         .clip(RoundedCornerShape(12.dp))
-                                                        .background(GlassSurfaceStrong)
-                                                        .border(1.dp, GlassBorder, RoundedCornerShape(12.dp))
+                                                        .background(SurfaceElevated)
+                                                        .border(1.dp, BorderColor, RoundedCornerShape(12.dp))
                                                         .hapticPress(scaleDown = 0.92f)
                                                         .clickable { viewModel.clearUpcomingQueue() }
                                                         .padding(horizontal = 10.dp, vertical = 5.dp)
                                                 ) {
                                                     Text(
                                                         text = "Clear All",
-                                                        color = BabyPinkPrimary,
+                                                        color = AccentColor,
                                                         fontSize = 11.sp,
                                                         fontWeight = FontWeight.Bold
                                                     )
@@ -355,8 +345,8 @@ fun FullPlayerScreen(
                                                     modifier = Modifier
                                                         .fillMaxWidth()
                                                         .clip(RoundedCornerShape(14.dp))
-                                                        .background(BabyPinkSoftRose.copy(alpha = 0.22f))
-                                                        .border(1.dp, BabyPinkPrimary.copy(alpha = 0.35f), RoundedCornerShape(14.dp))
+                                                        .background(AccentColorSoft.copy(alpha = 0.22f))
+                                                        .border(1.dp, AccentColor.copy(alpha = 0.35f), RoundedCornerShape(14.dp))
                                                         .padding(horizontal = 12.dp, vertical = 7.dp)
                                                 ) {
                                                     Row(
@@ -366,12 +356,12 @@ fun FullPlayerScreen(
                                                         Icon(
                                                             Icons.Default.Tune,
                                                             contentDescription = null,
-                                                            tint = BabyPinkPrimary,
+                                                            tint = AccentColor,
                                                             modifier = Modifier.size(15.dp)
                                                         )
                                                         Text(
                                                             text = "Reorder with ▲ & ▼ • Tap ⋮ for Play Next",
-                                                            color = BabyPinkTextPrimary,
+                                                            color = TextPrimary,
                                                             fontSize = 11.sp,
                                                             fontWeight = FontWeight.Medium
                                                         )
@@ -383,7 +373,7 @@ fun FullPlayerScreen(
                                             item {
                                                 Text(
                                                     text = "NOW PLAYING",
-                                                    color = BabyPinkPrimary,
+                                                    color = AccentColor,
                                                     fontSize = 11.sp,
                                                     fontWeight = FontWeight.Bold,
                                                     letterSpacing = 1.sp,
@@ -392,14 +382,14 @@ fun FullPlayerScreen(
                                                 Box(
                                                     modifier = Modifier
                                                         .fillMaxWidth()
-                                                        .doubleBezelCard(outerRadius = 20.dp)
+                                                        .artworkFrame(outerRadius = 20.dp)
                                                         .padding(2.dp)
                                                 ) {
                                                     Row(
                                                         modifier = Modifier
                                                             .fillMaxWidth()
                                                             .clip(RoundedCornerShape(18.dp))
-                                                            .background(BabyPinkSoftRose.copy(alpha = 0.40f))
+                                                            .background(AccentColorSoft.copy(alpha = 0.40f))
                                                             .padding(10.dp),
                                                         verticalAlignment = Alignment.CenterVertically
                                                     ) {
@@ -415,7 +405,7 @@ fun FullPlayerScreen(
                                                         Column(modifier = Modifier.weight(1f)) {
                                                             Text(
                                                                 text = track.title,
-                                                                color = BabyPinkTextPrimary,
+                                                                color = TextPrimary,
                                                                 fontWeight = FontWeight.Bold,
                                                                 fontSize = 14.sp,
                                                                 maxLines = 1,
@@ -423,14 +413,14 @@ fun FullPlayerScreen(
                                                             )
                                                             Text(
                                                                 text = track.artist,
-                                                                color = BabyPinkTextSecondary,
+                                                                color = TextSecondary,
                                                                 fontSize = 12.sp,
                                                                 maxLines = 1,
                                                                 overflow = TextOverflow.Ellipsis
                                                             )
                                                         }
                                                         AnimatedEqualizerBars(
-                                                            barColor = BabyPinkPrimary,
+                                                            barColor = AccentColor,
                                                             barCount = 4,
                                                             maxHeight = 18.dp,
                                                             isPlaying = isPlaying
@@ -444,7 +434,7 @@ fun FullPlayerScreen(
                                                 Spacer(modifier = Modifier.height(4.dp))
                                                 Text(
                                                     text = "UPCOMING IN QUEUE (${manualUpcoming.size})",
-                                                    color = BabyPinkTextSecondary,
+                                                    color = TextSecondary,
                                                     fontSize = 11.sp,
                                                     fontWeight = FontWeight.Bold,
                                                     letterSpacing = 1.sp,
@@ -458,14 +448,14 @@ fun FullPlayerScreen(
                                                         modifier = Modifier
                                                             .fillMaxWidth()
                                                             .clip(RoundedCornerShape(16.dp))
-                                                            .background(GlassSurfaceStrong.copy(alpha = 0.6f))
-                                                            .border(1.dp, GlassBorder, RoundedCornerShape(16.dp))
+                                                            .background(SurfaceElevated.copy(alpha = 0.6f))
+                                                            .border(1.dp, BorderColor, RoundedCornerShape(16.dp))
                                                             .padding(vertical = 14.dp, horizontal = 14.dp),
                                                         contentAlignment = Alignment.Center
                                                     ) {
                                                         Text(
                                                             text = "No manual tracks in queue • Autoplay radio will take over 🎶",
-                                                            color = BabyPinkTextSecondary,
+                                                            color = TextSecondary,
                                                             fontSize = 12.sp,
                                                             fontWeight = FontWeight.Medium
                                                         )
@@ -481,8 +471,8 @@ fun FullPlayerScreen(
                                                         modifier = Modifier
                                                             .fillMaxWidth()
                                                             .clip(RoundedCornerShape(16.dp))
-                                                            .background(GlassSurfaceStrong)
-                                                            .border(1.dp, GlassBorder, RoundedCornerShape(16.dp))
+                                                            .background(SurfaceElevated)
+                                                            .border(1.dp, BorderColor, RoundedCornerShape(16.dp))
                                                             .clickable {
                                                                 if (absoluteIndex != -1) viewModel.playTrackFromQueue(absoluteIndex)
                                                             }
@@ -501,7 +491,7 @@ fun FullPlayerScreen(
                                                         Column(modifier = Modifier.weight(1f)) {
                                                             Text(
                                                                 text = item.title,
-                                                                color = BabyPinkTextPrimary,
+                                                                color = TextPrimary,
                                                                 fontWeight = FontWeight.SemiBold,
                                                                 fontSize = 13.sp,
                                                                 maxLines = 1,
@@ -509,7 +499,7 @@ fun FullPlayerScreen(
                                                             )
                                                             Text(
                                                                 text = item.artist,
-                                                                color = BabyPinkTextSecondary,
+                                                                color = TextSecondary,
                                                                 fontSize = 11.sp,
                                                                 maxLines = 1,
                                                                 overflow = TextOverflow.Ellipsis
@@ -527,7 +517,7 @@ fun FullPlayerScreen(
                                                             Icon(
                                                                 Icons.Default.KeyboardArrowUp,
                                                                 contentDescription = "Move Up",
-                                                                tint = if (canMoveUp) BabyPinkPrimary else BabyPinkTextSecondary.copy(alpha = 0.3f),
+                                                                tint = if (canMoveUp) AccentColor else TextSecondary.copy(alpha = 0.3f),
                                                                 modifier = Modifier.size(18.dp)
                                                             )
                                                         }
@@ -543,7 +533,7 @@ fun FullPlayerScreen(
                                                             Icon(
                                                                 Icons.Default.KeyboardArrowDown,
                                                                 contentDescription = "Move Down",
-                                                                tint = if (canMoveDown) BabyPinkPrimary else BabyPinkTextSecondary.copy(alpha = 0.3f),
+                                                                tint = if (canMoveDown) AccentColor else TextSecondary.copy(alpha = 0.3f),
                                                                 modifier = Modifier.size(18.dp)
                                                             )
                                                         }
@@ -556,7 +546,7 @@ fun FullPlayerScreen(
                                                             Icon(
                                                                 Icons.Default.MoreVert,
                                                                 contentDescription = "More",
-                                                                tint = BabyPinkTextSecondary,
+                                                                tint = TextSecondary,
                                                                 modifier = Modifier.size(16.dp)
                                                             )
                                                         }
@@ -571,7 +561,7 @@ fun FullPlayerScreen(
                                                             Icon(
                                                                 Icons.Default.Close,
                                                                 contentDescription = "Remove",
-                                                                tint = BabyPinkTextSecondary,
+                                                                tint = TextSecondary,
                                                                 modifier = Modifier.size(16.dp)
                                                             )
                                                         }
@@ -589,12 +579,12 @@ fun FullPlayerScreen(
                                                         .background(
                                                             Brush.verticalGradient(
                                                                 listOf(
-                                                                    BabyPinkSoftRose.copy(alpha = 0.35f),
-                                                                    GlassSurfaceStrong.copy(alpha = 0.85f)
+                                                                    AccentColorSoft.copy(alpha = 0.35f),
+                                                                    SurfaceElevated.copy(alpha = 0.85f)
                                                                 )
                                                             )
                                                         )
-                                                        .border(1.2.dp, GlassBorder, RoundedCornerShape(20.dp))
+                                                        .border(1.2.dp, BorderColor, RoundedCornerShape(20.dp))
                                                         .padding(12.dp)
                                                 ) {
                                                     Column(modifier = Modifier.fillMaxWidth()) {
@@ -612,26 +602,26 @@ fun FullPlayerScreen(
                                                                     modifier = Modifier
                                                                         .size(32.dp)
                                                                         .clip(CircleShape)
-                                                                        .background(BabyPinkPrimary),
+                                                                        .background(AccentColor),
                                                                     contentAlignment = Alignment.Center
                                                                 ) {
                                                                     Icon(
                                                                         Icons.Default.Radio,
                                                                         contentDescription = null,
-                                                                        tint = Color.White,
+                                                                        tint = OnAccentColor,
                                                                         modifier = Modifier.size(16.dp)
                                                                     )
                                                                 }
                                                                 Column {
                                                                     Text(
                                                                         text = "Infinite Autoplay 📻",
-                                                                        color = BabyPinkTextPrimary,
+                                                                        color = TextPrimary,
                                                                         fontWeight = FontWeight.Bold,
                                                                         fontSize = 14.sp
                                                                     )
                                                                     Text(
                                                                         text = "YouTube Music smart stream",
-                                                                        color = BabyPinkTextSecondary,
+                                                                        color = TextSecondary,
                                                                         fontSize = 11.sp
                                                                     )
                                                                 }
@@ -652,7 +642,7 @@ fun FullPlayerScreen(
                                                                     Icon(
                                                                         Icons.Default.Refresh,
                                                                         contentDescription = "Refresh Radio",
-                                                                        tint = if (isInfiniteRadioLoading) BabyPinkPrimary.copy(alpha = 0.5f) else BabyPinkPrimary,
+                                                                        tint = if (isInfiniteRadioLoading) AccentColor.copy(alpha = 0.5f) else AccentColor,
                                                                         modifier = Modifier.size(18.dp)
                                                                     )
                                                                 }
@@ -662,11 +652,11 @@ fun FullPlayerScreen(
                                                                     modifier = Modifier
                                                                         .clip(RoundedCornerShape(16.dp))
                                                                         .background(
-                                                                            if (isInfiniteRadioAutoplayEnabled) BabyPinkPrimary else GlassSurface
+                                                                            if (isInfiniteRadioAutoplayEnabled) AccentColor else SurfaceColor
                                                                         )
                                                                         .border(
                                                                             1.dp,
-                                                                            if (isInfiniteRadioAutoplayEnabled) Color.White.copy(alpha = 0.8f) else GlassBorder,
+                                                                            if (isInfiniteRadioAutoplayEnabled) OnAccentColor.copy(alpha = 0.6f) else BorderColor,
                                                                             RoundedCornerShape(16.dp)
                                                                         )
                                                                         .hapticPress(scaleDown = 0.92f)
@@ -677,7 +667,7 @@ fun FullPlayerScreen(
                                                                 ) {
                                                                     Text(
                                                                         text = if (isInfiniteRadioAutoplayEnabled) "ON" else "OFF",
-                                                                        color = if (isInfiniteRadioAutoplayEnabled) Color.White else BabyPinkTextSecondary,
+                                                                        color = if (isInfiniteRadioAutoplayEnabled) OnAccentColor else TextSecondary,
                                                                         fontWeight = FontWeight.Bold,
                                                                         fontSize = 11.sp
                                                                     )
@@ -692,8 +682,8 @@ fun FullPlayerScreen(
                                                                     .fillMaxWidth()
                                                                     .height(3.dp)
                                                                     .clip(RoundedCornerShape(1.5.dp)),
-                                                                color = BabyPinkPrimary,
-                                                                trackColor = BabyPinkSoftRose.copy(alpha = 0.3f)
+                                                                color = AccentColor,
+                                                                trackColor = AccentColorSoft.copy(alpha = 0.3f)
                                                             )
                                                         }
                                                     }
@@ -707,14 +697,14 @@ fun FullPlayerScreen(
                                                         modifier = Modifier
                                                             .fillMaxWidth()
                                                             .clip(RoundedCornerShape(16.dp))
-                                                            .background(GlassSurfaceStrong.copy(alpha = 0.5f))
-                                                            .border(1.dp, GlassBorder, RoundedCornerShape(16.dp))
+                                                            .background(SurfaceElevated.copy(alpha = 0.5f))
+                                                            .border(1.dp, BorderColor, RoundedCornerShape(16.dp))
                                                             .padding(16.dp),
                                                         contentAlignment = Alignment.Center
                                                     ) {
                                                         Text(
                                                             text = "Endless radio is paused • Switch ON to stream similar music continuously",
-                                                            color = BabyPinkTextSecondary,
+                                                            color = TextSecondary,
                                                             fontSize = 12.sp,
                                                             fontWeight = FontWeight.Medium
                                                         )
@@ -726,8 +716,8 @@ fun FullPlayerScreen(
                                                         modifier = Modifier
                                                             .fillMaxWidth()
                                                             .clip(RoundedCornerShape(16.dp))
-                                                            .background(GlassSurfaceStrong.copy(alpha = 0.5f))
-                                                            .border(1.dp, GlassBorder, RoundedCornerShape(16.dp))
+                                                            .background(SurfaceElevated.copy(alpha = 0.5f))
+                                                            .border(1.dp, BorderColor, RoundedCornerShape(16.dp))
                                                             .padding(16.dp),
                                                         contentAlignment = Alignment.Center
                                                     ) {
@@ -736,13 +726,13 @@ fun FullPlayerScreen(
                                                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                                                         ) {
                                                             CircularProgressIndicator(
-                                                                color = BabyPinkPrimary,
+                                                                color = AccentColor,
                                                                 strokeWidth = 2.dp,
                                                                 modifier = Modifier.size(16.dp)
                                                             )
                                                             Text(
                                                                 text = "Tuning in similar songs matching this vibe...",
-                                                                color = BabyPinkTextSecondary,
+                                                                color = TextSecondary,
                                                                 fontSize = 12.sp,
                                                                 fontWeight = FontWeight.Medium
                                                             )
@@ -760,12 +750,12 @@ fun FullPlayerScreen(
                                                             .background(
                                                                 Brush.horizontalGradient(
                                                                     listOf(
-                                                                        GlassSurfaceStrong,
-                                                                        BabyPinkSoftRose.copy(alpha = 0.20f)
+                                                                        SurfaceElevated,
+                                                                        AccentColorSoft.copy(alpha = 0.20f)
                                                                     )
                                                                 )
                                                             )
-                                                            .border(1.dp, BabyPinkPrimary.copy(alpha = 0.25f), RoundedCornerShape(16.dp))
+                                                            .border(1.dp, AccentColor.copy(alpha = 0.25f), RoundedCornerShape(16.dp))
                                                             .clickable {
                                                                 if (absoluteIndex != -1) viewModel.playTrackFromQueue(absoluteIndex)
                                                             }
@@ -784,7 +774,7 @@ fun FullPlayerScreen(
                                                         Column(modifier = Modifier.weight(1f)) {
                                                             Text(
                                                                 text = item.title,
-                                                                color = BabyPinkTextPrimary,
+                                                                color = TextPrimary,
                                                                 fontWeight = FontWeight.SemiBold,
                                                                 fontSize = 13.sp,
                                                                 maxLines = 1,
@@ -796,7 +786,7 @@ fun FullPlayerScreen(
                                                             ) {
                                                                 Text(
                                                                     text = item.artist,
-                                                                    color = BabyPinkTextSecondary,
+                                                                    color = TextSecondary,
                                                                     fontSize = 11.sp,
                                                                     maxLines = 1,
                                                                     overflow = TextOverflow.Ellipsis
@@ -805,12 +795,12 @@ fun FullPlayerScreen(
                                                                 Box(
                                                                     modifier = Modifier
                                                                         .clip(RoundedCornerShape(8.dp))
-                                                                        .background(BabyPinkPrimary.copy(alpha = 0.15f))
+                                                                        .background(AccentColor.copy(alpha = 0.15f))
                                                                         .padding(horizontal = 5.dp, vertical = 1.dp)
                                                                 ) {
                                                                     Text(
                                                                         text = "⚡ Radio",
-                                                                        color = BabyPinkPrimary,
+                                                                        color = AccentColor,
                                                                         fontSize = 9.sp,
                                                                         fontWeight = FontWeight.Bold
                                                                     )
@@ -828,7 +818,7 @@ fun FullPlayerScreen(
                                                             Icon(
                                                                 Icons.Default.PlayArrow,
                                                                 contentDescription = "Play",
-                                                                tint = BabyPinkPrimary,
+                                                                tint = AccentColor,
                                                                 modifier = Modifier.size(20.dp)
                                                             )
                                                         }
@@ -841,7 +831,7 @@ fun FullPlayerScreen(
                                                             Icon(
                                                                 Icons.Default.MoreVert,
                                                                 contentDescription = "More",
-                                                                tint = BabyPinkTextSecondary,
+                                                                tint = TextSecondary,
                                                                 modifier = Modifier.size(16.dp)
                                                             )
                                                         }
@@ -856,7 +846,7 @@ fun FullPlayerScreen(
                                                             Icon(
                                                                 Icons.Default.Close,
                                                                 contentDescription = "Remove",
-                                                                tint = BabyPinkTextSecondary,
+                                                                tint = TextSecondary,
                                                                 modifier = Modifier.size(16.dp)
                                                             )
                                                         }
@@ -873,7 +863,7 @@ fun FullPlayerScreen(
                                     Box(
                                         modifier = Modifier
                                             .fillMaxSize()
-                                            .glassCard(cornerRadius = 24.dp)
+                                            .surfaceCard(cornerRadius = 24.dp)
                                     ) {
                                         SyncedLyricsView(
                                             lyrics = lyrics,
@@ -889,67 +879,67 @@ fun FullPlayerScreen(
                                     Column(
                                         modifier = Modifier
                                             .fillMaxSize()
-                                            .glassCard(cornerRadius = 24.dp)
+                                            .surfaceCard(cornerRadius = 24.dp)
                                             .padding(16.dp),
                                         verticalArrangement = Arrangement.spacedBy(14.dp)
                                     ) {
                                         Text(
                                             text = "About This Track",
                                             fontWeight = FontWeight.Bold,
-                                            color = BabyPinkTextPrimary,
+                                            color = TextPrimary,
                                             fontSize = 18.sp
                                         )
                                         Card(
                                             shape = RoundedCornerShape(18.dp),
-                                            colors = CardDefaults.cardColors(containerColor = GlassSurfaceStrong),
-                                            border = androidx.compose.foundation.BorderStroke(1.dp, GlassBorder),
+                                            colors = CardDefaults.cardColors(containerColor = SurfaceElevated),
+                                            border = androidx.compose.foundation.BorderStroke(1.dp, BorderColor),
                                             modifier = Modifier.fillMaxWidth()
                                         ) {
                                             Column(modifier = Modifier.padding(14.dp)) {
-                                                Text("Artist", color = BabyPinkTextSecondary, fontSize = 12.sp)
-                                                Text(track.artist, color = BabyPinkTextPrimary, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                                                Text("Artist", color = TextSecondary, fontSize = 12.sp)
+                                                Text(track.artist, color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 16.sp)
                                                 Spacer(modifier = Modifier.height(10.dp))
-                                                Text("Audio Quality", color = BabyPinkTextSecondary, fontSize = 12.sp)
-                                                Text(track.qualityBadge, color = BabyPinkPrimary, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                                Text("Audio Quality", color = TextSecondary, fontSize = 12.sp)
+                                                Text(track.qualityBadge, color = AccentColor, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                                                 Spacer(modifier = Modifier.height(10.dp))
-                                                Text("Audio Engine", color = BabyPinkTextSecondary, fontSize = 12.sp)
-                                                Text("Dual-ExoPlayer Crossfade Active", color = BabyPinkTextPrimary, fontSize = 13.sp)
+                                                Text("Audio Engine", color = TextSecondary, fontSize = 12.sp)
+                                                Text("Dual-ExoPlayer Crossfade Active", color = TextPrimary, fontSize = 13.sp)
                                             }
                                         }
 
                                         Button(
                                             onClick = { onNavigateToArtist(track.artist) },
-                                            colors = ButtonDefaults.buttonColors(containerColor = BabyPinkPrimary),
+                                            colors = ButtonDefaults.buttonColors(containerColor = AccentColor),
                                             shape = RoundedCornerShape(16.dp),
                                             modifier = Modifier.fillMaxWidth().hapticPress(scaleDown = 0.94f)
                                         ) {
-                                            Icon(Icons.Default.Person, contentDescription = null, tint = Color.White)
+                                            Icon(Icons.Default.Person, contentDescription = null, tint = OnAccentColor)
                                             Spacer(modifier = Modifier.width(8.dp))
-                                            Text("View Full Artist Discography", color = Color.White, fontWeight = FontWeight.Bold)
+                                            Text("View Full Artist Discography", color = OnAccentColor, fontWeight = FontWeight.Bold)
                                         }
 
                                         Button(
                                             onClick = { viewModel.startRadio() },
-                                            colors = ButtonDefaults.buttonColors(containerColor = BabyPinkCardBg),
-                                            border = ButtonDefaults.outlinedButtonBorder.copy(brush = androidx.compose.ui.graphics.SolidColor(BabyPinkBorder)),
+                                            colors = ButtonDefaults.buttonColors(containerColor = SurfaceColor),
+                                            border = ButtonDefaults.outlinedButtonBorder.copy(brush = androidx.compose.ui.graphics.SolidColor(BorderColor)),
                                             shape = RoundedCornerShape(16.dp),
                                             modifier = Modifier.fillMaxWidth().hapticPress(scaleDown = 0.94f)
                                         ) {
-                                            Icon(Icons.Default.Radio, contentDescription = null, tint = BabyPinkPrimary)
+                                            Icon(Icons.Default.Radio, contentDescription = null, tint = AccentColor)
                                             Spacer(modifier = Modifier.width(8.dp))
-                                            Text("Start Infinite Track Radio", color = BabyPinkPrimary, fontWeight = FontWeight.Bold)
+                                            Text("Start Infinite Track Radio", color = AccentColor, fontWeight = FontWeight.Bold)
                                         }
 
                                         Button(
                                             onClick = { viewModel.setSoundProfilesVisible(true) },
-                                            colors = ButtonDefaults.buttonColors(containerColor = BabyPinkCardBg),
-                                            border = ButtonDefaults.outlinedButtonBorder.copy(brush = androidx.compose.ui.graphics.SolidColor(BabyPinkBorder)),
+                                            colors = ButtonDefaults.buttonColors(containerColor = SurfaceColor),
+                                            border = ButtonDefaults.outlinedButtonBorder.copy(brush = androidx.compose.ui.graphics.SolidColor(BorderColor)),
                                             shape = RoundedCornerShape(16.dp),
                                             modifier = Modifier.fillMaxWidth().hapticPress(scaleDown = 0.94f)
                                         ) {
-                                            Icon(Icons.Default.GraphicEq, contentDescription = null, tint = BabyPinkTextPrimary)
+                                            Icon(Icons.Default.GraphicEq, contentDescription = null, tint = TextPrimary)
                                             Spacer(modifier = Modifier.width(8.dp))
-                                            Text("Customize Equalizer & Audio FX", color = BabyPinkTextPrimary, fontWeight = FontWeight.Bold)
+                                            Text("Customize Equalizer & Audio FX", color = TextPrimary, fontWeight = FontWeight.Bold)
                                         }
                                     }
                                 }
@@ -973,7 +963,7 @@ fun FullPlayerScreen(
                                     fontSize = 22.sp,
                                     letterSpacing = 0.4.sp
                                 ),
-                                color = BabyPinkTextPrimary,
+                                color = TextPrimary,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
@@ -982,7 +972,7 @@ fun FullPlayerScreen(
                                 Text(
                                     text = track.artist,
                                     style = MaterialTheme.typography.titleMedium,
-                                    color = BabyPinkTextSecondary,
+                                    color = TextSecondary,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis,
                                     modifier = Modifier
@@ -994,13 +984,13 @@ fun FullPlayerScreen(
                                 Box(
                                     modifier = Modifier
                                         .clip(RoundedCornerShape(6.dp))
-                                        .background(GlassSurfaceStrong)
-                                        .border(1.dp, GlassBorder, RoundedCornerShape(6.dp))
+                                        .background(SurfaceElevated)
+                                        .border(1.dp, BorderColor, RoundedCornerShape(6.dp))
                                         .padding(horizontal = 6.dp, vertical = 2.dp)
                                 ) {
                                     Text(
                                         text = track.qualityBadge,
-                                        color = BabyPinkPrimary,
+                                        color = AccentColor,
                                         fontSize = 10.sp,
                                         fontWeight = FontWeight.Bold
                                     )
@@ -1018,24 +1008,24 @@ fun FullPlayerScreen(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             IconButton(
-                                onClick = { viewModel.toggleDislike(track.id) },
+                                onClick = { viewModel.toggleDislike(track) },
                                 modifier = Modifier.hapticPress(scaleDown = 0.85f)
                             ) {
                                 Icon(
                                     imageVector = if (isDisliked) Icons.Default.ThumbDown else Icons.Outlined.ThumbDown,
                                     contentDescription = "Dislike",
-                                    tint = if (isDisliked) BabyPinkPrimary else BabyPinkTextSecondary,
+                                    tint = if (isDisliked) AccentColor else TextSecondary,
                                     modifier = Modifier.size(24.dp)
                                 )
                             }
                             IconButton(
-                                onClick = { viewModel.toggleLike(track.id) },
+                                onClick = { viewModel.toggleLike(track) },
                                 modifier = Modifier.hapticPress(scaleDown = 0.85f)
                             ) {
                                 Icon(
                                     imageVector = if (isLiked) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
                                     contentDescription = "Like",
-                                    tint = if (isLiked) BabyPinkPrimary else BabyPinkTextSecondary,
+                                    tint = if (isLiked) AccentColor else TextSecondary,
                                     modifier = Modifier.size(26.dp)
                                 )
                             }
@@ -1066,7 +1056,7 @@ fun FullPlayerScreen(
                             Icon(
                                 Icons.Default.Shuffle,
                                 contentDescription = "Shuffle",
-                                tint = if (isShuffle) BabyPinkPrimary else BabyPinkTextSecondary,
+                                tint = if (isShuffle) AccentColor else TextSecondary,
                                 modifier = Modifier.size(26.dp)
                             )
                         }
@@ -1081,12 +1071,12 @@ fun FullPlayerScreen(
                             Icon(
                                 Icons.Default.SkipPrevious,
                                 contentDescription = "Previous Track",
-                                tint = BabyPinkTextPrimary,
+                                tint = TextPrimary,
                                 modifier = Modifier.size(38.dp)
                             )
                         }
 
-                        // Primary Play/Pause Button with Soft Pink Glow and Specular Rim
+                        // Primary play/pause button with an accent glow and a specular rim
                         val infiniteTransition = rememberInfiniteTransition(label = "play_pulse")
                         val breathingScale by infiniteTransition.animateFloat(
                             initialValue = 1.0f,
@@ -1110,7 +1100,7 @@ fun FullPlayerScreen(
                                         .size(82.dp)
                                         .clip(CircleShape)
                                         .background(Color(0x40FFB6C1))
-                                        .border(1.dp, BabyPinkPrimary.copy(alpha = 0.5f), CircleShape)
+                                        .border(1.dp, AccentColor.copy(alpha = 0.5f), CircleShape)
                                 )
                             }
 
@@ -1122,23 +1112,23 @@ fun FullPlayerScreen(
                                         width = 2.dp,
                                         brush = Brush.verticalGradient(
                                             listOf(
-                                                Color.White.copy(alpha = 0.90f),
-                                                BabyPinkSoftRose.copy(alpha = 0.30f)
+                                                OnAccentColor.copy(alpha = 0.55f),
+                                                AccentColorSoft.copy(alpha = 0.30f)
                                             )
                                         ),
                                         shape = CircleShape
                                     )
                                     .hapticPress(scaleDown = 0.90f),
                                 colors = IconButtonDefaults.filledIconButtonColors(
-                                    containerColor = BabyPinkPrimary,
-                                    contentColor = Color.White
+                                    containerColor = AccentColor,
+                                    contentColor = OnAccentColor
                                 )
                             ) {
                                 Icon(
                                     imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
                                     contentDescription = if (isPlaying) "Pause" else "Play",
                                     modifier = Modifier.size(40.dp),
-                                    tint = Color.White
+                                    tint = OnAccentColor
                                 )
                             }
                         }
@@ -1153,7 +1143,7 @@ fun FullPlayerScreen(
                             Icon(
                                 Icons.Default.SkipNext,
                                 contentDescription = "Next Track",
-                                tint = BabyPinkTextPrimary,
+                                tint = TextPrimary,
                                 modifier = Modifier.size(38.dp)
                             )
                         }
@@ -1164,9 +1154,9 @@ fun FullPlayerScreen(
                             modifier = Modifier.hapticPress(scaleDown = 0.85f)
                         ) {
                             val (repeatIcon, repeatTint) = when (repeatMode) {
-                                RepeatMode.OFF -> Pair(Icons.Default.Repeat, BabyPinkTextSecondary)
-                                RepeatMode.ALL -> Pair(Icons.Default.Repeat, BabyPinkPrimary)
-                                RepeatMode.ONE -> Pair(Icons.Default.RepeatOne, BabyPinkPrimary)
+                                RepeatMode.OFF -> Pair(Icons.Default.Repeat, TextSecondary)
+                                RepeatMode.ALL -> Pair(Icons.Default.Repeat, AccentColor)
+                                RepeatMode.ONE -> Pair(Icons.Default.RepeatOne, AccentColor)
                             }
                             Icon(
                                 repeatIcon,
@@ -1194,10 +1184,10 @@ fun FullPlayerScreen(
                             modifier = Modifier
                                 .hapticPress(scaleDown = 0.92f)
                                 .clip(RoundedCornerShape(16.dp))
-                                .background(if (isSleepTimerActive) BabyPinkPrimary.copy(alpha = 0.25f) else GlassSurfaceStrong)
+                                .background(if (isSleepTimerActive) AccentColor.copy(alpha = 0.25f) else SurfaceElevated)
                                 .border(
                                     1.dp,
-                                    if (isSleepTimerActive) BabyPinkPrimary else GlassBorder,
+                                    if (isSleepTimerActive) AccentColor else BorderColor,
                                     RoundedCornerShape(16.dp)
                                 )
                                 .clickable { showSleepTimerSheet = true }
@@ -1211,12 +1201,12 @@ fun FullPlayerScreen(
                                 Icon(
                                     imageVector = Icons.Default.Bedtime,
                                     contentDescription = null,
-                                    tint = if (isSleepTimerActive) BabyPinkPrimary else BabyPinkTextPrimary,
+                                    tint = if (isSleepTimerActive) AccentColor else TextPrimary,
                                     modifier = Modifier.size(14.dp)
                                 )
                                 Text(
                                     text = if (isSleepTimerActive) "${sleepTimerMinutesRemaining}m" else "Sleep Timer",
-                                    color = if (isSleepTimerActive) BabyPinkPrimary else BabyPinkTextPrimary,
+                                    color = if (isSleepTimerActive) AccentColor else TextPrimary,
                                     fontWeight = if (isSleepTimerActive) FontWeight.Bold else FontWeight.Medium,
                                     fontSize = 12.sp
                                 )
@@ -1229,10 +1219,10 @@ fun FullPlayerScreen(
                             modifier = Modifier
                                 .hapticPress(scaleDown = 0.92f)
                                 .clip(RoundedCornerShape(16.dp))
-                                .background(if (isSpeedModified) BabyPinkPrimary.copy(alpha = 0.25f) else GlassSurfaceStrong)
+                                .background(if (isSpeedModified) AccentColor.copy(alpha = 0.25f) else SurfaceElevated)
                                 .border(
                                     1.dp,
-                                    if (isSpeedModified) BabyPinkPrimary else GlassBorder,
+                                    if (isSpeedModified) AccentColor else BorderColor,
                                     RoundedCornerShape(16.dp)
                                 )
                                 .clickable { showSpeedSheet = true }
@@ -1246,12 +1236,12 @@ fun FullPlayerScreen(
                                 Icon(
                                     imageVector = Icons.Default.Speed,
                                     contentDescription = null,
-                                    tint = if (isSpeedModified) BabyPinkPrimary else BabyPinkTextPrimary,
+                                    tint = if (isSpeedModified) AccentColor else TextPrimary,
                                     modifier = Modifier.size(14.dp)
                                 )
                                 Text(
                                     text = "${playbackSpeed}x",
-                                    color = if (isSpeedModified) BabyPinkPrimary else BabyPinkTextPrimary,
+                                    color = if (isSpeedModified) AccentColor else TextPrimary,
                                     fontWeight = if (isSpeedModified) FontWeight.Bold else FontWeight.Medium,
                                     fontSize = 12.sp
                                 )
@@ -1264,10 +1254,10 @@ fun FullPlayerScreen(
                             modifier = Modifier
                                 .hapticPress(scaleDown = 0.92f)
                                 .clip(RoundedCornerShape(16.dp))
-                                .background(if (isJamActive) BabyPinkPrimary else GlassSurfaceStrong)
+                                .background(if (isJamActive) AccentColor else SurfaceElevated)
                                 .border(
                                     1.dp,
-                                    if (isJamActive) Color.White else GlassBorder,
+                                    if (isJamActive) OnAccentColor.copy(alpha = 0.6f) else BorderColor,
                                     RoundedCornerShape(16.dp)
                                 )
                                 .clickable { viewModel.setJamSheetVisible(true) }
@@ -1281,12 +1271,12 @@ fun FullPlayerScreen(
                                 Icon(
                                     imageVector = Icons.Default.Favorite,
                                     contentDescription = null,
-                                    tint = if (isJamActive) Color.White else BabyPinkPrimary,
+                                    tint = if (isJamActive) OnAccentColor else AccentColor,
                                     modifier = Modifier.size(14.dp)
                                 )
                                 Text(
                                     text = if (isJamActive) "Synced 💗" else "Jam 💗",
-                                    color = if (isJamActive) Color.White else BabyPinkTextPrimary,
+                                    color = if (isJamActive) OnAccentColor else TextPrimary,
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 12.sp
                                 )
@@ -1298,8 +1288,8 @@ fun FullPlayerScreen(
                             modifier = Modifier
                                 .hapticPress(scaleDown = 0.92f)
                                 .clip(RoundedCornerShape(16.dp))
-                                .background(GlassSurfaceStrong)
-                                .border(1.dp, GlassBorder, RoundedCornerShape(16.dp))
+                                .background(SurfaceElevated)
+                                .border(1.dp, BorderColor, RoundedCornerShape(16.dp))
                                 .clickable { viewModel.setSoundProfilesVisible(true) }
                                 .padding(horizontal = 12.dp, vertical = 6.dp),
                             contentAlignment = Alignment.Center
@@ -1311,12 +1301,12 @@ fun FullPlayerScreen(
                                 Icon(
                                     imageVector = Icons.Default.GraphicEq,
                                     contentDescription = null,
-                                    tint = BabyPinkPrimary,
+                                    tint = AccentColor,
                                     modifier = Modifier.size(14.dp)
                                 )
                                 Text(
                                     text = "FX & EQ",
-                                    color = BabyPinkTextPrimary,
+                                    color = TextPrimary,
                                     fontWeight = FontWeight.Medium,
                                     fontSize = 12.sp
                                 )
@@ -1342,8 +1332,8 @@ fun FullPlayerScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(24.dp))
-                            .background(GlassSurfaceStrong)
-                            .border(1.dp, GlassBorder, RoundedCornerShape(24.dp))
+                            .background(SurfaceElevated)
+                            .border(1.dp, BorderColor, RoundedCornerShape(24.dp))
                             .padding(4.dp),
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
@@ -1458,7 +1448,7 @@ private fun PlayerSegmentPill(
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(20.dp))
-            .background(if (isSelected) BabyPinkPrimary else Color.Transparent)
+            .background(if (isSelected) AccentColor else Color.Transparent)
             .hapticPress(scaleDown = 0.95f)
             .clickable { onClick() }
             .padding(vertical = 8.dp),
@@ -1466,7 +1456,7 @@ private fun PlayerSegmentPill(
     ) {
         Text(
             text = label,
-            color = if (isSelected) BabyPinkTextPrimary else BabyPinkTextSecondary,
+            color = if (isSelected) TextPrimary else TextSecondary,
             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.SemiBold,
             fontSize = 12.sp,
             letterSpacing = 0.5.sp
@@ -1507,9 +1497,9 @@ private fun PlayerScrubberSection(
             valueRange = 0f..totalDuration.toFloat(),
             modifier = Modifier.fillMaxWidth(),
             colors = SliderDefaults.colors(
-                thumbColor = Color.White,
-                activeTrackColor = BabyPinkPrimary,
-                inactiveTrackColor = ProgressBarTrackPink
+                thumbColor = OnAccentColor,
+                activeTrackColor = AccentColor,
+                inactiveTrackColor = TrackColor
             )
         )
 
@@ -1523,13 +1513,13 @@ private fun PlayerScrubberSection(
             val totalSec = totalDuration / 1000L
             Text(
                 text = String.format("%d:%02d", currentSec / 60, currentSec % 60),
-                color = BabyPinkTextSecondary,
+                color = TextSecondary,
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Medium
             )
             Text(
                 text = String.format("%d:%02d", totalSec / 60, totalSec % 60),
-                color = BabyPinkTextSecondary,
+                color = TextSecondary,
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Medium
             )
