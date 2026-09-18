@@ -33,9 +33,9 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.auralis.app.presentation.artist.ArtistProfileScreen
+import com.auralis.app.presentation.explore.ExploreScreen
 import com.auralis.app.presentation.home.HomeScreen
-import com.auralis.app.presentation.home.HomeTab
-import com.auralis.app.presentation.home.HomeViewModel
+import com.auralis.app.presentation.library.LibraryScreen
 import com.auralis.app.presentation.player.MiniPlayer
 import com.auralis.app.presentation.player.PlayerSheet
 import com.auralis.app.presentation.player.PlayerSheetValue
@@ -96,37 +96,20 @@ fun AuralisNavGraph() {
                 )
         ) {
             composable("home") {
-                val viewModel: HomeViewModel = hiltViewModel()
                 HomeScreen(
-                    viewModel = viewModel,
-                    onTrackClick = { track -> viewModel.playTrack(track) },
                     onNavigateToSettings = { navController.navigate("settings") },
                     onNavigateToArtist = { artist -> navController.navigate("artist/${Uri.encode(artist)}") }
                 )
             }
 
             composable("explore") {
-                val viewModel: HomeViewModel = hiltViewModel()
-                LaunchedEffect(Unit) {
-                    viewModel.selectMood("Energize")
-                }
-                HomeScreen(
-                    viewModel = viewModel,
-                    onTrackClick = { track -> viewModel.playTrack(track) },
-                    onNavigateToSettings = { navController.navigate("settings") },
+                ExploreScreen(
                     onNavigateToArtist = { artist -> navController.navigate("artist/${Uri.encode(artist)}") }
                 )
             }
 
             composable("library") {
-                val viewModel: HomeViewModel = hiltViewModel()
-                LaunchedEffect(Unit) {
-                    viewModel.selectTab(HomeTab.Downloaded)
-                }
-                HomeScreen(
-                    viewModel = viewModel,
-                    onTrackClick = { track -> viewModel.playTrack(track) },
-                    onNavigateToSettings = { navController.navigate("settings") },
+                LibraryScreen(
                     onNavigateToArtist = { artist -> navController.navigate("artist/${Uri.encode(artist)}") }
                 )
             }
@@ -141,11 +124,7 @@ fun AuralisNavGraph() {
                 route = "artist/{artistName}",
                 arguments = listOf(navArgument("artistName") { type = NavType.StringType })
             ) {
-                val homeViewModel: HomeViewModel = hiltViewModel()
-                ArtistProfileScreen(
-                    onNavigateBack = { navController.popBackStack() },
-                    onTrackClick = { track -> homeViewModel.playTrack(track) }
-                )
+                ArtistProfileScreen(onNavigateBack = { navController.popBackStack() })
             }
         }
 

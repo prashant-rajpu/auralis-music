@@ -38,7 +38,7 @@ import kotlin.random.Random
 
 /**
  * Together Mode (Couple Sync) Bottom Sheet Modal
- * "Laddu Sync" / "Babu & Wifeeee Session"
+ * Create or join a listen-together session.
  * Listen-together dialog: create or join a session.
  */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -58,11 +58,11 @@ fun TogetherModeBottomSheet(
     var isHostTab by remember { mutableStateOf(true) }
     var generatedCode by remember { mutableStateOf("BABU-${Random.nextInt(1000, 9999)}") }
     var joinCodeInput by remember { mutableStateOf("") }
-    var usernameInput by remember { mutableStateOf("Babu") }
+    var usernameInput by remember { mutableStateOf("") }
     var showLeaveConfirmation by remember { mutableStateOf(false) }
 
     val partnerName = remember(session) {
-        session?.participants?.firstOrNull { it != session.username } ?: "Laddu"
+        session?.participants?.firstOrNull { it != session.username } ?: "your friend"
     }
 
     if (showLeaveConfirmation) {
@@ -170,9 +170,9 @@ fun TogetherModeBottomSheet(
 
                 Text(
                     text = if (session != null)
-                        "Listening with $partnerName • Laddu Sync"
+                        "Listening with $partnerName, in sync"
                     else
-                        "Laddu Sync • Babu & Wifeeee Session\nListen in real-time sync with your partner",
+                        "Play the same song at the same moment, on two phones",
                     style = MaterialTheme.typography.bodySmall,
                     color = TextSecondary,
                     textAlign = TextAlign.Center,
@@ -276,7 +276,7 @@ fun TogetherModeBottomSheet(
                                             action = Intent.ACTION_SEND
                                             putExtra(
                                                 Intent.EXTRA_TEXT,
-                                                "Hey my love 💗 Babu wants to listen to music together with you on Auralis! Join our Together Session with room code: ${session.jamId} 🎶💏"
+                                                "Listen with me on Auralis — join my session with the room code ${session.jamId} 🎶"
                                             )
                                             type = "text/plain"
                                         }
@@ -454,7 +454,7 @@ fun TogetherModeBottomSheet(
 
                     Spacer(modifier = Modifier.height(14.dp))
 
-                    // Romantic Name Preset Chips ("Laddu 💖", "Babu 💗", "Wifeeee 🥰")
+                    // Saved name presets. Phase 5 makes these editable rather than baked in.
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(6.dp)
@@ -540,7 +540,7 @@ fun TogetherModeBottomSheet(
 
                         Button(
                             onClick = {
-                                val name = usernameInput.ifBlank { "Babu" }
+                                val name = usernameInput.ifBlank { "Host" }
                                 onStartTogether(generatedCode, name)
                             },
                             colors = ButtonDefaults.buttonColors(containerColor = AccentColor),
@@ -556,7 +556,7 @@ fun TogetherModeBottomSheet(
                                 )
                                 .hapticPress(scaleDown = 0.94f)
                         ) {
-                            Text("Start & Invite Laddu 💗", color = OnAccentColor, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                            Text("Start a session", color = OnAccentColor, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                         }
 
                     } else {
@@ -573,7 +573,7 @@ fun TogetherModeBottomSheet(
                             ) {
                                 Text(text = "💌", fontSize = 22.sp)
                                 Text(
-                                    text = "Babu wants to listen with you 💗",
+                                    text = "Someone wants to listen with you",
                                     color = TextPrimary,
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 13.sp
@@ -605,7 +605,7 @@ fun TogetherModeBottomSheet(
                         OutlinedTextField(
                             value = usernameInput,
                             onValueChange = { usernameInput = it },
-                            placeholder = { Text("Your Name (e.g. Laddu)", color = TextSecondary, fontSize = 12.sp) },
+                            placeholder = { Text("Your name", color = TextTertiary, fontSize = 12.sp) },
                             singleLine = true,
                             shape = RoundedCornerShape(16.dp),
                             colors = OutlinedTextFieldDefaults.colors(
@@ -638,7 +638,7 @@ fun TogetherModeBottomSheet(
                             Button(
                                 onClick = {
                                     if (JamProtocolHelper.isValidJamCode(joinCodeInput)) {
-                                        val name = usernameInput.ifBlank { "Laddu" }
+                                        val name = usernameInput.ifBlank { "Guest" }
                                         onJoinTogether(joinCodeInput, name)
                                     }
                                 },
@@ -652,7 +652,7 @@ fun TogetherModeBottomSheet(
                                     .weight(1.2f)
                                     .hapticPress(scaleDown = 0.94f)
                             ) {
-                                Text("Join Together 💗", color = OnAccentColor, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                Text("Join the session", color = OnAccentColor, fontWeight = FontWeight.Bold, fontSize = 13.sp)
                             }
                         }
                     }

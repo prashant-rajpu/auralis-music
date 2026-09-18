@@ -37,7 +37,6 @@ import com.auralis.app.ui.theme.*
 @Composable
 fun ArtistProfileScreen(
     onNavigateBack: () -> Unit,
-    onTrackClick: (Track) -> Unit,
     viewModel: ArtistProfileViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -91,7 +90,7 @@ fun ArtistProfileScreen(
                     onNavigateBack = onNavigateBack,
                     onPlayAll = { viewModel.playAllTopSongs() },
                     onStartRadio = { viewModel.startArtistRadio() },
-                    onTrackClick = onTrackClick
+                    onTrackClick = { track -> viewModel.playTrack(track, state.profile.topSongs) }
                 )
             }
         }

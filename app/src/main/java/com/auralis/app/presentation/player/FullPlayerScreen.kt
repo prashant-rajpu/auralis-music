@@ -233,7 +233,7 @@ fun FullPlayerScreen(
 
                     // Together Mode Top Glass Strip (Section 11.3 C)
                     if (jamSession != null) {
-                        val partnerName = jamSession!!.participants.firstOrNull { it != jamSession!!.username } ?: "Laddu"
+                        val partnerName = jamSession!!.participants.firstOrNull { it != jamSession!!.username } ?: "your friend"
                         TogetherTopGlassStrip(
                             partnerName = partnerName,
                             userName = jamSession!!.username,

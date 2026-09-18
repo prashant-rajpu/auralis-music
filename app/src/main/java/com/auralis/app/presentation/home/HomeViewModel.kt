@@ -2,205 +2,130 @@ package com.auralis.app.presentation.home
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.auralis.app.data.local.MediaStoreSource
-import com.auralis.app.domain.model.Provider
 import com.auralis.app.domain.model.Track
 import com.auralis.app.domain.repository.MusicRepository
-import com.auralis.app.network.JamWebSocketClient
 import com.auralis.app.playback.PlaybackManager
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-enum class HomeTab {
-    Trending,
-    Downloaded
+/** One horizontally scrolling row of the Home feed. */
+data class Shelf(
+    val id: String,
+    val title: String,
+    val subtitle: String?,
+    val tracks: List<Track>
+)
+
+sealed interface HomeFeedState {
+    data object Loading : HomeFeedState
+    data class Ready(val shelves: List<Shelf>) : HomeFeedState
+    data class Empty(val message: String) : HomeFeedState
 }
+
+private const val MAX_SHELF_TRACKS = 12
+private const val MIN_SHELF_TRACKS = 3
 
 @HiltViewModel
 class HomeViewModel @Inject constructor(
     private val repository: MusicRepository,
-    private val playbackManager: PlaybackManager,
-    private val jamClient: JamWebSocketClient,
-    private val mediaStoreSource: MediaStoreSource
+    private val playbackManager: PlaybackManager
 ) : ViewModel() {
 
-    /** Runtime permission that unlocks on-device music, and whether it has been granted. */
-    val localAudioPermission: String = mediaStoreSource.permission
+    private val personalization = playbackManager.personalizationManager
 
-    private val _hasLocalAudioPermission = MutableStateFlow(mediaStoreSource.hasPermission())
-    val hasLocalAudioPermission: StateFlow<Boolean> = _hasLocalAudioPermission.asStateFlow()
+    private val _feed = MutableStateFlow<HomeFeedState>(HomeFeedState.Loading)
+    val feed: StateFlow<HomeFeedState> = _feed.asStateFlow()
 
-    fun refreshLocalAudioPermission() {
-        val granted = mediaStoreSource.hasPermission()
-        val changed = granted != _hasLocalAudioPermission.value
-        _hasLocalAudioPermission.value = granted
-        if (changed && granted && _selectedTab.value == HomeTab.Downloaded) {
-            loadOfflineTracks()
-        }
-    }
-
-    private val _selectedTab = MutableStateFlow(HomeTab.Trending)
-    val selectedTab: StateFlow<HomeTab> = _selectedTab.asStateFlow()
-
-    private val _searchQuery = MutableStateFlow("")
-    val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
-
-    private val _sourceFilter = MutableStateFlow<Provider?>(null)
-    val sourceFilter: StateFlow<Provider?> = _sourceFilter.asStateFlow()
-
-    /** Online catalogs in this build, for the filter chips. */
-    val availableSources: List<Provider> = repository.availableProviders
-
-    private val _selectedMood = MutableStateFlow("All")
-    val selectedMood: StateFlow<String> = _selectedMood.asStateFlow()
-
-    private val _uiState = MutableStateFlow<HomeUiState>(HomeUiState.Loading)
-    val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
-
-    private var searchJob: Job? = null
+    val recentTracks: StateFlow<List<Track>> = personalization.recentTracks
+    val topArtists: StateFlow<List<String>> = personalization.topArtists
 
     init {
-        loadTrendingTracks()
+        refresh()
     }
 
-    fun selectTab(tab: HomeTab) {
-        _selectedTab.value = tab
-        if (tab == HomeTab.Downloaded) {
-            loadOfflineTracks()
-        } else {
-            if (_searchQuery.value.isNotBlank()) {
-                performSearch(_searchQuery.value, _sourceFilter.value)
-            } else if (_selectedMood.value != "All") {
-                performSearch(_selectedMood.value, _sourceFilter.value)
-            } else {
-                loadTrendingTracks()
-            }
-        }
-    }
+    fun greeting(): Pair<String, String> = personalization.getTimeOfDayGreeting()
 
-    fun selectMood(mood: String) {
-        _selectedMood.value = mood
-        if (_selectedTab.value == HomeTab.Downloaded) {
-            _selectedTab.value = HomeTab.Trending
-        }
-        if (mood == "All") {
-            if (_searchQuery.value.isNotBlank()) {
-                performSearch(_searchQuery.value, _sourceFilter.value)
-            } else {
-                loadTrendingTracks()
-            }
-        } else {
-            performSearch(mood, _sourceFilter.value)
-        }
-    }
-
-    fun selectSourceFilter(source: Provider?) {
-        _sourceFilter.value = source
-        val query = if (_searchQuery.value.isNotBlank()) {
-            _searchQuery.value
-        } else if (_selectedMood.value != "All") {
-            _selectedMood.value
-        } else {
-            ""
-        }
-        if (query.isNotBlank()) {
-            performSearch(query, source)
-        } else {
-            loadTrendingTracks()
-        }
-    }
-
-    fun onSearchQueryChange(query: String) {
-        _searchQuery.value = query
-        searchJob?.cancel()
-        if (query.isBlank()) {
-            if (_selectedTab.value == HomeTab.Downloaded) {
-                loadOfflineTracks()
-            } else if (_selectedMood.value != "All") {
-                performSearch(_selectedMood.value, _sourceFilter.value)
-            } else {
-                loadTrendingTracks()
-            }
-            return
-        }
-
-        searchJob = viewModelScope.launch {
-            delay(400) // 400ms debounce
-            performSearch(query, _sourceFilter.value)
-        }
-    }
-
-    private fun performSearch(query: String, source: Provider? = null) {
+    /**
+     * Every shelf is fetched independently and in parallel: one catalog being down or slow costs
+     * that shelf, not the whole feed. A shelf too thin to be worth a row is dropped, and a track
+     * only appears in the first shelf that claims it so the feed does not repeat itself.
+     */
+    fun refresh() {
         viewModelScope.launch {
-            _uiState.value = HomeUiState.Loading
-            try {
-                val tracks = repository.searchTracks(query, source)
-                if (tracks.isEmpty()) {
-                    _uiState.value = HomeUiState.Error("No tracks found for '$query'")
-                } else {
-                    _uiState.value = HomeUiState.Success(tracks)
-                }
-            } catch (e: Exception) {
-                _uiState.value = HomeUiState.Error(e.message ?: "Search failed")
-            }
-        }
-    }
+            _feed.value = HomeFeedState.Loading
 
-    fun loadTrendingTracks() {
-        viewModelScope.launch {
-            _uiState.value = HomeUiState.Loading
-            try {
-                val tracks = repository.fetchServerTracks(_sourceFilter.value)
-                if (tracks.isEmpty()) {
-                    val offline = repository.fetchLocalTracks()
-                    if (offline.isNotEmpty()) {
-                        _selectedTab.value = HomeTab.Downloaded
-                        _uiState.value = HomeUiState.Success(offline)
-                    } else {
-                        _uiState.value = HomeUiState.Error("No tracks found. Check your internet connection.")
+            val mood = personalization.getTimeOfDaySuggestedMood()
+            val favouriteArtists = personalization.topArtists.value.take(2)
+
+            val requests = buildList {
+                add(
+                    ShelfRequest("mood:$mood", "$mood for right now", "Picked for this time of day") {
+                        repository.searchTracks(mood)
                     }
-                } else {
-                    _uiState.value = HomeUiState.Success(tracks)
-                }
-            } catch (e: Exception) {
-                val offline = repository.fetchLocalTracks()
-                if (offline.isNotEmpty()) {
-                    _selectedTab.value = HomeTab.Downloaded
-                    _uiState.value = HomeUiState.Success(offline)
-                } else {
-                    _uiState.value = HomeUiState.Error(e.message ?: "Failed to connect. No offline tracks saved.")
-                }
-            }
-        }
-    }
-
-    fun loadOfflineTracks() {
-        viewModelScope.launch {
-            _uiState.value = HomeUiState.Loading
-            try {
-                val tracks = repository.fetchLocalTracks()
-                if (tracks.isEmpty()) {
-                    _uiState.value = HomeUiState.Error(
-                        if (_hasLocalAudioPermission.value) {
-                            "Nothing here yet. Download a song, or add music to this device."
-                        } else {
-                            "Nothing downloaded yet. Allow access to find music already on this device."
+                )
+                favouriteArtists.forEach { artist ->
+                    add(
+                        ShelfRequest("artist:$artist", "More like $artist", "Because you keep playing them") {
+                            repository.searchTracks(artist)
                         }
                     )
-                } else {
-                    _uiState.value = HomeUiState.Success(tracks)
                 }
-            } catch (e: Exception) {
-                _uiState.value = HomeUiState.Error("Failed to load local tracks: ${e.message}")
+                repository.availableProviders.forEach { provider ->
+                    add(
+                        ShelfRequest("trending:${provider.id}", "Trending on ${provider.displayName}", null) {
+                            repository.fetchServerTracks(provider)
+                        }
+                    )
+                }
+                add(
+                    ShelfRequest("local", "On this device", "Your downloads and local files") {
+                        repository.fetchLocalTracks()
+                    }
+                )
+            }
+
+            val loaded = coroutineScope {
+                requests
+                    .map { request -> async { request to runCatching { request.load() }.getOrDefault(emptyList()) } }
+                    .awaitAll()
+            }
+
+            val claimed = mutableSetOf<String>()
+            val shelves = loaded.mapNotNull { (request, tracks) ->
+                val unique = tracks.asSequence()
+                    .filter { it.id !in claimed }
+                    .distinctBy { it.id }
+                    .take(MAX_SHELF_TRACKS)
+                    .toList()
+                if (unique.size < MIN_SHELF_TRACKS) return@mapNotNull null
+                claimed += unique.map { it.id }
+                Shelf(request.id, request.title, request.subtitle, unique)
+            }
+
+            _feed.value = if (shelves.isEmpty()) {
+                HomeFeedState.Empty("Nothing to show yet. Check your connection, or add music to this device.")
+            } else {
+                HomeFeedState.Ready(shelves)
             }
         }
     }
+
+    fun play(track: Track, within: List<Track>) {
+        playbackManager.playTrack(track, within.ifEmpty { listOf(track) })
+    }
+
+    fun playNext(track: Track) = playbackManager.playNext(track)
+
+    fun addToQueue(track: Track) = playbackManager.addToQueue(track)
+
+    fun startRadio(track: Track) = playbackManager.startRadio(track)
 
     fun toggleDownload(track: Track) {
         viewModelScope.launch {
@@ -209,29 +134,16 @@ class HomeViewModel @Inject constructor(
             } else {
                 repository.downloadTrack(track)
             }
-            if (_selectedTab.value == HomeTab.Downloaded) {
-                loadOfflineTracks()
-            } else if (_searchQuery.value.isNotBlank()) {
-                performSearch(_searchQuery.value, _sourceFilter.value)
-            } else if (_selectedMood.value != "All") {
-                performSearch(_selectedMood.value, _sourceFilter.value)
-            } else {
-                loadTrendingTracks()
-            }
+            refresh()
         }
     }
 
-    fun playTrack(track: Track) {
-        val currentList = (_uiState.value as? HomeUiState.Success)?.tracks ?: listOf(track)
-        playbackManager.playTrack(track, currentList)
-    }
-
+    // Listen Together lives on Home because it is the feature people start a session from.
     val jamSession = playbackManager.jamSession
-    val jamState = playbackManager.jamState
-    val lastJamAction = playbackManager.lastJamAction
+    val isJamConnected = playbackManager.jamClient.isConnected
 
-    fun startJam(jamId: String, username: String) {
-        playbackManager.jamClient.startJam(jamId, username)
+    fun startJam(code: String, username: String) {
+        playbackManager.jamClient.startJam(code, username)
         playbackManager.currentTrack.value?.let { track ->
             playbackManager.jamClient.broadcastPlaybackState(
                 track,
@@ -241,61 +153,16 @@ class HomeViewModel @Inject constructor(
         }
     }
 
-    fun joinJam(jamId: String, username: String) {
-        playbackManager.jamClient.joinJam(jamId, username)
-    }
+    fun joinJam(code: String, username: String) = playbackManager.jamClient.joinJam(code, username)
 
-    val isJamConnected = playbackManager.jamClient.isConnected
+    fun leaveJam() = playbackManager.jamClient.disconnect()
 
-    fun reconnectJam() {
-        playbackManager.jamClient.reconnect()
-    }
-
-    fun leaveJam() {
-        playbackManager.jamClient.disconnect()
-    }
-
-    val recentTracks: StateFlow<List<Track>> = playbackManager.personalizationManager.recentTracks
-    val topArtists: StateFlow<List<String>> = playbackManager.personalizationManager.topArtists
-
-    fun getTimeOfDayGreeting(): Pair<String, String> =
-        playbackManager.personalizationManager.getTimeOfDayGreeting()
-
-    fun getTimeOfDaySuggestedMood(): String =
-        playbackManager.personalizationManager.getTimeOfDaySuggestedMood()
-
-    fun playNext(track: Track) {
-        playbackManager.playNext(track)
-    }
-
-    fun addToQueue(track: Track) {
-        playbackManager.addToQueue(track)
-    }
-
-    fun startRadio(track: Track) {
-        playbackManager.startRadio(track)
-    }
-
-    val playbackSpeed = playbackManager.playbackSpeed
-    val sleepTimerMinutesRemaining = playbackManager.sleepTimerMinutesRemaining
-
-    fun setPlaybackSpeed(speed: Float) {
-        playbackManager.setPlaybackSpeed(speed)
-    }
-
-    fun setSleepTimer(minutes: Int?) {
-        playbackManager.setSleepTimer(minutes)
-    }
-
-    val isInfiniteRadioAutoplayEnabled = playbackManager.isInfiniteRadioAutoplayEnabled
-
-    fun toggleInfiniteRadioAutoplay(enabled: Boolean) {
-        playbackManager.setInfiniteRadioAutoplay(enabled)
-    }
+    fun reconnectJam() = playbackManager.jamClient.reconnect()
 }
 
-sealed class HomeUiState {
-    object Loading : HomeUiState()
-    data class Success(val tracks: List<Track>) : HomeUiState()
-    data class Error(val message: String) : HomeUiState()
-}
+private class ShelfRequest(
+    val id: String,
+    val title: String,
+    val subtitle: String?,
+    val load: suspend () -> List<Track>
+)

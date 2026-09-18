@@ -35,16 +35,13 @@ import com.auralis.app.ui.theme.*
 import kotlinx.coroutines.delay
 import kotlin.random.Random
 
-/**
- * Together Mode "Listen Together 💗" Pill / Button with subtle breathing glow animation.
- * Adheres strictly to Section 11.3 A.
- */
+/** The "Listen together" pill, with a slow breathing glow while a session is live. */
 @Composable
 fun TogetherModeButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     isTogetherActive: Boolean = false,
-    partnerName: String = "Laddu"
+    partnerName: String? = null
 ) {
     val infiniteTransition = rememberInfiniteTransition(label = "together_button_pulse")
     val pulseScale by infiniteTransition.animateFloat(
@@ -93,7 +90,11 @@ fun TogetherModeButton(
                 modifier = Modifier.size(16.dp)
             )
             Text(
-                text = if (isTogetherActive) "With $partnerName 💗" else "Listen Together 💗",
+                text = when {
+                    isTogetherActive && partnerName != null -> "With $partnerName"
+                    isTogetherActive -> "Listening together"
+                    else -> "Listen together"
+                },
                 color = if (isTogetherActive) OnAccentColor else TextPrimary,
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Bold
@@ -189,7 +190,7 @@ fun TogetherTopGlassStrip(
                 fontSize = 13.sp
             )
             Text(
-                text = "Laddu Sync • Babu & Wifeeee Session",
+                text = "In sync, on both phones",
                 style = MaterialTheme.typography.labelSmall,
                 color = TextSecondary,
                 fontSize = 10.sp

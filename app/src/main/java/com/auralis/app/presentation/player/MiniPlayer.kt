@@ -168,7 +168,7 @@ private fun MiniPlayerContent(
                     }
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
-                        text = if (lastJamAction != null) "💖 $lastJamAction" else if (isJamActive) "Together with ${jamParticipants.ifEmpty { "Laddu" }} 💗 • Synced" else "${track.artist} • ${track.qualityBadge}",
+                        text = if (lastJamAction != null) "💖 $lastJamAction" else if (isJamActive) "Together with ${jamParticipants.ifEmpty { "a friend" }} 💗 • Synced" else "${track.artist} • ${track.qualityBadge}",
                         style = MaterialTheme.typography.bodySmall.copy(
                             fontSize = 12.sp,
                             fontWeight = if (isJamActive || lastJamAction != null) FontWeight.Bold else FontWeight.Medium
