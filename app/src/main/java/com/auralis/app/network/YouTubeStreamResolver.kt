@@ -1,7 +1,9 @@
 package com.auralis.app.network
 
 import android.util.Log
+import com.auralis.app.domain.model.AudioQualitySetting
 import com.auralis.app.domain.model.Track
+import com.auralis.app.domain.source.StreamResolver
 import com.google.gson.Gson
 import com.google.gson.JsonObject
 import kotlinx.coroutines.Dispatchers
@@ -22,9 +24,8 @@ private data class CachedStream(
 @Singleton
 class YouTubeStreamResolver @Inject constructor(
     private val client: OkHttpClient,
-    private val jioSaavnApi: JioSaavnApi,
-    private val openSourceMusicApi: OpenSourceMusicApi
-) {
+    private val jioSaavnApi: JioSaavnApi
+) : StreamResolver {
     private val gson = Gson()
     private val streamCache = ConcurrentHashMap<String, CachedStream>()
 
@@ -33,63 +34,58 @@ class YouTubeStreamResolver @Inject constructor(
     @Volatile private var cachedSignatureTimestamp: Long = 20710L
     @Volatile private var lastTokenRefreshTime: Long = 0L
 
-    suspend fun resolveStreamUrl(track: Track, forceRefresh: Boolean = false): String = withContext(Dispatchers.IO) {
-        if (JamProtocolHelper.isLocalFileUrl(track.mediaUrl)) {
-            return@withContext track.mediaUrl
-        }
+    override val priority = 0
 
-        val videoId = track.getYouTubeVideoId()
+    override fun supports(track: Track): Boolean =
+        !JamProtocolHelper.isLocalFileUrl(track.mediaUrl) && track.isYouTubeTrack()
 
-        // If mediaUrl is already a playable direct audio stream and not a web link, return it immediately
-        if (videoId.isNullOrBlank() && JamProtocolHelper.isPlayableDirectStreamUrl(track.mediaUrl)) {
-            return@withContext track.mediaUrl
-        }
+    override suspend fun resolve(track: Track, quality: AudioQualitySetting, forceRefresh: Boolean): String? =
+        withContext(Dispatchers.IO) {
+            val videoId = track.getYouTubeVideoId()
+            val cacheKey = "${videoId ?: track.id}:${quality.name}"
 
-        val cacheKey = videoId ?: track.id
-
-        // 1. Check in-memory cache if not forcing refresh
-        if (!forceRefresh) {
-            val cached = streamCache[cacheKey]
-            if (cached != null && System.currentTimeMillis() < cached.expiresAtMs) {
-                Log.d("YouTubeStreamResolver", "Serving cached stream for $cacheKey")
-                return@withContext cached.url
+            // 1. Check in-memory cache if not forcing refresh
+            if (!forceRefresh) {
+                val cached = streamCache[cacheKey]
+                if (cached != null && System.currentTimeMillis() < cached.expiresAtMs) {
+                    Log.d("YouTubeStreamResolver", "Serving cached stream for $cacheKey")
+                    return@withContext cached.url
+                }
             }
-        }
 
-        // 2. Catalog match: JioSaavn 320 kbps AAC, else a Deezer preview
-        val masterStreamUrl = resolveViaCatalog(track)
-        if (!masterStreamUrl.isNullOrBlank()) {
-            Log.d("YouTubeStreamResolver", "Resolved $cacheKey via catalog match: $masterStreamUrl")
-            streamCache[cacheKey] = CachedStream(
-                url = masterStreamUrl,
-                expiresAtMs = System.currentTimeMillis() + (12 * 3600 * 1000L)
-            )
-            return@withContext masterStreamUrl
-        }
-
-        // 3. Fallback: YouTube Innertube Direct Audio Extraction
-        if (!videoId.isNullOrBlank()) {
-            ensureVisitorToken()
-            val directStreamUrl = extractFromInnertube(videoId)
-            if (!directStreamUrl.isNullOrBlank()) {
-                Log.d("YouTubeStreamResolver", "Successfully extracted direct GoogleVideo audio for $videoId")
+            // 2. Same song on JioSaavn: a stable 320 kbps AAC file beats an expiring googlevideo URL
+            val catalogUrl = resolveViaCatalog(track, quality)
+            if (!catalogUrl.isNullOrBlank()) {
+                Log.d("YouTubeStreamResolver", "Resolved $cacheKey via catalog match")
                 streamCache[cacheKey] = CachedStream(
-                    url = directStreamUrl,
-                    expiresAtMs = System.currentTimeMillis() + (4 * 3600 * 1000L)
+                    url = catalogUrl,
+                    expiresAtMs = System.currentTimeMillis() + (12 * 3600 * 1000L)
                 )
-                return@withContext directStreamUrl
+                return@withContext catalogUrl
             }
-        }
 
-        // 4. Validate if original mediaUrl is directly playable
-        if (JamProtocolHelper.isPlayableDirectStreamUrl(track.mediaUrl)) {
-            return@withContext track.mediaUrl
-        }
+            // 3. YouTube Innertube direct audio extraction
+            if (!videoId.isNullOrBlank()) {
+                ensureVisitorToken()
+                val directStreamUrl = extractFromInnertube(videoId, quality)
+                if (!directStreamUrl.isNullOrBlank()) {
+                    Log.d("YouTubeStreamResolver", "Extracted direct GoogleVideo audio for $videoId")
+                    streamCache[cacheKey] = CachedStream(
+                        url = directStreamUrl,
+                        expiresAtMs = System.currentTimeMillis() + (4 * 3600 * 1000L)
+                    )
+                    return@withContext directStreamUrl
+                }
+            }
 
-        Log.e("YouTubeStreamResolver", "Could not resolve stream URL for ${track.title} ($videoId)")
-        // Never return an unplayable web page URL to ExoPlayer
-        ""
-    }
+            // 4. An already-resolved googlevideo URL is fine to reuse
+            if (JamProtocolHelper.isPlayableDirectStreamUrl(track.mediaUrl)) {
+                return@withContext track.mediaUrl
+            }
+
+            Log.w("YouTubeStreamResolver", "Could not resolve stream URL for ${track.title} ($videoId)")
+            null
+        }
 
     private fun ensureVisitorToken() {
         val now = System.currentTimeMillis()
@@ -118,7 +114,7 @@ class YouTubeStreamResolver @Inject constructor(
         }
     }
 
-    private fun extractFromInnertube(videoId: String): String? {
+    private fun extractFromInnertube(videoId: String, quality: AudioQualitySetting): String? {
         try {
             val jsonBody = """
                 {
@@ -174,23 +170,17 @@ class YouTubeStreamResolver @Inject constructor(
                 val streamingData = root.getAsJsonObject("streamingData") ?: return null
                 val formats = streamingData.getAsJsonArray("adaptiveFormats") ?: return null
 
-                var bestUrl: String? = null
-                var maxBitrate = 0L
-
-                for (elem in formats) {
+                val audio = formats.mapNotNull { elem ->
                     val formatObj = elem.asJsonObject
                     val mimeType = formatObj.get("mimeType")?.asString ?: ""
                     val url = formatObj.get("url")?.asString
-
                     if (mimeType.contains("audio") && !url.isNullOrBlank()) {
-                        val bitrate = formatObj.get("bitrate")?.asLong ?: 0L
-                        if (bitrate > maxBitrate) {
-                            maxBitrate = bitrate
-                            bestUrl = url
-                        }
+                        (formatObj.get("bitrate")?.asLong ?: 0L) to url
+                    } else {
+                        null
                     }
                 }
-                return bestUrl
+                return pickFormat(audio, quality)
             }
         } catch (e: Exception) {
             Log.w("YouTubeStreamResolver", "Innertube extraction exception for $videoId", e)
@@ -198,32 +188,36 @@ class YouTubeStreamResolver @Inject constructor(
         }
     }
 
-    private suspend fun resolveViaCatalog(track: Track): String? {
+    private suspend fun resolveViaCatalog(track: Track, quality: AudioQualitySetting): String? {
         try {
             val searchQuery = JamProtocolHelper.cleanSearchQuery(track.title, track.artist)
             val resp = jioSaavnApi.searchSongs(query = searchQuery, count = 5)
-            val candidates = resp.results.orEmpty()
-
-            for (candidate in candidates) {
+            for (candidate in resp.results.orEmpty()) {
                 val encrypted = candidate.moreInfo?.encryptedMediaUrl
                 if (!encrypted.isNullOrBlank()) {
                     val mediaUrl = JioSaavnDecryptor.decryptMediaUrl(encrypted)
                     if (!mediaUrl.isNullOrBlank()) {
-                        return mediaUrl
+                        return JioSaavnDecryptor.withQuality(mediaUrl, quality)
                     }
                 }
-            }
-
-            // Fallback: OpenSource / Deezer preview stream
-            val deezerResp = openSourceMusicApi.searchTracks(query = searchQuery, limit = 1)
-            val firstDeezer = deezerResp.data?.firstOrNull()
-            if (!firstDeezer?.preview.isNullOrBlank()) {
-                return firstDeezer?.preview
             }
         } catch (e: Exception) {
             Log.w("YouTubeStreamResolver", "Catalog resolution failed for ${track.title}", e)
         }
         return null
     }
-}
 
+    companion object {
+        /** Highest bitrate at or under the setting's ceiling; the lowest available when nothing fits. */
+        fun pickFormat(audioFormats: List<Pair<Long, String>>, quality: AudioQualitySetting): String? {
+            if (audioFormats.isEmpty()) return null
+            val ceilingBps = when (quality) {
+                AudioQualitySetting.HIGH -> Long.MAX_VALUE
+                AudioQualitySetting.STANDARD -> 170_000L
+                AudioQualitySetting.DATA_SAVER -> 100_000L
+            }
+            val fitting = audioFormats.filter { it.first <= ceilingBps }
+            return (fitting.maxByOrNull { it.first } ?: audioFormats.minByOrNull { it.first })?.second
+        }
+    }
+}

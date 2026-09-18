@@ -2,7 +2,9 @@ package com.auralis.app.presentation.settings
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.auralis.app.domain.model.AudioQualitySetting
 import com.auralis.app.domain.model.Track
+import com.auralis.app.lyrics.LyricsRepository
 import com.auralis.app.playback.*
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -20,8 +22,13 @@ sealed interface SettingsToastEvent {
 class SettingsViewModel @Inject constructor(
     val preferences: AuralisSettingsPreferences,
     val playlistSharingManager: PlaylistSharingManager,
-    val playbackManager: PlaybackManager
+    val playbackManager: PlaybackManager,
+    lyricsRepository: LyricsRepository,
+    segmentSkippers: Set<@JvmSuppressWildcards SegmentSkipper>
 ) : ViewModel() {
+
+    val availableLyricsProviders: List<LyricsProvider> = lyricsRepository.availableProviders
+    val hasSegmentSkipper: Boolean = segmentSkippers.isNotEmpty()
 
     val lyricsProvider = preferences.lyricsProvider
     val lyricsAutoScroll = preferences.lyricsAutoScroll
@@ -30,6 +37,7 @@ class SettingsViewModel @Inject constructor(
 
     val infiniteRadioAutoplay = preferences.infiniteRadioAutoplay
     val sponsorBlockEnabled = preferences.sponsorBlockEnabled
+    val audioQuality = preferences.audioQuality
     val hapticIntensity = preferences.hapticIntensity
 
     val userPlaylists = playlistSharingManager.userPlaylists
@@ -71,6 +79,10 @@ class SettingsViewModel @Inject constructor(
 
     fun toggleSponsorBlock(enabled: Boolean) {
         preferences.setSponsorBlockEnabled(enabled)
+    }
+
+    fun setAudioQuality(quality: AudioQualitySetting) {
+        preferences.setAudioQuality(quality)
     }
 
     fun setHapticIntensity(intensity: HapticIntensity) {

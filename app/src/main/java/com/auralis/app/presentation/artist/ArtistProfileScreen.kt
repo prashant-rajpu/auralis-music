@@ -31,7 +31,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.auralis.app.domain.model.Track
-import com.auralis.app.network.ArtistProfile
+import com.auralis.app.domain.model.ArtistProfile
 import com.auralis.app.ui.theme.*
 
 @Composable

@@ -7,14 +7,32 @@ data class Track(
     val albumArtUrl: String?,
     val mediaUrl: String,
     val durationMs: Long,
-    val source: String = "Auralis Master",
+    val source: String = "Auralis",
     val qualityBadge: String = "HQ Audio",
     val isDownloaded: Boolean = false,
     val lyrics: List<LyricLine>? = null,
     val isAutoplayRecommendation: Boolean = false
 ) {
+    /**
+     * Derived rather than stored: a data class `copy()` would keep a stale value, and the id
+     * prefix is what every source already encodes. Phase 3 replaces the prefixes with real ids.
+     */
+    val provider: Provider
+        get() = Provider.infer(id, mediaUrl)
+
+    /** The id inside the provider's own catalog (YouTube video id, JioSaavn song id, ...). */
+    val providerId: String
+        get() = when (provider) {
+            Provider.YOUTUBE -> getYouTubeVideoId() ?: id.removePrefix("yt_")
+            Provider.AUDIUS -> id.removePrefix("auralis_global_")
+            Provider.JIOSAAVN -> id.removePrefix("auralis_")
+            Provider.JAMENDO -> id.removePrefix("jamendo_")
+            Provider.LOCAL -> id.removePrefix("local_")
+            Provider.IMPORTED -> id
+        }
+
     fun isYouTubeTrack(): Boolean =
-        id.startsWith("yt_") ||
+        provider == Provider.YOUTUBE ||
         mediaUrl.contains("youtube.com") ||
         mediaUrl.contains("youtu.be") ||
         mediaUrl.contains("googlevideo.com") ||

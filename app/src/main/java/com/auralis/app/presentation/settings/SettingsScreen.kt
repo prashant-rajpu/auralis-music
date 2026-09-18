@@ -31,6 +31,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.auralis.app.domain.model.AudioQualitySetting
 import com.auralis.app.playback.*
 import com.auralis.app.ui.theme.*
 
@@ -50,6 +51,7 @@ fun SettingsScreen(
 
     val infiniteRadioAutoplay by viewModel.infiniteRadioAutoplay.collectAsState()
     val sponsorBlockEnabled by viewModel.sponsorBlockEnabled.collectAsState()
+    val audioQuality by viewModel.audioQuality.collectAsState()
     val hapticIntensity by viewModel.hapticIntensity.collectAsState()
 
     val userPlaylists by viewModel.userPlaylists.collectAsState()
@@ -261,7 +263,7 @@ fun SettingsScreen(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                LyricsProvider.values().forEach { provider ->
+                                viewModel.availableLyricsProviders.forEach { provider ->
                                     val isSelected = lyricsProvider == provider
                                     val shortLabel = when (provider) {
                                         LyricsProvider.AUTO -> "Auto"
@@ -629,16 +631,66 @@ fun SettingsScreen(
                                 onCheckedChange = { viewModel.toggleInfiniteRadio(it) }
                             )
 
+                            if (viewModel.hasSegmentSkipper) {
+                                HorizontalDivider(color = BabyPinkBorder, thickness = 0.5.dp)
+
+                                SettingsToggleRow(
+                                    title = "SponsorBlock Music Auto-Skip",
+                                    subtitle = "Auto-skips non-music video intros, dialogue, and sketches",
+                                    checked = sponsorBlockEnabled,
+                                    onCheckedChange = { viewModel.toggleSponsorBlock(it) }
+                                )
+                            }
+
                             HorizontalDivider(color = BabyPinkBorder, thickness = 0.5.dp)
 
-                            // SponsorBlock
-                            SettingsToggleRow(
-                                title = "SponsorBlock Music Auto-Skip",
-                                subtitle = "Auto-skips non-music video intros, dialogue, and sketches",
-                                checked = sponsorBlockEnabled,
-                                onCheckedChange = { viewModel.toggleSponsorBlock(it) }
-                            )
+                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Text(
+                                    text = "Streaming Quality",
+                                    color = BabyPinkTextPrimary,
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                                Text(
+                                    text = "Applies to catalogs that offer several bitrates",
+                                    color = BabyPinkTextSecondary,
+                                    fontSize = 11.sp
+                                )
 
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    AudioQualitySetting.values().forEach { quality ->
+                                        val isSelected = audioQuality == quality
+                                        Box(
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .clip(RoundedCornerShape(12.dp))
+                                                .background(if (isSelected) BabyPinkPrimary else BabyPinkCardBg)
+                                                .border(
+                                                    width = 1.dp,
+                                                    color = if (isSelected) BabyPinkPrimary else BabyPinkBorder,
+                                                    shape = RoundedCornerShape(12.dp)
+                                                )
+                                                .clickable { viewModel.setAudioQuality(quality) }
+                                                .padding(vertical = 8.dp),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Text(
+                                                text = when (quality) {
+                                                    AudioQualitySetting.HIGH -> "Best"
+                                                    AudioQualitySetting.STANDARD -> "160 kbps"
+                                                    AudioQualitySetting.DATA_SAVER -> "96 kbps"
+                                                },
+                                                color = if (isSelected) Color.White else BabyPinkTextPrimary,
+                                                fontSize = 12.sp,
+                                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                                            )
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                 }

@@ -1,11 +1,10 @@
 package com.auralis.app.di
 
 import com.auralis.app.BuildConfig
+import com.auralis.app.data.remote.jamendo.JamendoApi
 import com.auralis.app.network.AudiusApi
-import com.auralis.app.network.JioSaavnApi
 import com.auralis.app.network.LrclibApi
-import com.auralis.app.network.NetEaseLyricsApi
-import com.auralis.app.network.OpenSourceMusicApi
+import com.auralis.app.network.LyricsOvhApi
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -47,81 +46,30 @@ object NetworkModule {
             .build()
     }
 
-    @Provides
-    @Singleton
-    fun provideDeezerApi(okHttpClient: OkHttpClient): OpenSourceMusicApi {
-        return Retrofit.Builder()
-            .baseUrl("https://api.deezer.com/")
+    private fun retrofit(okHttpClient: OkHttpClient, baseUrl: String): Retrofit =
+        Retrofit.Builder()
+            .baseUrl(baseUrl)
             .client(okHttpClient)
             .addConverterFactory(GsonConverterFactory.create())
             .build()
-            .create(OpenSourceMusicApi::class.java)
-    }
 
     @Provides
     @Singleton
-    fun provideJioSaavnApi(okHttpClient: OkHttpClient): JioSaavnApi {
-        return Retrofit.Builder()
-            .baseUrl("https://www.jiosaavn.com/")
-            .client(okHttpClient)
-            .addConverterFactory(GsonConverterFactory.create())
-            .build()
-            .create(JioSaavnApi::class.java)
-    }
+    fun provideAudiusApi(okHttpClient: OkHttpClient): AudiusApi =
+        retrofit(okHttpClient, "https://discoveryprovider.audius.co/").create(AudiusApi::class.java)
 
     @Provides
     @Singleton
-    fun provideAudiusApi(okHttpClient: OkHttpClient): AudiusApi {
-        return Retrofit.Builder()
-            .baseUrl("https://discoveryprovider.audius.co/")
-            .client(okHttpClient)
-            .addConverterFactory(GsonConverterFactory.create())
-            .build()
-            .create(AudiusApi::class.java)
-    }
+    fun provideJamendoApi(okHttpClient: OkHttpClient): JamendoApi =
+        retrofit(okHttpClient, "https://api.jamendo.com/").create(JamendoApi::class.java)
 
     @Provides
     @Singleton
-    fun provideLrclibApi(okHttpClient: OkHttpClient): LrclibApi {
-        return Retrofit.Builder()
-            .baseUrl("https://lrclib.net/")
-            .client(okHttpClient)
-            .addConverterFactory(GsonConverterFactory.create())
-            .build()
-            .create(LrclibApi::class.java)
-    }
+    fun provideLrclibApi(okHttpClient: OkHttpClient): LrclibApi =
+        retrofit(okHttpClient, "https://lrclib.net/").create(LrclibApi::class.java)
 
     @Provides
     @Singleton
-    fun provideNetEaseLyricsApi(okHttpClient: OkHttpClient): NetEaseLyricsApi {
-        return Retrofit.Builder()
-            .baseUrl("https://music.163.com/")
-            .client(okHttpClient)
-            .addConverterFactory(GsonConverterFactory.create())
-            .build()
-            .create(NetEaseLyricsApi::class.java)
-    }
-
-    @Provides
-    @Singleton
-    fun provideLyricsOvhApi(okHttpClient: OkHttpClient): com.auralis.app.network.LyricsOvhApi {
-        return Retrofit.Builder()
-            .baseUrl("https://api.lyrics.ovh/")
-            .client(okHttpClient)
-            .addConverterFactory(GsonConverterFactory.create())
-            .build()
-            .create(com.auralis.app.network.LyricsOvhApi::class.java)
-    }
-
-    @Provides
-    @Singleton
-    fun provideSponsorBlockApi(okHttpClient: OkHttpClient): com.auralis.app.network.SponsorBlockApi {
-        return Retrofit.Builder()
-            .baseUrl("https://sponsor.ajay.app/")
-            .client(okHttpClient)
-            .addConverterFactory(GsonConverterFactory.create())
-            .build()
-            .create(com.auralis.app.network.SponsorBlockApi::class.java)
-    }
+    fun provideLyricsOvhApi(okHttpClient: OkHttpClient): LyricsOvhApi =
+        retrofit(okHttpClient, "https://api.lyrics.ovh/").create(LyricsOvhApi::class.java)
 }
-

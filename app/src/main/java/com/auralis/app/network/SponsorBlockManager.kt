@@ -1,6 +1,8 @@
 package com.auralis.app.network
 
 import android.util.Log
+import com.auralis.app.domain.model.Track
+import com.auralis.app.playback.SegmentSkipper
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
@@ -9,7 +11,7 @@ import javax.inject.Singleton
 @Singleton
 class SponsorBlockManager @Inject constructor(
     private val sponsorBlockApi: SponsorBlockApi
-) {
+) : SegmentSkipper {
     // In-memory cache for fast lookup during playback position ticks
     private val segmentCache = mutableMapOf<String, List<SponsorSegment>>()
 
@@ -54,4 +56,16 @@ class SponsorBlockManager @Inject constructor(
         }
         return hit?.endMs
     }
+
+    override fun supports(track: Track): Boolean = track.isYouTubeTrack()
+
+    override suspend fun prepare(track: Track) {
+        fetchSegments(videoIdOf(track))
+    }
+
+    override fun introSkipTargetMs(track: Track): Long? = getIntroSkipTargetMs(videoIdOf(track))
+
+    override fun skipTargetMs(track: Track, positionMs: Long): Long? = checkSkipTargetMs(videoIdOf(track), positionMs)
+
+    private fun videoIdOf(track: Track): String = track.getYouTubeVideoId() ?: track.id.removePrefix("yt_")
 }

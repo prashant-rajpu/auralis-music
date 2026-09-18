@@ -2,6 +2,7 @@ package com.auralis.app.presentation.home
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.auralis.app.domain.model.Provider
 import com.auralis.app.domain.model.Track
 import com.auralis.app.domain.repository.MusicRepository
 import com.auralis.app.network.JamWebSocketClient
@@ -33,8 +34,11 @@ class HomeViewModel @Inject constructor(
     private val _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
 
-    private val _sourceFilter = MutableStateFlow("All")
-    val sourceFilter: StateFlow<String> = _sourceFilter.asStateFlow()
+    private val _sourceFilter = MutableStateFlow<Provider?>(null)
+    val sourceFilter: StateFlow<Provider?> = _sourceFilter.asStateFlow()
+
+    /** Online catalogs in this build, for the filter chips. */
+    val availableSources: List<Provider> = repository.availableProviders
 
     private val _selectedMood = MutableStateFlow("All")
     val selectedMood: StateFlow<String> = _selectedMood.asStateFlow()
@@ -79,14 +83,12 @@ class HomeViewModel @Inject constructor(
         }
     }
 
-    fun selectSourceFilter(source: String) {
+    fun selectSourceFilter(source: Provider?) {
         _sourceFilter.value = source
         val query = if (_searchQuery.value.isNotBlank()) {
             _searchQuery.value
         } else if (_selectedMood.value != "All") {
             _selectedMood.value
-        } else if (source != "All" && source != "320 kbps Master" && source != "Lossless") {
-            source
         } else {
             ""
         }
@@ -117,7 +119,7 @@ class HomeViewModel @Inject constructor(
         }
     }
 
-    private fun performSearch(query: String, source: String = "All") {
+    private fun performSearch(query: String, source: Provider? = null) {
         viewModelScope.launch {
             _uiState.value = HomeUiState.Loading
             try {
@@ -137,7 +139,7 @@ class HomeViewModel @Inject constructor(
         viewModelScope.launch {
             _uiState.value = HomeUiState.Loading
             try {
-                val tracks = repository.fetchServerTracks()
+                val tracks = repository.fetchServerTracks(_sourceFilter.value)
                 if (tracks.isEmpty()) {
                     val offline = repository.fetchLocalTracks()
                     if (offline.isNotEmpty()) {

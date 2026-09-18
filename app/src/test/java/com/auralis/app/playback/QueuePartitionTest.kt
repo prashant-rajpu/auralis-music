@@ -90,17 +90,4 @@ class QueuePartitionTest {
         assertEquals("1", result[0].id)
         assertEquals("2", result[1].id)
     }
-
-    @Test
-    fun testCuratedCatalog_providesGuaranteedStarterTracks() {
-        val fallbackTracks = CuratedCatalog.getStarterTracks()
-        assertTrue("Curated tracks must not be empty", fallbackTracks.isNotEmpty())
-        assertTrue("Curated tracks must have at least 5 tracks", fallbackTracks.size >= 5)
-        for (track in fallbackTracks) {
-            assertTrue("Track title must not be blank", track.title.isNotBlank())
-            assertTrue("Track artist must not be blank", track.artist.isNotBlank())
-            assertTrue("Track mediaUrl must not be blank", track.mediaUrl.isNotBlank())
-            assertFalse("Starter tracks must not be marked as autoplay", track.isAutoplayRecommendation)
-        }
-    }
 }

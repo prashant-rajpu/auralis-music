@@ -2,6 +2,7 @@ package com.auralis.app.network
 
 import android.util.Base64
 import android.util.Log
+import com.auralis.app.domain.model.AudioQualitySetting
 import javax.crypto.Cipher
 import javax.crypto.spec.SecretKeySpec
 
@@ -24,12 +25,22 @@ object JioSaavnDecryptor {
             val decryptedBytes = cipher.doFinal(decodedBytes)
             val rawUrl = String(decryptedBytes, Charsets.UTF_8).trim()
 
-            // Upgrade stream to 320 kbps MP4/AAC
-            rawUrl.replace("_96.mp4", "_320.mp4")
-                .replace("_160.mp4", "_320.mp4")
+            withQuality(rawUrl, AudioQualitySetting.HIGH)
         } catch (e: Exception) {
             Log.w("JioSaavnDecryptor", "Failed to decrypt media url", e)
             null
         }
+    }
+
+    private val BITRATE_SUFFIX = Regex("""_(96|160|320)\.mp4""")
+
+    /** JioSaavn serves the same file at 96, 160 and 320 kbps; pick the variant for the setting. */
+    fun withQuality(url: String, quality: AudioQualitySetting): String {
+        val kbps = when (quality) {
+            AudioQualitySetting.HIGH -> 320
+            AudioQualitySetting.STANDARD -> 160
+            AudioQualitySetting.DATA_SAVER -> 96
+        }
+        return url.replace(BITRATE_SUFFIX, "_$kbps.mp4")
     }
 }

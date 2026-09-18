@@ -17,6 +17,10 @@ fun releaseSigning(key: String, envVar: String): String? =
     keystoreProperties.getProperty(key)?.takeIf { it.isNotBlank() }
         ?: System.getenv(envVar)?.takeIf { it.isNotBlank() }
 
+// Jamendo needs a free developer client id (https://devportal.jamendo.com); the source is disabled without one.
+val jamendoClientId: String = (project.findProperty("auralis.jamendoClientId") as String?)
+    ?: System.getenv("AURALIS_JAMENDO_CLIENT_ID") ?: ""
+
 android {
     namespace = "com.auralis.app"
     compileSdk = 37
@@ -32,6 +36,7 @@ android {
         vectorDrawables {
             useSupportLibrary = true
         }
+        buildConfigField("String", "JAMENDO_CLIENT_ID", "\"$jamendoClientId\"")
     }
 
     signingConfigs {
@@ -87,6 +92,13 @@ android {
         abortOnError = false
         checkReleaseBuilds = false
     }
+
+    testOptions {
+        unitTests {
+            // android.util.Log is a stub on the JVM; let it no-op instead of throwing
+            isReturnDefaultValues = true
+        }
+    }
 }
 
 kotlin {
@@ -131,6 +143,8 @@ dependencies {
     implementation(libs.guava)
 
     testImplementation(libs.junit)
+    testImplementation(libs.mockk)
+    testImplementation(libs.kotlinx.coroutines.test)
     androidTestImplementation(libs.androidx.test.ext.junit)
     androidTestImplementation(libs.androidx.test.espresso.core)
     androidTestImplementation(platform(libs.androidx.compose.bom))

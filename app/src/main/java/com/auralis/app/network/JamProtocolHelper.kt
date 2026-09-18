@@ -49,12 +49,12 @@ object JamProtocolHelper {
     private const val MAX_CODE_LENGTH = 32
 
     // Only these hosts may ever be handed to ExoPlayer as a remote stream.
-    private val STREAM_HOSTS = listOf("googlevideo.com", "saavncdn.com", "audius.co", "dzcdn.net")
+    private val STREAM_HOSTS = listOf("googlevideo.com", "saavncdn.com", "audius.co", "jamendo.com")
 
     // Only these hosts may be loaded as artwork when a peer sends a track.
     private val ARTWORK_HOSTS = listOf(
         "ytimg.com", "googleusercontent.com", "ggpht.com",
-        "saavncdn.com", "audius.co", "dzcdn.net", "unsplash.com"
+        "saavncdn.com", "audius.co", "jamendo.com", "unsplash.com"
     )
 
     private val YOUTUBE_WATCH_URL = Regex("""^https://(www\.|music\.)?youtube\.com/watch\?v=[0-9A-Za-z_-]{11}$""")
@@ -106,7 +106,7 @@ object JamProtocolHelper {
     }
 
     fun isLocalFileUrl(url: String?): Boolean =
-        !url.isNullOrBlank() && (url.startsWith("file://") || url.startsWith("/"))
+        !url.isNullOrBlank() && (url.startsWith("file://") || url.startsWith("content://") || url.startsWith("/"))
 
     fun isYouTubeWatchUrl(url: String?): Boolean = url != null && YOUTUBE_WATCH_URL.matches(url)
 

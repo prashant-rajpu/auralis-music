@@ -1,5 +1,6 @@
 # Gson reflects over the Retrofit response DTOs and Jam protocol messages in this package.
 -keep class com.auralis.app.network.** { *; }
+-keep class com.auralis.app.data.remote.** { *; }
 -keepattributes Signature, *Annotation*, EnclosingMethod, InnerClasses
 -keepclassmembers,allowobfuscation class * {
     @com.google.gson.annotations.SerializedName <fields>;

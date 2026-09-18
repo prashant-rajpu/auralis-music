@@ -2,6 +2,7 @@ package com.auralis.app.playback
 
 import android.content.Context
 import android.content.SharedPreferences
+import com.auralis.app.domain.model.AudioQualitySetting
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -20,12 +21,6 @@ enum class LyricsFontSize(val label: String, val sizeSp: Int) {
     COMPACT("Compact", 14),
     STANDARD("Romantic Standard", 18),
     LARGE("Large Karaoke", 23)
-}
-
-enum class AudioQualitySetting(val label: String, val bitrateKbps: Int) {
-    HIGH("320 kbps Studio Master", 320),
-    STANDARD("160 kbps High Definition", 160),
-    DATA_SAVER("96 kbps Data Saver", 96)
 }
 
 enum class HapticIntensity(val label: String) {

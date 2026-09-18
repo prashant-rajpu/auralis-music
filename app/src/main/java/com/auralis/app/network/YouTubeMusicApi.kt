@@ -1,6 +1,9 @@
 package com.auralis.app.network
 
 import android.util.Log
+import com.auralis.app.domain.model.ArtistProfile
+import com.auralis.app.domain.model.ArtistRelease
+import com.auralis.app.domain.model.Provider
 import com.auralis.app.domain.model.Track
 import com.google.gson.Gson
 import com.google.gson.JsonArray
@@ -14,24 +17,6 @@ import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import javax.inject.Inject
 import javax.inject.Singleton
-
-data class ArtistRelease(
-    val browseId: String,
-    val title: String,
-    val year: String?,
-    val coverUrl: String?,
-    val type: String
-)
-
-data class ArtistProfile(
-    val id: String,
-    val name: String,
-    val bannerUrl: String?,
-    val monthlyListeners: String?,
-    val bio: String?,
-    val topSongs: List<Track>,
-    val releases: List<ArtistRelease>
-)
 
 @Singleton
 class YouTubeMusicApi @Inject constructor(
@@ -193,9 +178,8 @@ class YouTubeMusicApi @Inject constructor(
                 albumArtUrl = thumbUrl ?: "https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=500&q=80",
                 mediaUrl = "https://www.youtube.com/watch?v=$videoId",
                 durationMs = durationMs,
-                source = "Auralis Radio",
-                qualityBadge = "YouTube Music",
-                isDownloaded = false
+                source = Provider.YOUTUBE.displayName,
+                qualityBadge = "Opus / AAC"
             )
         } catch (e: Exception) {
             return null
@@ -295,7 +279,7 @@ class YouTubeMusicApi @Inject constructor(
             id = "artist_${artistName.hashCode()}",
             name = artistName,
             bannerUrl = banner,
-            monthlyListeners = "Verified Artist",
+            monthlyListeners = null,
             bio = "$artistName on Auralis Premium Music.",
             topSongs = tracks.take(15),
             releases = listOf(
@@ -376,8 +360,8 @@ class YouTubeMusicApi @Inject constructor(
             id = id,
             name = name,
             bannerUrl = bannerUrl ?: topSongs.firstOrNull()?.albumArtUrl,
-            monthlyListeners = monthlyListeners ?: "Verified Artist",
-            bio = bio ?: "Listen to $name on Auralis Romantic Music.",
+            monthlyListeners = monthlyListeners,
+            bio = bio,
             topSongs = topSongs.distinctBy { it.id }.take(20),
             releases = releases.distinctBy { it.browseId }
         )
@@ -480,9 +464,8 @@ class YouTubeMusicApi @Inject constructor(
                 albumArtUrl = thumbUrl,
                 mediaUrl = "https://www.youtube.com/watch?v=$videoId",
                 durationMs = durationMs,
-                source = "Auralis Master",
-                qualityBadge = "YouTube Music",
-                isDownloaded = false
+                source = Provider.YOUTUBE.displayName,
+                qualityBadge = "Opus / AAC"
             )
         } catch (e: Exception) {
             return null

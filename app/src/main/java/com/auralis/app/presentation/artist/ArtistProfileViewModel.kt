@@ -4,8 +4,8 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.auralis.app.domain.model.Track
-import com.auralis.app.network.ArtistProfile
-import com.auralis.app.network.YouTubeMusicApi
+import com.auralis.app.domain.model.ArtistProfile
+import com.auralis.app.domain.repository.ArtistRepository
 import com.auralis.app.playback.PlaybackManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -25,7 +25,7 @@ sealed interface ArtistUiState {
 @HiltViewModel
 class ArtistProfileViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
-    private val youTubeMusicApi: YouTubeMusicApi,
+    private val artistRepository: ArtistRepository,
     private val playbackManager: PlaybackManager
 ) : ViewModel() {
 
@@ -47,7 +47,7 @@ class ArtistProfileViewModel @Inject constructor(
         _uiState.value = ArtistUiState.Loading
         viewModelScope.launch {
             try {
-                val profile = youTubeMusicApi.getArtistProfile(artistName)
+                val profile = artistRepository.getArtistProfile(artistName)
                 if (profile != null) {
                     _uiState.value = ArtistUiState.Success(profile)
                 } else {

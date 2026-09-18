@@ -14,14 +14,13 @@ import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.session.MediaSession
 import androidx.media3.session.SessionCommands
+import com.auralis.app.data.source.StreamResolverRegistry
 import com.auralis.app.domain.model.SoundProfile
 import com.auralis.app.domain.model.Track
+import com.auralis.app.domain.repository.MusicRepository
 import com.auralis.app.network.JamProtocolHelper
 import com.auralis.app.network.JamState
 import com.auralis.app.network.JamWebSocketClient
-import com.auralis.app.network.SponsorBlockManager
-import com.auralis.app.network.YouTubeMusicApi
-import com.auralis.app.network.YouTubeStreamResolver
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -41,10 +40,10 @@ class PlaybackManager @Inject constructor(
     @ApplicationContext private val context: Context,
     val jamClient: JamWebSocketClient,
     val audioEffectManager: AudioEffectManager,
-    val streamResolver: YouTubeStreamResolver,
+    private val streamResolver: StreamResolverRegistry,
     val settingsPreferences: AuralisSettingsPreferences,
-    val sponsorBlockManager: SponsorBlockManager,
-    val youTubeMusicApi: YouTubeMusicApi,
+    private val musicRepository: MusicRepository,
+    private val segmentSkippers: Set<@JvmSuppressWildcards SegmentSkipper>,
     val personalizationManager: PersonalizationManager
 ) {
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
@@ -283,7 +282,7 @@ class PlaybackManager @Inject constructor(
                     if (current != null && current.isYouTubeTrack()) {
                         scope.launch {
                             try {
-                                val freshUrl = streamResolver.resolveStreamUrl(current, forceRefresh = true)
+                                val freshUrl = streamResolver.resolve(current, forceRefresh = true)
                                 if (freshUrl != current.mediaUrl) {
                                     val recovered = current.copy(mediaUrl = freshUrl)
                                     _currentTrack.value = recovered
@@ -321,13 +320,12 @@ class PlaybackManager @Inject constructor(
                         _durationMs.value = dur
                     }
 
-                    // SponsorBlock auto-skip detection during playback
+                    // Non-music segment auto-skip during playback
                     val curTrack = _currentTrack.value
-                    if (curTrack != null && settingsPreferences.sponsorBlockEnabled.value && curTrack.isYouTubeTrack()) {
-                        val videoId = curTrack.getYouTubeVideoId() ?: curTrack.id.removePrefix("yt_")
-                        val skipTarget = sponsorBlockManager.checkSkipTargetMs(videoId, pos)
+                    if (curTrack != null && settingsPreferences.sponsorBlockEnabled.value) {
+                        val skipTarget = segmentSkipperFor(curTrack)?.skipTargetMs(curTrack, pos)
                         if (skipTarget != null && skipTarget > pos) {
-                            Log.d("PlaybackManager", "SponsorBlock auto-skip triggered: jumping from $pos to $skipTarget ms")
+                            Log.d("PlaybackManager", "Segment auto-skip: jumping from $pos to $skipTarget ms")
                             activePlayer.seekTo(skipTarget)
                             _currentPositionMs.value = skipTarget
                         }
@@ -469,7 +467,7 @@ class PlaybackManager @Inject constructor(
 
         scope.launch {
             val resolvedTrack = if (JamProtocolHelper.needsStreamResolution(track)) {
-                val resolvedUrl = streamResolver.resolveStreamUrl(track, forceRefresh = true)
+                val resolvedUrl = streamResolver.resolve(track, forceRefresh = true)
                 track.copy(mediaUrl = resolvedUrl)
             } else {
                 track
@@ -520,7 +518,7 @@ class PlaybackManager @Inject constructor(
 
         scope.launch {
             val resolvedTrack = if (JamProtocolHelper.needsStreamResolution(track)) {
-                val resolvedUrl = streamResolver.resolveStreamUrl(track)
+                val resolvedUrl = streamResolver.resolve(track)
                 track.copy(mediaUrl = resolvedUrl)
             } else {
                 track
@@ -565,16 +563,19 @@ class PlaybackManager @Inject constructor(
         triggerInfiniteRadioAutoplay(anchorTrack = cleanAnchor, forceImmediateStart = false)
     }
 
+    private fun segmentSkipperFor(track: Track): SegmentSkipper? =
+        segmentSkippers.firstOrNull { it.supports(track) }
+
     private fun applySponsorBlockIntroSkip(track: Track) {
-        if (!settingsPreferences.sponsorBlockEnabled.value || !track.isYouTubeTrack()) return
+        if (!settingsPreferences.sponsorBlockEnabled.value) return
+        val skipper = segmentSkipperFor(track) ?: return
 
         scope.launch {
             try {
-                val videoId = track.getYouTubeVideoId() ?: track.id.removePrefix("yt_")
-                sponsorBlockManager.fetchSegments(videoId)
-                val introSkip = sponsorBlockManager.getIntroSkipTargetMs(videoId)
+                skipper.prepare(track)
+                val introSkip = skipper.introSkipTargetMs(track)
                 if (introSkip != null && introSkip > 1500L && activePlayer.currentPosition < introSkip) {
-                    Log.d("PlaybackManager", "SponsorBlock auto-skipped intro to ${introSkip}ms")
+                    Log.d("PlaybackManager", "Auto-skipped intro to ${introSkip}ms")
                     activePlayer.seekTo(introSkip)
                     _currentPositionMs.value = introSkip
                 }
@@ -819,12 +820,7 @@ class PlaybackManager @Inject constructor(
 
         scope.launch {
             try {
-                val videoId = seed.getYouTubeVideoId() ?: seed.id.removePrefix("yt_")
-                var related = youTubeMusicApi.getRelatedTracks(videoId)
-                if (related.isEmpty()) {
-                    val searchFallback = youTubeMusicApi.searchTracks("${seed.artist} song")
-                    related = searchFallback.filter { it.id != seed.id }
-                }
+                val related = musicRepository.relatedTracks(seed)
 
                 val currentQ = _queue.value
                 val newTracks = related
@@ -890,7 +886,7 @@ class PlaybackManager @Inject constructor(
             isCrossfading = true
             try {
                 val resolvedNext = if (JamProtocolHelper.needsStreamResolution(nextTrack)) {
-                    val resolvedUrl = streamResolver.resolveStreamUrl(nextTrack)
+                    val resolvedUrl = streamResolver.resolve(nextTrack)
                     nextTrack.copy(mediaUrl = resolvedUrl)
                 } else {
                     nextTrack

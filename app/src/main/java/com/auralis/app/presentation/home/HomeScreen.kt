@@ -30,6 +30,7 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
+import com.auralis.app.domain.model.Provider
 import com.auralis.app.domain.model.Track
 import com.auralis.app.presentation.common.TrackContextMenuBottomSheet
 import com.auralis.app.presentation.player.PlaybackSpeedBottomSheet
@@ -267,16 +268,16 @@ fun HomeScreen(
 
                         Spacer(modifier = Modifier.height(8.dp))
 
-                        // Filter Chips: All, Top Hits, 320 kbps Master, Lossless, Acoustic
+                        // Catalog filter chips: All plus every online source in this build
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .horizontalScroll(rememberScrollState()),
                             horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
-                            val sources = listOf("All", "Top Hits", "320 kbps Master", "Lossless", "Acoustic")
+                            val sources: List<Provider?> = listOf(null) + viewModel.availableSources
                             sources.forEach { source ->
-                                val isSelected = sourceFilter.equals(source, ignoreCase = true)
+                                val isSelected = sourceFilter == source
                                 Box(
                                     modifier = Modifier
                                         .hapticPress(scaleDown = 0.92f)
@@ -297,7 +298,7 @@ fun HomeScreen(
                                         .padding(horizontal = 12.dp, vertical = 6.dp)
                                 ) {
                                     Text(
-                                        text = source,
+                                        text = source?.displayName ?: "All",
                                         fontSize = 11.sp,
                                         fontWeight = FontWeight.SemiBold,
                                         color = if (isSelected) Color.White else BabyPinkTextPrimary
@@ -427,7 +428,7 @@ fun HomeScreen(
                             ) {
                                 item {
                                     Text(
-                                        text = if (selectedTab == HomeTab.Downloaded) "Offline Downloads (${tracks.size})" else "Results for '$searchQuery'",
+                                        text = if (selectedTab == HomeTab.Downloaded) "Library (${tracks.size})" else "Results for '$searchQuery'",
                                         style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                                         color = BabyPinkTextPrimary,
                                         modifier = Modifier.padding(bottom = 8.dp)

@@ -237,7 +237,8 @@ class JamProtocolTest {
         assertTrue(JamProtocolHelper.isPlayableDirectStreamUrl("https://aac.saavncdn.com/077/stream_320.mp4"))
         assertTrue(JamProtocolHelper.isPlayableDirectStreamUrl("https://rr1---sn-4g5edn6s.googlevideo.com/videoplayback?expire=123"))
         assertTrue(JamProtocolHelper.isPlayableDirectStreamUrl("https://discoveryprovider.audius.co/v1/tracks/abc/stream?app_name=Auralis"))
-        assertTrue(JamProtocolHelper.isPlayableDirectStreamUrl("https://cdns-preview-a.dzcdn.net/stream/c-abc-1.mp3"))
+        assertTrue(JamProtocolHelper.isPlayableDirectStreamUrl("https://prod-1.storage.jamendo.com/?trackid=1&format=mp32"))
+        assertTrue(JamProtocolHelper.isPlayableDirectStreamUrl("content://media/external/audio/media/42"))
         assertTrue(JamProtocolHelper.isPlayableDirectStreamUrl("/data/user/0/com.auralis.app/files/music/yt_abc_song.mp4"))
         assertTrue(JamProtocolHelper.isPlayableDirectStreamUrl("file:///data/user/0/com.auralis.app/files/music/a.mp4"))
 
