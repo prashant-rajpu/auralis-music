@@ -99,9 +99,10 @@ fun HomeScreen(
             Column(
                 modifier = Modifier
                     .fillMaxSize()
+                    .statusBarsPadding()
                     .padding(top = 8.dp)
             ) {
-                // Glassmorphism Top Header Bar
+                // Top header bar
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()

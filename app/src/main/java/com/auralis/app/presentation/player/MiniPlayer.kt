@@ -37,6 +37,7 @@ import com.auralis.app.ui.theme.*
 
 @Composable
 fun MiniPlayer(
+    modifier: Modifier = Modifier,
     viewModel: PlayerViewModel = hiltViewModel(),
     onNavigateToFullPlayer: () -> Unit = {}
 ) {
@@ -50,6 +51,7 @@ fun MiniPlayer(
         val isLiked = likedTrackIds.contains(currentTrack!!.id)
 
         MiniPlayerContent(
+            modifier = modifier,
             track = currentTrack!!,
             isPlaying = isPlaying,
             isLiked = isLiked,
@@ -67,6 +69,7 @@ fun MiniPlayer(
 
 @Composable
 private fun MiniPlayerContent(
+    modifier: Modifier = Modifier,
     track: Track,
     isPlaying: Boolean,
     isLiked: Boolean,
@@ -80,7 +83,7 @@ private fun MiniPlayerContent(
     onClick: () -> Unit
 ) {
     Box(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = 12.dp, vertical = 6.dp)
             .hapticPress(scaleDown = 0.985f)
