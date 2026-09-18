@@ -41,6 +41,21 @@ The same values can be supplied as environment variables instead:
 | `KEY_ALIAS` | `auralis` |
 | `KEY_PASSWORD` | key password |
 
+## Jamendo client id
+
+The Jamendo source needs a free client id from https://devportal.jamendo.com. It is not a
+secret — it is compiled into the APK and anyone can read it back out — but keeping it out of
+git stops the repo from handing out your rate limit. Only the **client id** is needed; the
+client secret is never used and must not be added.
+
+Without an id the Jamendo source disables itself and the rest of the app is unaffected.
+
+| Where | How |
+|---|---|
+| Your machine | add `auralis.jamendoClientId=<id>` to `~/.gradle/gradle.properties` (outside the repo) |
+| One-off build | `./gradlew assemblePlayDebug -Pauralis.jamendoClientId=<id>` |
+| GitHub Actions | add a repository secret named `JAMENDO_CLIENT_ID`; both workflows already read it |
+
 ## Cutting a release
 
 1. Bump `versionCode` (must increase every release) and `versionName` in `app/build.gradle.kts`.
