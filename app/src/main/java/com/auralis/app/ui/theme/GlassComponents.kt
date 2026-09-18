@@ -1,16 +1,17 @@
 package com.auralis.app.ui.theme
 
-import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
 import androidx.compose.ui.draw.clip
@@ -134,3 +135,85 @@ fun Modifier.hapticPress(
         scaleY = scale
     }
 }
+
+/**
+ * Micro animated equalizer bars for active tracks, now-playing headers, and mini-players.
+ */
+@Composable
+fun AnimatedEqualizerBars(
+    modifier: Modifier = Modifier,
+    barColor: Color = BabyPinkPrimary,
+    barCount: Int = 3,
+    maxHeight: Dp = 16.dp,
+    isPlaying: Boolean = true
+) {
+    val infiniteTransition = rememberInfiniteTransition(label = "equalizer_anim")
+
+    val h1 by infiniteTransition.animateFloat(
+        initialValue = 0.25f,
+        targetValue = 0.95f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 480, easing = FastOutSlowInEasing),
+            repeatMode = androidx.compose.animation.core.RepeatMode.Reverse
+        ),
+        label = "eq_bar_1"
+    )
+
+    val h2 by infiniteTransition.animateFloat(
+        initialValue = 0.85f,
+        targetValue = 0.20f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 620, easing = FastOutSlowInEasing),
+            repeatMode = androidx.compose.animation.core.RepeatMode.Reverse
+        ),
+        label = "eq_bar_2"
+    )
+
+    val h3 by infiniteTransition.animateFloat(
+        initialValue = 0.40f,
+        targetValue = 1.0f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 530, easing = FastOutSlowInEasing),
+            repeatMode = androidx.compose.animation.core.RepeatMode.Reverse
+        ),
+        label = "eq_bar_3"
+    )
+
+    val fractions = listOf(h1, h2, h3)
+
+    Row(
+        modifier = modifier.height(maxHeight),
+        horizontalArrangement = Arrangement.spacedBy(2.5.dp),
+        verticalAlignment = Alignment.Bottom
+    ) {
+        for (i in 0 until barCount) {
+            val frac = if (isPlaying) fractions[i % fractions.size] else 0.25f
+            Box(
+                modifier = Modifier
+                    .width(3.dp)
+                    .fillMaxHeight(fraction = frac.coerceIn(0.2f, 1f))
+                    .clip(RoundedCornerShape(1.5.dp))
+                    .background(barColor)
+            )
+        }
+    }
+}
+
+/**
+ * Specular Ambient Glow Border for active state cards, play buttons, and headers.
+ */
+fun Modifier.glassGlowBorder(
+    glowColor: Color = BabyPinkPrimary,
+    cornerRadius: Dp = 20.dp,
+    borderWidth: Dp = 1.2.dp
+): Modifier = this.border(
+    width = borderWidth,
+    brush = Brush.verticalGradient(
+        listOf(
+            glowColor.copy(alpha = 0.90f),
+            glowColor.copy(alpha = 0.40f),
+            BabyPinkSoftRose.copy(alpha = 0.20f)
+        )
+    ),
+    shape = RoundedCornerShape(cornerRadius)
+)

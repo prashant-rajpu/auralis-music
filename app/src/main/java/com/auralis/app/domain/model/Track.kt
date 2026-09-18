@@ -10,7 +10,8 @@ data class Track(
     val source: String = "Auralis Master",
     val qualityBadge: String = "320 kbps Master",
     val isDownloaded: Boolean = false,
-    val lyrics: List<LyricLine>? = null
+    val lyrics: List<LyricLine>? = null,
+    val isAutoplayRecommendation: Boolean = false
 ) {
     fun isYouTubeTrack(): Boolean =
         id.startsWith("yt_") ||

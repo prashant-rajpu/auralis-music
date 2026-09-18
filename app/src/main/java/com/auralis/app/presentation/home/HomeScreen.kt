@@ -58,6 +58,7 @@ fun HomeScreen(
     val isJamConnected by viewModel.isJamConnected.collectAsState()
     val playbackSpeed by viewModel.playbackSpeed.collectAsState()
     val sleepTimerMinutesRemaining by viewModel.sleepTimerMinutesRemaining.collectAsState()
+    val isInfiniteRadioAutoplayEnabled by viewModel.isInfiniteRadioAutoplayEnabled.collectAsState()
 
     var showJamDialog by remember { mutableStateOf(false) }
     var showSleepTimerSheet by remember { mutableStateOf(false) }
@@ -740,6 +741,63 @@ fun HomeScreen(
                                                         )
                                                         Text(
                                                             text = "Theme, lyrics & radio",
+                                                            color = BabyPinkTextSecondary,
+                                                            fontSize = 11.sp,
+                                                            maxLines = 1,
+                                                            overflow = TextOverflow.Ellipsis
+                                                        )
+                                                    }
+                                                }
+                                            }
+
+                                            // 5. Infinite Radio Autoplay
+                                            item {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .width(170.dp)
+                                                        .glassCard(cornerRadius = 18.dp)
+                                                        .hapticPress(scaleDown = 0.94f)
+                                                        .clickable {
+                                                            viewModel.toggleInfiniteRadioAutoplay(!isInfiniteRadioAutoplayEnabled)
+                                                        }
+                                                        .padding(12.dp)
+                                                ) {
+                                                    Column {
+                                                        Row(
+                                                            verticalAlignment = Alignment.CenterVertically,
+                                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                                            modifier = Modifier.fillMaxWidth()
+                                                        ) {
+                                                            Box(
+                                                                modifier = Modifier
+                                                                    .size(32.dp)
+                                                                    .clip(CircleShape)
+                                                                    .background(if (isInfiniteRadioAutoplayEnabled) BabyPinkPrimary else GlassSurfaceStrong),
+                                                                contentAlignment = Alignment.Center
+                                                            ) {
+                                                                Icon(
+                                                                    Icons.Default.Radio,
+                                                                    contentDescription = null,
+                                                                    tint = if (isInfiniteRadioAutoplayEnabled) Color.White else BabyPinkPrimary,
+                                                                    modifier = Modifier.size(16.dp)
+                                                                )
+                                                            }
+                                                            Text(
+                                                                text = if (isInfiniteRadioAutoplayEnabled) "ACTIVE 📻" else "PAUSED",
+                                                                color = if (isInfiniteRadioAutoplayEnabled) BabyPinkPrimary else BabyPinkTextSecondary,
+                                                                fontWeight = FontWeight.Bold,
+                                                                fontSize = 10.sp
+                                                            )
+                                                        }
+                                                        Spacer(modifier = Modifier.height(8.dp))
+                                                        Text(
+                                                            text = "Infinite Radio",
+                                                            color = BabyPinkTextPrimary,
+                                                            fontWeight = FontWeight.Bold,
+                                                            fontSize = 13.sp
+                                                        )
+                                                        Text(
+                                                            text = if (isInfiniteRadioAutoplayEnabled) "Endless smart stream ON" else "Tap to enable autoplay",
                                                             color = BabyPinkTextSecondary,
                                                             fontSize = 11.sp,
                                                             maxLines = 1,

@@ -261,6 +261,12 @@ class HomeViewModel @Inject constructor(
     fun setSleepTimer(minutes: Int?) {
         playbackManager.setSleepTimer(minutes)
     }
+
+    val isInfiniteRadioAutoplayEnabled = playbackManager.isInfiniteRadioAutoplayEnabled
+
+    fun toggleInfiniteRadioAutoplay(enabled: Boolean) {
+        playbackManager.setInfiniteRadioAutoplay(enabled)
+    }
 }
 
 sealed class HomeUiState {

@@ -85,9 +85,23 @@ class PlayerViewModel @Inject constructor(
 
     val lyricsFontSize = playbackManager.settingsPreferences.lyricsFontSize
     val lyricsAutoScroll = playbackManager.settingsPreferences.lyricsAutoScroll
+    val isInfiniteRadioLoading = playbackManager.isInfiniteRadioLoading
+    val isInfiniteRadioAutoplayEnabled = playbackManager.isInfiniteRadioAutoplayEnabled
 
     fun startRadio() {
         currentTrack.value?.let { playbackManager.startRadio(it) }
+    }
+
+    fun toggleInfiniteRadioAutoplay(enabled: Boolean) {
+        playbackManager.setInfiniteRadioAutoplay(enabled)
+    }
+
+    fun refreshInfiniteRadio() {
+        playbackManager.refreshInfiniteRadio()
+    }
+
+    fun clearAutoplayRecommendations() {
+        playbackManager.clearAutoplayRecommendations()
     }
 
     init {

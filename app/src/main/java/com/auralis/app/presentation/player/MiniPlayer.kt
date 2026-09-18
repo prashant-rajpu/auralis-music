@@ -139,16 +139,30 @@ private fun MiniPlayerContent(
                     modifier = Modifier.weight(1f),
                     verticalArrangement = Arrangement.Center
                 ) {
-                    Text(
-                        text = track.title,
-                        style = MaterialTheme.typography.bodyMedium.copy(
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 14.sp
-                        ),
-                        color = BabyPinkTextPrimary,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Text(
+                            text = track.title,
+                            style = MaterialTheme.typography.bodyMedium.copy(
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 14.sp
+                            ),
+                            color = BabyPinkTextPrimary,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f, fill = false)
+                        )
+                        if (isPlaying) {
+                            AnimatedEqualizerBars(
+                                barColor = BabyPinkPrimary,
+                                barCount = 3,
+                                maxHeight = 12.dp,
+                                isPlaying = true
+                            )
+                        }
+                    }
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
                         text = if (lastJamAction != null) "💖 $lastJamAction" else if (isJamActive) "Together with ${jamParticipants.ifEmpty { "Laddu" }} 💗 • Synced" else "${track.artist} • ${track.qualityBadge}",

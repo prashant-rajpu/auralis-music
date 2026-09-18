@@ -67,6 +67,8 @@ fun FullPlayerScreen(
     val playbackSpeed by viewModel.playbackSpeed.collectAsState()
     val sleepTimerMinutesRemaining by viewModel.sleepTimerMinutesRemaining.collectAsState()
     val isJamConnected by viewModel.isJamConnected.collectAsState()
+    val isInfiniteRadioLoading by viewModel.isInfiniteRadioLoading.collectAsState()
+    val isInfiniteRadioAutoplayEnabled by viewModel.isInfiniteRadioAutoplayEnabled.collectAsState()
 
     var showSleepTimerSheet by remember { mutableStateOf(false) }
     var showSpeedSheet by remember { mutableStateOf(false) }
@@ -298,11 +300,14 @@ fun FullPlayerScreen(
                                         } else {
                                             emptyList()
                                         }
+                                        val manualUpcoming = upcomingList.filter { !it.isAutoplayRecommendation }
+                                        val radioUpcoming = upcomingList.filter { it.isAutoplayRecommendation }
 
+                                        // Top Header with Clear controls
                                         Row(
                                             modifier = Modifier
                                                 .fillMaxWidth()
-                                                .padding(bottom = 10.dp),
+                                                .padding(bottom = 8.dp),
                                             horizontalArrangement = Arrangement.SpaceBetween,
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
@@ -311,10 +316,10 @@ fun FullPlayerScreen(
                                                     text = "Queue & Up Next",
                                                     fontWeight = FontWeight.Bold,
                                                     color = BabyPinkTextPrimary,
-                                                    fontSize = 16.sp
+                                                    fontSize = 17.sp
                                                 )
                                                 Text(
-                                                    text = "${upcomingList.size} upcoming • Autoplay Radio On",
+                                                    text = "${manualUpcoming.size} queued • ${radioUpcoming.size} autoplay radio",
                                                     color = BabyPinkTextSecondary,
                                                     fontSize = 11.sp
                                                 )
@@ -331,7 +336,7 @@ fun FullPlayerScreen(
                                                         .padding(horizontal = 10.dp, vertical = 5.dp)
                                                 ) {
                                                     Text(
-                                                        text = "Clear Upcoming",
+                                                        text = "Clear All",
                                                         color = BabyPinkPrimary,
                                                         fontSize = 11.sp,
                                                         fontWeight = FontWeight.Bold
@@ -342,16 +347,17 @@ fun FullPlayerScreen(
 
                                         LazyColumn(
                                             modifier = Modifier.fillMaxSize(),
-                                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                                            verticalArrangement = Arrangement.spacedBy(10.dp)
                                         ) {
+                                            // Helpful hint pill
                                             item {
                                                 Box(
                                                     modifier = Modifier
                                                         .fillMaxWidth()
-                                                        .clip(RoundedCornerShape(12.dp))
-                                                        .background(BabyPinkSoftRose.copy(alpha = 0.25f))
-                                                        .border(1.dp, BabyPinkPrimary.copy(alpha = 0.35f), RoundedCornerShape(12.dp))
-                                                        .padding(horizontal = 12.dp, vertical = 6.dp)
+                                                        .clip(RoundedCornerShape(14.dp))
+                                                        .background(BabyPinkSoftRose.copy(alpha = 0.22f))
+                                                        .border(1.dp, BabyPinkPrimary.copy(alpha = 0.35f), RoundedCornerShape(14.dp))
+                                                        .padding(horizontal = 12.dp, vertical = 7.dp)
                                                 ) {
                                                     Row(
                                                         verticalAlignment = Alignment.CenterVertically,
@@ -361,10 +367,10 @@ fun FullPlayerScreen(
                                                             Icons.Default.Tune,
                                                             contentDescription = null,
                                                             tint = BabyPinkPrimary,
-                                                            modifier = Modifier.size(14.dp)
+                                                            modifier = Modifier.size(15.dp)
                                                         )
                                                         Text(
-                                                            text = "💡 Reorder songs with ▲ & ▼ • Tap ⋮ for Play Next",
+                                                            text = "Reorder with ▲ & ▼ • Tap ⋮ for Play Next",
                                                             color = BabyPinkTextPrimary,
                                                             fontSize = 11.sp,
                                                             fontWeight = FontWeight.Medium
@@ -373,7 +379,7 @@ fun FullPlayerScreen(
                                                 }
                                             }
 
-                                            // 1. Currently Playing
+                                            // 1. NOW PLAYING Card (Double-Bezel Luxury Card)
                                             item {
                                                 Text(
                                                     text = "NOW PLAYING",
@@ -381,57 +387,63 @@ fun FullPlayerScreen(
                                                     fontSize = 11.sp,
                                                     fontWeight = FontWeight.Bold,
                                                     letterSpacing = 1.sp,
-                                                    modifier = Modifier.padding(vertical = 4.dp)
+                                                    modifier = Modifier.padding(top = 2.dp, bottom = 4.dp)
                                                 )
-                                                Row(
+                                                Box(
                                                     modifier = Modifier
                                                         .fillMaxWidth()
-                                                        .clip(RoundedCornerShape(16.dp))
-                                                        .background(BabyPinkSoftRose.copy(alpha = 0.35f))
-                                                        .border(1.2.dp, BabyPinkPrimary.copy(alpha = 0.6f), RoundedCornerShape(16.dp))
-                                                        .padding(10.dp),
-                                                    verticalAlignment = Alignment.CenterVertically
+                                                        .doubleBezelCard(outerRadius = 20.dp)
+                                                        .padding(2.dp)
                                                 ) {
-                                                    AsyncImage(
-                                                        model = track.albumArtUrl,
-                                                        contentDescription = null,
+                                                    Row(
                                                         modifier = Modifier
-                                                            .size(48.dp)
-                                                            .clip(RoundedCornerShape(10.dp)),
-                                                        contentScale = ContentScale.Crop
-                                                    )
-                                                    Spacer(modifier = Modifier.width(12.dp))
-                                                    Column(modifier = Modifier.weight(1f)) {
-                                                        Text(
-                                                            text = track.title,
-                                                            color = BabyPinkTextPrimary,
-                                                            fontWeight = FontWeight.Bold,
-                                                            fontSize = 14.sp,
-                                                            maxLines = 1,
-                                                            overflow = TextOverflow.Ellipsis
+                                                            .fillMaxWidth()
+                                                            .clip(RoundedCornerShape(18.dp))
+                                                            .background(BabyPinkSoftRose.copy(alpha = 0.40f))
+                                                            .padding(10.dp),
+                                                        verticalAlignment = Alignment.CenterVertically
+                                                    ) {
+                                                        AsyncImage(
+                                                            model = track.albumArtUrl,
+                                                            contentDescription = null,
+                                                            modifier = Modifier
+                                                                .size(48.dp)
+                                                                .clip(RoundedCornerShape(12.dp)),
+                                                            contentScale = ContentScale.Crop
                                                         )
-                                                        Text(
-                                                            text = track.artist,
-                                                            color = BabyPinkTextSecondary,
-                                                            fontSize = 12.sp,
-                                                            maxLines = 1,
-                                                            overflow = TextOverflow.Ellipsis
+                                                        Spacer(modifier = Modifier.width(12.dp))
+                                                        Column(modifier = Modifier.weight(1f)) {
+                                                            Text(
+                                                                text = track.title,
+                                                                color = BabyPinkTextPrimary,
+                                                                fontWeight = FontWeight.Bold,
+                                                                fontSize = 14.sp,
+                                                                maxLines = 1,
+                                                                overflow = TextOverflow.Ellipsis
+                                                            )
+                                                            Text(
+                                                                text = track.artist,
+                                                                color = BabyPinkTextSecondary,
+                                                                fontSize = 12.sp,
+                                                                maxLines = 1,
+                                                                overflow = TextOverflow.Ellipsis
+                                                            )
+                                                        }
+                                                        AnimatedEqualizerBars(
+                                                            barColor = BabyPinkPrimary,
+                                                            barCount = 4,
+                                                            maxHeight = 18.dp,
+                                                            isPlaying = isPlaying
                                                         )
                                                     }
-                                                    Icon(
-                                                        Icons.Default.GraphicEq,
-                                                        contentDescription = "Playing",
-                                                        tint = BabyPinkPrimary,
-                                                        modifier = Modifier.size(22.dp)
-                                                    )
                                                 }
                                             }
 
-                                            // 2. Upcoming Section Header
+                                            // 2. UPCOMING IN QUEUE (Manual) Header
                                             item {
-                                                Spacer(modifier = Modifier.height(6.dp))
+                                                Spacer(modifier = Modifier.height(4.dp))
                                                 Text(
-                                                    text = "UPCOMING (${upcomingList.size})",
+                                                    text = "UPCOMING IN QUEUE (${manualUpcoming.size})",
                                                     color = BabyPinkTextSecondary,
                                                     fontSize = 11.sp,
                                                     fontWeight = FontWeight.Bold,
@@ -440,50 +452,40 @@ fun FullPlayerScreen(
                                                 )
                                             }
 
-                                            if (upcomingList.isEmpty()) {
+                                            if (manualUpcoming.isEmpty()) {
                                                 item {
-                                                    Column(
+                                                    Box(
                                                         modifier = Modifier
                                                             .fillMaxWidth()
-                                                            .padding(vertical = 20.dp),
-                                                        horizontalAlignment = Alignment.CenterHorizontally
+                                                            .clip(RoundedCornerShape(16.dp))
+                                                            .background(GlassSurfaceStrong.copy(alpha = 0.6f))
+                                                            .border(1.dp, GlassBorder, RoundedCornerShape(16.dp))
+                                                            .padding(vertical = 14.dp, horizontal = 14.dp),
+                                                        contentAlignment = Alignment.Center
                                                     ) {
                                                         Text(
-                                                            text = "No upcoming tracks in manual queue 🎶",
+                                                            text = "No manual tracks in queue • Autoplay radio will take over 🎶",
                                                             color = BabyPinkTextSecondary,
-                                                            fontSize = 13.sp
+                                                            fontSize = 12.sp,
+                                                            fontWeight = FontWeight.Medium
                                                         )
-                                                        Spacer(modifier = Modifier.height(6.dp))
-                                                        Text(
-                                                            text = "Infinite radio will automatically play matching songs next.",
-                                                            color = BabyPinkTextSecondary.copy(alpha = 0.8f),
-                                                            fontSize = 11.sp
-                                                        )
-                                                        Spacer(modifier = Modifier.height(12.dp))
-                                                        Button(
-                                                            onClick = { viewModel.startRadio() },
-                                                            colors = ButtonDefaults.buttonColors(containerColor = BabyPinkPrimary),
-                                                            shape = RoundedCornerShape(14.dp)
-                                                        ) {
-                                                            Icon(Icons.Default.Radio, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
-                                                            Spacer(modifier = Modifier.width(6.dp))
-                                                            Text("Start Track Radio", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                                                        }
                                                     }
                                                 }
                                             } else {
-                                                itemsIndexed(upcomingList) { relativeIndex, item ->
-                                                    val absoluteIndex = actualCurrentIndex + 1 + relativeIndex
+                                                itemsIndexed(manualUpcoming) { relativeIndex, item ->
+                                                    val absoluteIndex = queue.indexOf(item)
                                                     val canMoveUp = relativeIndex > 0
-                                                    val canMoveDown = relativeIndex < upcomingList.size - 1
+                                                    val canMoveDown = relativeIndex < manualUpcoming.size - 1
 
                                                     Row(
                                                         modifier = Modifier
                                                             .fillMaxWidth()
-                                                            .clip(RoundedCornerShape(14.dp))
+                                                            .clip(RoundedCornerShape(16.dp))
                                                             .background(GlassSurfaceStrong)
-                                                            .border(1.dp, GlassBorder, RoundedCornerShape(14.dp))
-                                                            .clickable { viewModel.playTrackFromQueue(absoluteIndex) }
+                                                            .border(1.dp, GlassBorder, RoundedCornerShape(16.dp))
+                                                            .clickable {
+                                                                if (absoluteIndex != -1) viewModel.playTrackFromQueue(absoluteIndex)
+                                                            }
                                                             .padding(8.dp),
                                                         verticalAlignment = Alignment.CenterVertically
                                                     ) {
@@ -492,7 +494,7 @@ fun FullPlayerScreen(
                                                             contentDescription = null,
                                                             modifier = Modifier
                                                                 .size(44.dp)
-                                                                .clip(RoundedCornerShape(8.dp)),
+                                                                .clip(RoundedCornerShape(10.dp)),
                                                             contentScale = ContentScale.Crop
                                                         )
                                                         Spacer(modifier = Modifier.width(10.dp))
@@ -514,34 +516,319 @@ fun FullPlayerScreen(
                                                             )
                                                         }
 
-                                                        // Reorder Up Arrow
+                                                        // Reorder Up
                                                         IconButton(
                                                             onClick = {
-                                                                viewModel.moveQueueItem(absoluteIndex, absoluteIndex - 1)
+                                                                if (canMoveUp) viewModel.moveQueueItem(absoluteIndex, absoluteIndex - 1)
                                                             },
                                                             enabled = canMoveUp,
-                                                            modifier = Modifier.size(30.dp)
+                                                            modifier = Modifier.size(28.dp)
                                                         ) {
                                                             Icon(
                                                                 Icons.Default.KeyboardArrowUp,
                                                                 contentDescription = "Move Up",
                                                                 tint = if (canMoveUp) BabyPinkPrimary else BabyPinkTextSecondary.copy(alpha = 0.3f),
-                                                                modifier = Modifier.size(20.dp)
+                                                                modifier = Modifier.size(18.dp)
                                                             )
                                                         }
 
-                                                        // Reorder Down Arrow
+                                                        // Reorder Down
                                                         IconButton(
                                                             onClick = {
-                                                                viewModel.moveQueueItem(absoluteIndex, absoluteIndex + 1)
+                                                                if (canMoveDown) viewModel.moveQueueItem(absoluteIndex, absoluteIndex + 1)
                                                             },
                                                             enabled = canMoveDown,
-                                                            modifier = Modifier.size(30.dp)
+                                                            modifier = Modifier.size(28.dp)
                                                         ) {
                                                             Icon(
                                                                 Icons.Default.KeyboardArrowDown,
                                                                 contentDescription = "Move Down",
                                                                 tint = if (canMoveDown) BabyPinkPrimary else BabyPinkTextSecondary.copy(alpha = 0.3f),
+                                                                modifier = Modifier.size(18.dp)
+                                                            )
+                                                        }
+
+                                                        // Context Menu
+                                                        IconButton(
+                                                            onClick = { selectedTrackForMenu = item },
+                                                            modifier = Modifier.size(28.dp)
+                                                        ) {
+                                                            Icon(
+                                                                Icons.Default.MoreVert,
+                                                                contentDescription = "More",
+                                                                tint = BabyPinkTextSecondary,
+                                                                modifier = Modifier.size(16.dp)
+                                                            )
+                                                        }
+
+                                                        // Delete
+                                                        IconButton(
+                                                            onClick = {
+                                                                if (absoluteIndex != -1) viewModel.removeQueueItem(absoluteIndex)
+                                                            },
+                                                            modifier = Modifier.size(28.dp)
+                                                        ) {
+                                                            Icon(
+                                                                Icons.Default.Close,
+                                                                contentDescription = "Remove",
+                                                                tint = BabyPinkTextSecondary,
+                                                                modifier = Modifier.size(16.dp)
+                                                            )
+                                                        }
+                                                    }
+                                                }
+                                            }
+
+                                            // 3. 📻 INFINITE AUTOPLAY SECTION (Smart Radio Recommendations)
+                                            item {
+                                                Spacer(modifier = Modifier.height(8.dp))
+                                                Box(
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .clip(RoundedCornerShape(20.dp))
+                                                        .background(
+                                                            Brush.verticalGradient(
+                                                                listOf(
+                                                                    BabyPinkSoftRose.copy(alpha = 0.35f),
+                                                                    GlassSurfaceStrong.copy(alpha = 0.85f)
+                                                                )
+                                                            )
+                                                        )
+                                                        .border(1.2.dp, GlassBorder, RoundedCornerShape(20.dp))
+                                                        .padding(12.dp)
+                                                ) {
+                                                    Column(modifier = Modifier.fillMaxWidth()) {
+                                                        // Header with Title, Refresh, and Toggle
+                                                        Row(
+                                                            modifier = Modifier.fillMaxWidth(),
+                                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                                            verticalAlignment = Alignment.CenterVertically
+                                                        ) {
+                                                            Row(
+                                                                verticalAlignment = Alignment.CenterVertically,
+                                                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                                            ) {
+                                                                Box(
+                                                                    modifier = Modifier
+                                                                        .size(32.dp)
+                                                                        .clip(CircleShape)
+                                                                        .background(BabyPinkPrimary),
+                                                                    contentAlignment = Alignment.Center
+                                                                ) {
+                                                                    Icon(
+                                                                        Icons.Default.Radio,
+                                                                        contentDescription = null,
+                                                                        tint = Color.White,
+                                                                        modifier = Modifier.size(16.dp)
+                                                                    )
+                                                                }
+                                                                Column {
+                                                                    Text(
+                                                                        text = "Infinite Autoplay 📻",
+                                                                        color = BabyPinkTextPrimary,
+                                                                        fontWeight = FontWeight.Bold,
+                                                                        fontSize = 14.sp
+                                                                    )
+                                                                    Text(
+                                                                        text = "YouTube Music smart stream",
+                                                                        color = BabyPinkTextSecondary,
+                                                                        fontSize = 11.sp
+                                                                    )
+                                                                }
+                                                            }
+
+                                                            Row(
+                                                                verticalAlignment = Alignment.CenterVertically,
+                                                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                                            ) {
+                                                                // Refresh Button
+                                                                IconButton(
+                                                                    onClick = { viewModel.refreshInfiniteRadio() },
+                                                                    enabled = !isInfiniteRadioLoading,
+                                                                    modifier = Modifier
+                                                                        .size(32.dp)
+                                                                        .hapticPress(scaleDown = 0.88f)
+                                                                ) {
+                                                                    Icon(
+                                                                        Icons.Default.Refresh,
+                                                                        contentDescription = "Refresh Radio",
+                                                                        tint = if (isInfiniteRadioLoading) BabyPinkPrimary.copy(alpha = 0.5f) else BabyPinkPrimary,
+                                                                        modifier = Modifier.size(18.dp)
+                                                                    )
+                                                                }
+
+                                                                // Toggle Pill Switch
+                                                                Box(
+                                                                    modifier = Modifier
+                                                                        .clip(RoundedCornerShape(16.dp))
+                                                                        .background(
+                                                                            if (isInfiniteRadioAutoplayEnabled) BabyPinkPrimary else GlassSurface
+                                                                        )
+                                                                        .border(
+                                                                            1.dp,
+                                                                            if (isInfiniteRadioAutoplayEnabled) Color.White.copy(alpha = 0.8f) else GlassBorder,
+                                                                            RoundedCornerShape(16.dp)
+                                                                        )
+                                                                        .hapticPress(scaleDown = 0.92f)
+                                                                        .clickable {
+                                                                            viewModel.toggleInfiniteRadioAutoplay(!isInfiniteRadioAutoplayEnabled)
+                                                                        }
+                                                                        .padding(horizontal = 10.dp, vertical = 5.dp)
+                                                                ) {
+                                                                    Text(
+                                                                        text = if (isInfiniteRadioAutoplayEnabled) "ON" else "OFF",
+                                                                        color = if (isInfiniteRadioAutoplayEnabled) Color.White else BabyPinkTextSecondary,
+                                                                        fontWeight = FontWeight.Bold,
+                                                                        fontSize = 11.sp
+                                                                    )
+                                                                }
+                                                            }
+                                                        }
+
+                                                        if (isInfiniteRadioLoading) {
+                                                            Spacer(modifier = Modifier.height(8.dp))
+                                                            LinearProgressIndicator(
+                                                                modifier = Modifier
+                                                                    .fillMaxWidth()
+                                                                    .height(3.dp)
+                                                                    .clip(RoundedCornerShape(1.5.dp)),
+                                                                color = BabyPinkPrimary,
+                                                                trackColor = BabyPinkSoftRose.copy(alpha = 0.3f)
+                                                            )
+                                                        }
+                                                    }
+                                                }
+                                            }
+
+                                            // Radio items or empty status
+                                            if (!isInfiniteRadioAutoplayEnabled) {
+                                                item {
+                                                    Box(
+                                                        modifier = Modifier
+                                                            .fillMaxWidth()
+                                                            .clip(RoundedCornerShape(16.dp))
+                                                            .background(GlassSurfaceStrong.copy(alpha = 0.5f))
+                                                            .border(1.dp, GlassBorder, RoundedCornerShape(16.dp))
+                                                            .padding(16.dp),
+                                                        contentAlignment = Alignment.Center
+                                                    ) {
+                                                        Text(
+                                                            text = "Endless radio is paused • Switch ON to stream similar music continuously",
+                                                            color = BabyPinkTextSecondary,
+                                                            fontSize = 12.sp,
+                                                            fontWeight = FontWeight.Medium
+                                                        )
+                                                    }
+                                                }
+                                            } else if (radioUpcoming.isEmpty()) {
+                                                item {
+                                                    Box(
+                                                        modifier = Modifier
+                                                            .fillMaxWidth()
+                                                            .clip(RoundedCornerShape(16.dp))
+                                                            .background(GlassSurfaceStrong.copy(alpha = 0.5f))
+                                                            .border(1.dp, GlassBorder, RoundedCornerShape(16.dp))
+                                                            .padding(16.dp),
+                                                        contentAlignment = Alignment.Center
+                                                    ) {
+                                                        Row(
+                                                            verticalAlignment = Alignment.CenterVertically,
+                                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                                        ) {
+                                                            CircularProgressIndicator(
+                                                                color = BabyPinkPrimary,
+                                                                strokeWidth = 2.dp,
+                                                                modifier = Modifier.size(16.dp)
+                                                            )
+                                                            Text(
+                                                                text = "Tuning in similar songs matching this vibe...",
+                                                                color = BabyPinkTextSecondary,
+                                                                fontSize = 12.sp,
+                                                                fontWeight = FontWeight.Medium
+                                                            )
+                                                        }
+                                                    }
+                                                }
+                                            } else {
+                                                itemsIndexed(radioUpcoming) { _, item ->
+                                                    val absoluteIndex = queue.indexOf(item)
+
+                                                    Row(
+                                                        modifier = Modifier
+                                                            .fillMaxWidth()
+                                                            .clip(RoundedCornerShape(16.dp))
+                                                            .background(
+                                                                Brush.horizontalGradient(
+                                                                    listOf(
+                                                                        GlassSurfaceStrong,
+                                                                        BabyPinkSoftRose.copy(alpha = 0.20f)
+                                                                    )
+                                                                )
+                                                            )
+                                                            .border(1.dp, BabyPinkPrimary.copy(alpha = 0.25f), RoundedCornerShape(16.dp))
+                                                            .clickable {
+                                                                if (absoluteIndex != -1) viewModel.playTrackFromQueue(absoluteIndex)
+                                                            }
+                                                            .padding(8.dp),
+                                                        verticalAlignment = Alignment.CenterVertically
+                                                    ) {
+                                                        AsyncImage(
+                                                            model = item.albumArtUrl,
+                                                            contentDescription = null,
+                                                            modifier = Modifier
+                                                                .size(44.dp)
+                                                                .clip(RoundedCornerShape(10.dp)),
+                                                            contentScale = ContentScale.Crop
+                                                        )
+                                                        Spacer(modifier = Modifier.width(10.dp))
+                                                        Column(modifier = Modifier.weight(1f)) {
+                                                            Text(
+                                                                text = item.title,
+                                                                color = BabyPinkTextPrimary,
+                                                                fontWeight = FontWeight.SemiBold,
+                                                                fontSize = 13.sp,
+                                                                maxLines = 1,
+                                                                overflow = TextOverflow.Ellipsis
+                                                            )
+                                                            Row(
+                                                                verticalAlignment = Alignment.CenterVertically,
+                                                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                                            ) {
+                                                                Text(
+                                                                    text = item.artist,
+                                                                    color = BabyPinkTextSecondary,
+                                                                    fontSize = 11.sp,
+                                                                    maxLines = 1,
+                                                                    overflow = TextOverflow.Ellipsis
+                                                                )
+                                                                // "⚡ Radio" Glass Pill
+                                                                Box(
+                                                                    modifier = Modifier
+                                                                        .clip(RoundedCornerShape(8.dp))
+                                                                        .background(BabyPinkPrimary.copy(alpha = 0.15f))
+                                                                        .padding(horizontal = 5.dp, vertical = 1.dp)
+                                                                ) {
+                                                                    Text(
+                                                                        text = "⚡ Radio",
+                                                                        color = BabyPinkPrimary,
+                                                                        fontSize = 9.sp,
+                                                                        fontWeight = FontWeight.Bold
+                                                                    )
+                                                                }
+                                                            }
+                                                        }
+
+                                                        // Play button
+                                                        IconButton(
+                                                            onClick = {
+                                                                if (absoluteIndex != -1) viewModel.playTrackFromQueue(absoluteIndex)
+                                                            },
+                                                            modifier = Modifier.size(30.dp)
+                                                        ) {
+                                                            Icon(
+                                                                Icons.Default.PlayArrow,
+                                                                contentDescription = "Play",
+                                                                tint = BabyPinkPrimary,
                                                                 modifier = Modifier.size(20.dp)
                                                             )
                                                         }
@@ -549,26 +836,28 @@ fun FullPlayerScreen(
                                                         // Context Menu
                                                         IconButton(
                                                             onClick = { selectedTrackForMenu = item },
-                                                            modifier = Modifier.size(30.dp)
+                                                            modifier = Modifier.size(28.dp)
                                                         ) {
                                                             Icon(
                                                                 Icons.Default.MoreVert,
                                                                 contentDescription = "More",
                                                                 tint = BabyPinkTextSecondary,
-                                                                modifier = Modifier.size(18.dp)
+                                                                modifier = Modifier.size(16.dp)
                                                             )
                                                         }
 
                                                         // Delete Item
                                                         IconButton(
-                                                            onClick = { viewModel.removeQueueItem(absoluteIndex) },
-                                                            modifier = Modifier.size(30.dp)
+                                                            onClick = {
+                                                                if (absoluteIndex != -1) viewModel.removeQueueItem(absoluteIndex)
+                                                            },
+                                                            modifier = Modifier.size(28.dp)
                                                         ) {
                                                             Icon(
                                                                 Icons.Default.Close,
                                                                 contentDescription = "Remove",
                                                                 tint = BabyPinkTextSecondary,
-                                                                modifier = Modifier.size(18.dp)
+                                                                modifier = Modifier.size(16.dp)
                                                             )
                                                         }
                                                     }

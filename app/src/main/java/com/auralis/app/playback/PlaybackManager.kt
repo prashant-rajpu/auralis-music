@@ -117,6 +117,12 @@ class PlaybackManager @Inject constructor(
     val sleepTimerMinutesRemaining = _sleepTimerMinutesRemaining.asStateFlow()
     private var sleepTimerJob: Job? = null
 
+    private val _isInfiniteRadioLoading = MutableStateFlow(false)
+    val isInfiniteRadioLoading: StateFlow<Boolean> = _isInfiniteRadioLoading.asStateFlow()
+    val isInfiniteRadioAutoplayEnabled: StateFlow<Boolean> = settingsPreferences.infiniteRadioAutoplay
+
+    private val sessionPlayedTrackIds = mutableSetOf<String>()
+
     private var currentIndex = -1
         set(value) {
             field = value
@@ -329,6 +335,11 @@ class PlaybackManager @Inject constructor(
                             }
                         }
                     }
+
+                    // Proactive Infinite Radio queue buffering every ~5 seconds (25 * 200ms)
+                    if (tickCounter % 25 == 0) {
+                        checkAndPrefetchRadioBuffer()
+                    }
                 }
                 delay(200)
             }
@@ -479,6 +490,7 @@ class PlaybackManager @Inject constructor(
         _currentPositionMs.value = 0L
         _durationMs.value = track.durationMs
 
+        sessionPlayedTrackIds.add(track.id)
         ensureMediaServiceStarted()
 
         scope.launch {
@@ -504,6 +516,9 @@ class PlaybackManager @Inject constructor(
             jamClient.broadcastPlaybackState(resolvedTrack, 0L, true, action = "change_track")
 
             applySponsorBlockIntroSkip(resolvedTrack)
+
+            // Proactively check if queue needs radio buffer
+            checkAndPrefetchRadioBuffer()
         }
     }
 
@@ -514,8 +529,9 @@ class PlaybackManager @Inject constructor(
     }
 
     fun startRadio(anchorTrack: Track) {
-        playTrack(anchorTrack, listOf(anchorTrack))
-        triggerInfiniteRadioAutoplay(anchorTrack)
+        val cleanAnchor = anchorTrack.copy(isAutoplayRecommendation = false)
+        playTrack(cleanAnchor, listOf(cleanAnchor))
+        triggerInfiniteRadioAutoplay(anchorTrack = cleanAnchor, forceImmediateStart = false)
     }
 
     private fun applySponsorBlockIntroSkip(track: Track) {
@@ -542,39 +558,49 @@ class PlaybackManager @Inject constructor(
         if (index in q.indices) {
             val target = q[index]
             currentIndex = index
+            sessionPlayedTrackIds.add(target.id)
             jamClient.broadcastPlaybackState(target, 0L, true, action = "change_track")
             startCrossfadeTo(target)
+            checkAndPrefetchRadioBuffer()
         }
     }
 
     fun playNext(track: Track) {
         val q = _queue.value.toMutableList()
+        val cleanTrack = track.copy(isAutoplayRecommendation = false)
         if (q.isEmpty() || currentIndex == -1) {
-            playTrack(track, listOf(track))
+            playTrack(cleanTrack, listOf(cleanTrack))
         } else {
-            val existingIndex = q.indexOfFirst { it.id == track.id }
+            val existingIndex = q.indexOfFirst { it.id == cleanTrack.id }
             if (existingIndex > currentIndex) {
                 q.removeAt(existingIndex)
             }
             val insertIndex = (currentIndex + 1).coerceAtMost(q.size)
-            q.add(insertIndex, track)
+            q.add(insertIndex, cleanTrack)
             _queue.value = q
         }
-        _lastJamAction.value = "Playing next: ${track.title} 🎶"
+        _lastJamAction.value = "Playing next: ${cleanTrack.title} 🎶"
         scheduleActionDismiss()
     }
 
     fun addToQueue(track: Track) {
         val q = _queue.value.toMutableList()
-        if (q.isEmpty()) {
-            playTrack(track, listOf(track))
+        val cleanTrack = track.copy(isAutoplayRecommendation = false)
+        if (q.isEmpty() || currentIndex == -1) {
+            playTrack(cleanTrack, listOf(cleanTrack))
         } else {
-            if (q.none { it.id == track.id }) {
-                q.add(track)
+            if (q.none { it.id == cleanTrack.id }) {
+                // Prioritize user tracks: insert BEFORE the first upcoming autoplay recommendation
+                val firstAutoplayIndex = q.indexOfFirst { it.isAutoplayRecommendation && q.indexOf(it) > currentIndex }
+                if (firstAutoplayIndex != -1) {
+                    q.add(firstAutoplayIndex, cleanTrack)
+                } else {
+                    q.add(cleanTrack)
+                }
                 _queue.value = q
             }
         }
-        _lastJamAction.value = "Added to queue: ${track.title} 🎵"
+        _lastJamAction.value = "Added to queue: ${cleanTrack.title} 🎵"
         scheduleActionDismiss()
     }
 
@@ -596,6 +622,7 @@ class PlaybackManager @Inject constructor(
             q.removeAt(index)
             _queue.value = q
             currentIndex = q.indexOfFirst { it.id == currentTrackId }
+            checkAndPrefetchRadioBuffer()
         }
     }
 
@@ -608,36 +635,85 @@ class PlaybackManager @Inject constructor(
         }
     }
 
+    fun clearAutoplayRecommendations() {
+        val q = _queue.value.toMutableList()
+        val currentTrackId = _currentTrack.value?.id
+        val filtered = q.filterIndexed { index, track ->
+            index <= currentIndex || !track.isAutoplayRecommendation
+        }
+        _queue.value = filtered
+        currentIndex = filtered.indexOfFirst { it.id == currentTrackId }
+        _lastJamAction.value = "Autoplay recommendations cleared"
+        scheduleActionDismiss()
+    }
+
+    fun refreshInfiniteRadio() {
+        val q = _queue.value.toMutableList()
+        val currentTrackId = _currentTrack.value?.id
+        val filtered = q.filterIndexed { index, track ->
+            index <= currentIndex || !track.isAutoplayRecommendation
+        }
+        _queue.value = filtered
+        currentIndex = filtered.indexOfFirst { it.id == currentTrackId }
+        triggerInfiniteRadioAutoplay(anchorTrack = _currentTrack.value, forceImmediateStart = false)
+        _lastJamAction.value = "Refreshing Infinite Radio 🔄"
+        scheduleActionDismiss()
+    }
+
+    fun setInfiniteRadioAutoplay(enabled: Boolean) {
+        settingsPreferences.setInfiniteRadioAutoplay(enabled)
+        if (!enabled) {
+            clearAutoplayRecommendations()
+        } else {
+            checkAndPrefetchRadioBuffer(force = true)
+        }
+    }
+
     fun setPlaybackSpeed(speed: Float) {
         _playbackSpeed.value = speed
         val params = PlaybackParameters(speed)
         playerA.playbackParameters = params
         playerB.playbackParameters = params
+        _lastJamAction.value = "Speed: ${speed}x ⚡"
+        scheduleActionDismiss()
     }
 
     fun setSleepTimer(minutes: Int?) {
         sleepTimerJob?.cancel()
         _sleepTimerMinutesRemaining.value = minutes
-        if (minutes != null && minutes > 0) {
-            sleepTimerJob = scope.launch {
-                var remaining = minutes
-                while (remaining > 0) {
-                    _sleepTimerMinutesRemaining.value = remaining
-                    delay(60_000L)
-                    remaining--
-                }
-                _sleepTimerMinutesRemaining.value = null
-                // Gentle fade out over 10 seconds
-                for (step in 10 downTo 0) {
-                    val vol = step / 10f
-                    activePlayer.volume = vol
-                    delay(1000L)
-                }
-                pause()
-                activePlayer.volume = 1.0f
-                _lastJamAction.value = "Sleep timer finished 🌙"
-                scheduleActionDismiss()
+
+        if (minutes == null || minutes <= 0) {
+            _lastJamAction.value = "Sleep timer disabled"
+            scheduleActionDismiss()
+            return
+        }
+
+        _lastJamAction.value = "Sleep timer set: $minutes min 🌙"
+        scheduleActionDismiss()
+
+        sleepTimerJob = scope.launch {
+            var remaining = minutes
+            while (remaining > 0) {
+                delay(60_000L)
+                remaining--
+                _sleepTimerMinutesRemaining.value = if (remaining > 0) remaining else null
             }
+
+            // Gentle 10-second volume fade-out before pausing
+            val steps = 20
+            val fadeInterval = 500L
+            val startVol = activePlayer.volume
+            for (i in steps downTo 0) {
+                val vol = startVol * (i.toFloat() / steps.toFloat())
+                activePlayer.volume = vol
+                delay(fadeInterval)
+            }
+
+            pause()
+            activePlayer.volume = startVol
+            _sleepTimerMinutesRemaining.value = null
+            _lastJamAction.value = "Goodnight! Sleep timer finished 🌙"
+            scheduleActionDismiss()
         }
     }
 
@@ -679,39 +755,71 @@ class PlaybackManager @Inject constructor(
         if (nextIdx != -1) {
             val nextTrack = q[nextIdx]
             currentIndex = nextIdx
+            sessionPlayedTrackIds.add(nextTrack.id)
             jamClient.broadcastPlaybackState(nextTrack, 0L, true, action = "next_track")
             startCrossfadeTo(nextTrack)
+            checkAndPrefetchRadioBuffer()
         } else if (settingsPreferences.infiniteRadioAutoplay.value) {
             // Queue has reached the end! Autoplay similar songs automatically
-            triggerInfiniteRadioAutoplay()
+            triggerInfiniteRadioAutoplay(forceImmediateStart = true)
         }
     }
 
-    fun triggerInfiniteRadioAutoplay(anchorTrack: Track? = null) {
+    fun checkAndPrefetchRadioBuffer(force: Boolean = false) {
+        if (!settingsPreferences.infiniteRadioAutoplay.value && !force) return
         if (isFetchingRadio) return
-        val track = anchorTrack ?: _currentTrack.value ?: return
+        val q = _queue.value
+        if (q.isEmpty() || currentIndex == -1) return
+
+        val upcomingCount = (q.size - 1) - currentIndex
+        // Proactive buffer: if 2 or fewer upcoming songs remain, pre-fetch
+        if (upcomingCount <= 2 || force) {
+            val seed = q.lastOrNull() ?: _currentTrack.value
+            triggerInfiniteRadioAutoplay(anchorTrack = seed, forceImmediateStart = false)
+        }
+    }
+
+    fun triggerInfiniteRadioAutoplay(anchorTrack: Track? = null, forceImmediateStart: Boolean = false) {
+        if (isFetchingRadio) return
+        val current = _currentTrack.value ?: return
+        val seed = anchorTrack ?: _queue.value.lastOrNull() ?: current
         isFetchingRadio = true
+        _isInfiniteRadioLoading.value = true
 
         scope.launch {
             try {
-                val videoId = track.getYouTubeVideoId() ?: track.id.removePrefix("yt_")
-                val related = youTubeMusicApi.getRelatedTracks(videoId)
+                val videoId = seed.getYouTubeVideoId() ?: seed.id.removePrefix("yt_")
+                var related = youTubeMusicApi.getRelatedTracks(videoId)
+                if (related.isEmpty()) {
+                    val searchFallback = youTubeMusicApi.searchTracks("${seed.artist} song")
+                    related = searchFallback.filter { it.id != seed.id }
+                }
+
                 val currentQ = _queue.value
-                val newTracks = related.filter { rel -> currentQ.none { it.id == rel.id } }
+                val newTracks = related
+                    .filter { rel -> currentQ.none { it.id == rel.id } && rel.id !in sessionPlayedTrackIds }
+                    .take(8)
+                    .map { it.copy(isAutoplayRecommendation = true) }
 
                 if (newTracks.isNotEmpty()) {
                     _queue.value = currentQ + newTracks
-                    if (currentIndex + 1 < _queue.value.size) {
-                        val nextTrack = _queue.value[currentIndex + 1]
-                        currentIndex += 1
-                        jamClient.broadcastPlaybackState(nextTrack, 0L, true, action = "radio_autoplay")
-                        startCrossfadeTo(nextTrack)
+                    Log.d("PlaybackManager", "Appended ${newTracks.size} Infinite Radio tracks to queue")
+
+                    if (forceImmediateStart || currentIndex >= currentQ.size - 1) {
+                        if (currentIndex + 1 < _queue.value.size) {
+                            val nextTrack = _queue.value[currentIndex + 1]
+                            currentIndex += 1
+                            sessionPlayedTrackIds.add(nextTrack.id)
+                            jamClient.broadcastPlaybackState(nextTrack, 0L, true, action = "radio_autoplay")
+                            startCrossfadeTo(nextTrack)
+                        }
                     }
                 }
             } catch (e: Exception) {
                 Log.e("PlaybackManager", "Infinite radio autoplay failed", e)
             } finally {
                 isFetchingRadio = false
+                _isInfiniteRadioLoading.value = false
             }
         }
     }
