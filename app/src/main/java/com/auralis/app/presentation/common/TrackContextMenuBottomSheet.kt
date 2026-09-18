@@ -11,6 +11,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -38,9 +42,25 @@ fun TrackContextMenuBottomSheet(
     onViewArtist: (String) -> Unit,
     onToggleDownload: () -> Unit,
     isDownloaded: Boolean = track.isDownloaded,
+    /** Supplied only when the menu is opened from inside a playlist. */
+    onRemoveFromPlaylist: (() -> Unit)? = null,
     onDismiss: () -> Unit
 ) {
     val context = LocalContext.current
+    var addingToPlaylist by remember { mutableStateOf(false) }
+
+    // Nested rather than hoisted to every caller: the menu already has the track, so every screen
+    // that shows the menu gets "Add to playlist" without threading state through itself.
+    if (addingToPlaylist) {
+        AddToPlaylistSheet(
+            track = track,
+            onDismiss = {
+                addingToPlaylist = false
+                onDismiss()
+            }
+        )
+        return
+    }
 
     Dialog(onDismissRequest = onDismiss) {
         Surface(
@@ -150,7 +170,27 @@ fun TrackContextMenuBottomSheet(
                     }
                 )
 
-                // Action 3: Start Track Radio
+                // Action 3: Add to a playlist
+                ContextMenuOptionRow(
+                    icon = Icons.Default.PlaylistAdd,
+                    title = "Add to Playlist",
+                    subtitle = "Save it somewhere you will find it again",
+                    onClick = { addingToPlaylist = true }
+                )
+
+                if (onRemoveFromPlaylist != null) {
+                    ContextMenuOptionRow(
+                        icon = Icons.Default.PlaylistRemove,
+                        title = "Remove from Playlist",
+                        subtitle = "Take it out of this playlist",
+                        onClick = {
+                            onRemoveFromPlaylist()
+                            onDismiss()
+                        }
+                    )
+                }
+
+                // Action 4: Start Track Radio
                 ContextMenuOptionRow(
                     icon = Icons.Default.Radio,
                     title = "Start Radio",

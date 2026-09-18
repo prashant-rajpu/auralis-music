@@ -12,6 +12,12 @@ data class TrackPlayCount(
     val lastPlayedAtMs: Long
 )
 
+/** An artist and how many plays they account for. */
+data class ArtistPlayCount(
+    val artist: String,
+    val playCount: Int
+)
+
 /** A track both partners heard together, ranked by how often. */
 data class SharedTrackCount(
     val trackId: String,
@@ -48,6 +54,36 @@ interface HistoryDao {
         """
     )
     fun mostPlayed(limit: Int = 50): Flow<List<TrackPlayCount>>
+
+    /** Most played, already joined to the catalog so callers get whole tracks, not bare ids. */
+    @Query(
+        """
+        SELECT c.* FROM catalog_tracks c
+        INNER JOIN play_history h ON h.trackId = c.id
+        WHERE h.skipped = 0
+        GROUP BY c.id
+        ORDER BY COUNT(*) DESC, MAX(h.startedAtMs) DESC
+        LIMIT :limit
+        """
+    )
+    fun mostPlayedTracks(limit: Int = 50): Flow<List<CatalogTrackEntity>>
+
+    /**
+     * Artists ranked by plays, not by distinct tracks: someone with one song on repeat should
+     * outrank someone whose album you played once.
+     */
+    @Query(
+        """
+        SELECT c.artist AS artist, COUNT(*) AS playCount
+        FROM play_history h
+        INNER JOIN catalog_tracks c ON c.id = h.trackId
+        WHERE h.skipped = 0 AND TRIM(c.artist) != ''
+        GROUP BY c.artist
+        ORDER BY playCount DESC
+        LIMIT :limit
+        """
+    )
+    fun topArtists(limit: Int = 30): Flow<List<ArtistPlayCount>>
 
     @Query("SELECT * FROM play_history ORDER BY startedAtMs DESC LIMIT :limit OFFSET :offset")
     fun history(limit: Int, offset: Int): Flow<List<PlayHistoryEntity>>

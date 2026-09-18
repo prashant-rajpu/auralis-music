@@ -61,7 +61,7 @@ fun MiniPlayer(
             viewModel = viewModel,
             onPlayPauseClick = { viewModel.togglePlayPause() },
             onSkipNextClick = { viewModel.skipNext() },
-            onLikeClick = { viewModel.toggleLike(currentTrack!!.id) },
+            onLikeClick = { viewModel.toggleLike(currentTrack!!) },
             onClick = onNavigateToFullPlayer
         )
     }

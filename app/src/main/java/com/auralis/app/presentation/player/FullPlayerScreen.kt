@@ -1008,7 +1008,7 @@ fun FullPlayerScreen(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             IconButton(
-                                onClick = { viewModel.toggleDislike(track.id) },
+                                onClick = { viewModel.toggleDislike(track) },
                                 modifier = Modifier.hapticPress(scaleDown = 0.85f)
                             ) {
                                 Icon(
@@ -1019,7 +1019,7 @@ fun FullPlayerScreen(
                                 )
                             }
                             IconButton(
-                                onClick = { viewModel.toggleLike(track.id) },
+                                onClick = { viewModel.toggleLike(track) },
                                 modifier = Modifier.hapticPress(scaleDown = 0.85f)
                             ) {
                                 Icon(

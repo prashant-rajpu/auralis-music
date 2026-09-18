@@ -179,8 +179,11 @@ class LibraryRepository @Inject constructor(
     fun recentlyPlayed(limit: Int = 50): Flow<List<Track>> =
         historyDao.recentlyPlayed(limit).map { rows -> rows.map { it.toTrack() } }
 
-    fun mostPlayed(limit: Int = 50): Flow<List<Pair<String, Int>>> =
-        historyDao.mostPlayed(limit).map { rows -> rows.map { it.trackId to it.playCount } }
+    fun mostPlayed(limit: Int = 50): Flow<List<Track>> =
+        historyDao.mostPlayedTracks(limit).map { rows -> rows.map { it.toTrack() } }
+
+    fun topArtists(limit: Int = 30): Flow<List<String>> =
+        historyDao.topArtists(limit).map { rows -> rows.map { it.artist } }
 
     val historyCount: Flow<Int> = historyDao.historyCount()
 

@@ -45,7 +45,8 @@ class PlaybackManager @Inject constructor(
     val settingsPreferences: AuralisSettingsPreferences,
     private val musicRepository: MusicRepository,
     private val segmentSkippers: Set<@JvmSuppressWildcards SegmentSkipper>,
-    val personalizationManager: PersonalizationManager
+    val personalizationManager: PersonalizationManager,
+    private val historyRecorder: PlaybackHistoryRecorder
 ) {
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
@@ -161,6 +162,7 @@ class PlaybackManager @Inject constructor(
         startPositionTicker()
         observeJamState()
         setupMediaSession()
+        historyRecorder.attach(scope, _currentTrack, _currentPositionMs, _durationMs)
     }
 
     private fun createForwardingPlayer(player: ExoPlayer): AuralisQueueForwardingPlayer {
