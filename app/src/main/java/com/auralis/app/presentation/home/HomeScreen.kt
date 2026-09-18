@@ -360,11 +360,9 @@ fun HomeScreen(
                         onReconnect = { viewModel.reconnectJam() },
                         onStartTogether = { code, name ->
                             viewModel.startJam(code, name)
-                            showJamDialog = false
                         },
                         onJoinTogether = { code, name ->
                             viewModel.joinJam(code, name)
-                            showJamDialog = false
                         },
                         onLeaveTogether = {
                             viewModel.leaveJam()

@@ -450,11 +450,18 @@ class PlaybackManager @Inject constructor(
         currentIndex = _queue.value.indexOfFirst { it.id == track.id }
 
         scope.launch {
-            val resolvedTrack = if (track.isYouTubeTrack() || !track.mediaUrl.startsWith("http") || track.mediaUrl.contains("googlevideo.com")) {
+            val resolvedTrack = if (track.isYouTubeTrack() || !com.auralis.app.network.JamProtocolHelper.isPlayableDirectStreamUrl(track.mediaUrl)) {
                 val resolvedUrl = streamResolver.resolveStreamUrl(track, forceRefresh = true)
                 track.copy(mediaUrl = resolvedUrl)
             } else {
                 track
+            }
+
+            if (!com.auralis.app.network.JamProtocolHelper.isPlayableDirectStreamUrl(resolvedTrack.mediaUrl)) {
+                Log.e("PlaybackManager", "Cannot play track from Jam: stream URL unresolvable for ${track.title}")
+                _lastJamAction.value = "Cannot play ${track.title} ⚠️"
+                scheduleActionDismiss()
+                return@launch
             }
 
             standbyPlayer.stop()
@@ -495,11 +502,18 @@ class PlaybackManager @Inject constructor(
         ensureMediaServiceStarted()
 
         scope.launch {
-            val resolvedTrack = if (track.isYouTubeTrack() || !track.mediaUrl.startsWith("http")) {
+            val resolvedTrack = if (track.isYouTubeTrack() || !com.auralis.app.network.JamProtocolHelper.isPlayableDirectStreamUrl(track.mediaUrl)) {
                 val resolvedUrl = streamResolver.resolveStreamUrl(track)
                 track.copy(mediaUrl = resolvedUrl)
             } else {
                 track
+            }
+
+            if (!com.auralis.app.network.JamProtocolHelper.isPlayableDirectStreamUrl(resolvedTrack.mediaUrl)) {
+                Log.e("PlaybackManager", "Cannot play track: stream URL unresolvable for ${track.title}")
+                _lastJamAction.value = "Cannot play ${track.title} ⚠️"
+                scheduleActionDismiss()
+                return@launch
             }
 
             standbyPlayer.stop()

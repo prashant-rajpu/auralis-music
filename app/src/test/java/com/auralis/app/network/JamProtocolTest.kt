@@ -138,4 +138,31 @@ class JamProtocolTest {
         assertTrue(JamProtocolHelper.shouldSeek(currentPositionMs = 10000L, targetPositionMs = 11600L, thresholdMs = 1500L))
         assertTrue(JamProtocolHelper.shouldSeek(currentPositionMs = 10000L, targetPositionMs = 5000L, thresholdMs = 1500L))
     }
+
+    @Test
+    fun testExtractNtfyMessage_parsesStreamLine() {
+        val streamLine = """{"id":"abc123xyz","time":1789712039,"event":"message","topic":"auralis_jam_babu1234","message":"{\"type\":\"reaction\",\"sender\":\"Laddu\",\"emoji\":\"💖\"}"}"""
+        val extracted = JamProtocolHelper.extractMessageBody(streamLine)
+        assertEquals("""{"type":"reaction","sender":"Laddu","emoji":"💖"}""", extracted)
+
+        val nonMessageLine = """{"id":"abc123xyz","time":1789712039,"event":"keepalive","topic":"auralis_jam_babu1234"}"""
+        assertNull(JamProtocolHelper.extractMessageBody(nonMessageLine))
+    }
+
+    @Test
+    fun testCleanSearchQuery_removesNoiseAndFeatures() {
+        assertEquals("Starboy The Weeknd", JamProtocolHelper.cleanSearchQuery("Starboy (Official Music Video)", "The Weeknd ft. Daft Punk"))
+        assertEquals("Shape of You Ed Sheeran", JamProtocolHelper.cleanSearchQuery("Shape of You [Official Lyric Video]", "Ed Sheeran"))
+        assertEquals("Blinding Lights The Weeknd", JamProtocolHelper.cleanSearchQuery("Blinding Lights (Audio)", "The Weeknd feat. Max"))
+    }
+
+    @Test
+    fun testIsPlayableDirectStreamUrl() {
+        assertTrue(JamProtocolHelper.isPlayableDirectStreamUrl("https://aac.saavncdn.com/077/stream_320.mp4"))
+        assertTrue(JamProtocolHelper.isPlayableDirectStreamUrl("https://rr1---sn-4g5edn6s.googlevideo.com/videoplayback?expire=123"))
+        assertFalse(JamProtocolHelper.isPlayableDirectStreamUrl("https://music.youtube.com/watch?v=4NRXx6U8ABQ"))
+        assertFalse(JamProtocolHelper.isPlayableDirectStreamUrl("https://www.youtube.com/watch?v=4NRXx6U8ABQ"))
+        assertFalse(JamProtocolHelper.isPlayableDirectStreamUrl(""))
+    }
 }
+

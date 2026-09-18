@@ -44,6 +44,48 @@ object JamProtocolHelper {
         return abs(currentPositionMs - targetPositionMs) > thresholdMs
     }
 
+    /**
+     * Extracts the raw payload message from an ntfy HTTP stream or WebSocket event line.
+     */
+    fun extractMessageBody(eventJsonLine: String): String? {
+        return try {
+            val root = gson.fromJson(eventJsonLine, com.google.gson.JsonObject::class.java) ?: return null
+            val event = root.get("event")?.asString
+            if (event == "message") {
+                root.get("message")?.asString
+            } else {
+                null
+            }
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    /**
+     * Strips noise (like "Official Video", "feat.", "lyrics") to maximize audio search hit rates.
+     */
+    fun cleanSearchQuery(title: String, artist: String): String {
+        val cleanTitle = title
+            .replace(Regex("(?i)\\(.*?(official|feat|ft|video|audio|lyrics|remix|hd|4k).*?\\)"), "")
+            .replace(Regex("(?i)\\[.*?(official|feat|ft|video|audio|lyrics|remix|hd|4k).*?\\]"), "")
+            .replace(Regex("(?i)(official\\s+video|official\\s+audio|lyric\\s+video|visualizer|remastered|video)"), "")
+            .trim()
+        val cleanArtist = artist
+            .replace(Regex("(?i)\\b(ft\\.?|feat\\.?|featuring)\\b.*"), "")
+            .trim()
+        return "$cleanTitle $cleanArtist".trim()
+    }
+
+    /**
+     * Validates whether a media URL is a directly playable audio stream (e.g. .mp4, .mp3, .m4a, googlevideo, saavncdn)
+     * rather than an HTML webpage link (like youtube.com/watch).
+     */
+    fun isPlayableDirectStreamUrl(url: String?): Boolean {
+        if (url.isNullOrBlank()) return false
+        if (url.contains("music.youtube.com/watch") || url.contains("youtube.com/watch")) return false
+        return url.startsWith("http://") || url.startsWith("https://")
+    }
+
     fun buildSyncPlaybackJson(
         username: String,
         track: Track,

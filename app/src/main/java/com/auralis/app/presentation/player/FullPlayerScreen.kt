@@ -1401,11 +1401,9 @@ fun FullPlayerScreen(
             onReconnect = { viewModel.reconnectJam() },
             onStartTogether = { code, name ->
                 viewModel.startJam(code, name)
-                viewModel.setJamSheetVisible(false)
             },
             onJoinTogether = { code, name ->
                 viewModel.joinJam(code, name)
-                viewModel.setJamSheetVisible(false)
             },
             onLeaveTogether = {
                 viewModel.leaveJam()

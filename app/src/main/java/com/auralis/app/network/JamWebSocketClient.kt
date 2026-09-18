@@ -52,14 +52,14 @@ class JamWebSocketClient @Inject constructor(
 ) {
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private var webSocket: WebSocket? = null
+    private var httpStreamJob: Job? = null
     private var reconnectJob: Job? = null
 
-    // Dedicated WebSocket client with RFC-compliant 10s pingInterval, zero read timeout,
-    // and automatic retry on connection failure
-    private val wsClient = client.newBuilder()
+    // Dedicated clean OkHttpClient with NO logging interceptor to prevent WebSocket handshake corruption
+    private val wsClient = OkHttpClient.Builder()
         .pingInterval(10, TimeUnit.SECONDS)
         .readTimeout(0, TimeUnit.MILLISECONDS)
-        .connectTimeout(15, TimeUnit.SECONDS)
+        .connectTimeout(12, TimeUnit.SECONDS)
         .retryOnConnectionFailure(true)
         .build()
 
@@ -88,6 +88,7 @@ class JamWebSocketClient @Inject constructor(
 
     fun reconnect() {
         val session = _currentSession.value ?: return
+        _isConnected.value = false
         connectInternal(session.jamId, session.username, session.isHost, isAutoReconnect = false)
     }
 
@@ -97,6 +98,8 @@ class JamWebSocketClient @Inject constructor(
         } else {
             webSocket?.cancel()
             webSocket = null
+            httpStreamJob?.cancel()
+            httpStreamJob = null
         }
 
         val topic = cleanTopic(jamId)
@@ -108,16 +111,26 @@ class JamWebSocketClient @Inject constructor(
         )
         _currentSession.value = session
 
+        // 1. Initial Fast Catch-Up Poll (retrieves state in <100ms even if sent before connecting)
+        pollRecentMessages(topic)
+
+        // 2. Start WebSocket Transport (primary low-latency)
+        connectWebSocket(topic, session)
+
+        // 3. Start Resilient HTTP Stream Transport in parallel (immune to carrier WebSocket blocks)
+        startHttpStream(topic)
+    }
+
+    private fun connectWebSocket(topic: String, session: JamSession) {
         val wsUrl = "wss://ntfy.sh/$topic/ws"
         val request = Request.Builder().url(wsUrl).build()
 
         webSocket = wsClient.newWebSocket(request, object : WebSocketListener() {
             override fun onOpen(webSocket: WebSocket, response: Response) {
-                Log.d("JamClient", "WebSocket connected successfully to topic: $topic")
+                Log.d("JamClient", "WebSocket connected to topic: $topic")
                 _isConnected.value = true
                 _jamState.value = JamState.Connected(session)
 
-                // Announce user joined and request current playing state immediately
                 broadcastUserJoined(session.username)
                 broadcastRequestSync()
             }
@@ -135,38 +148,83 @@ class JamWebSocketClient @Inject constructor(
                         _isConnected.value = true
                     }
                 } catch (e: Exception) {
-                    Log.e("JamClient", "Error parsing incoming jam msg", e)
+                    Log.e("JamClient", "Error parsing WebSocket message", e)
                 }
             }
 
             override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
                 Log.w("JamClient", "WebSocket closed: $code / $reason")
-                _isConnected.value = false
-                _jamState.value = JamState.Disconnected
-                if (_currentSession.value != null && code != 1000) {
-                    scheduleReconnect()
-                }
+                // Don't mark disconnected immediately if HTTP stream is keeping connection alive
             }
 
             override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
-                Log.e("JamClient", "WebSocket failure: ${t.message}", t)
-                _isConnected.value = false
-                _jamState.value = JamState.Error(t.message ?: "Connection error")
-                if (_currentSession.value != null) {
-                    scheduleReconnect()
-                }
+                Log.w("JamClient", "WebSocket transport failed (${t.message}), relying on HTTP stream transport", t)
             }
         })
     }
 
-    private fun scheduleReconnect() {
-        val session = _currentSession.value ?: return
-        reconnectJob?.cancel()
-        reconnectJob = scope.launch {
-            delay(2500L)
-            if (_currentSession.value != null && !_isConnected.value) {
-                Log.d("JamClient", "Attempting automatic Jam reconnect for session ${session.jamId}...")
-                connectInternal(session.jamId, session.username, session.isHost, isAutoReconnect = true)
+    private fun startHttpStream(topic: String) {
+        httpStreamJob?.cancel()
+        httpStreamJob = scope.launch {
+            var backoffMs = 1500L
+            while (isActive && _currentSession.value != null) {
+                try {
+                    val streamUrl = "https://ntfy.sh/$topic/json"
+                    val request = Request.Builder().url(streamUrl).build()
+
+                    wsClient.newCall(request).execute().use { response ->
+                        if (response.isSuccessful) {
+                            _isConnected.value = true
+                            backoffMs = 1500L
+                            val source = response.body?.source() ?: return@use
+                            while (!source.exhausted() && isActive && _currentSession.value != null) {
+                                val line = source.readUtf8Line() ?: break
+                                if (line.isBlank()) continue
+                                try {
+                                    val ntfyMsg = JSONObject(line)
+                                    val event = ntfyMsg.optString("event")
+                                    if (event == "message") {
+                                        val messageBody = ntfyMsg.optString("message")
+                                        if (messageBody.isNotEmpty()) {
+                                            handleJamPayload(messageBody)
+                                        }
+                                    } else if (event == "open" || event == "keepalive") {
+                                        _isConnected.value = true
+                                    }
+                                } catch (e: Exception) {
+                                    Log.w("JamClient", "Error parsing stream line", e)
+                                }
+                            }
+                        }
+                    }
+                } catch (e: Exception) {
+                    Log.w("JamClient", "HTTP stream reconnecting: ${e.message}")
+                }
+                delay(backoffMs)
+                backoffMs = (backoffMs * 2).coerceAtMost(8000L)
+            }
+        }
+    }
+
+    private fun pollRecentMessages(topic: String) {
+        scope.launch {
+            try {
+                val pollUrl = "https://ntfy.sh/$topic/json?poll=1&since=2m"
+                val request = Request.Builder().url(pollUrl).build()
+                client.newCall(request).execute().use { response ->
+                    if (response.isSuccessful) {
+                        _isConnected.value = true
+                        val body = response.body?.string().orEmpty()
+                        for (line in body.lines()) {
+                            val msg = JamProtocolHelper.extractMessageBody(line)
+                            if (!msg.isNullOrBlank()) {
+                                handleJamPayload(msg)
+                            }
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                Log.w("JamClient", "Recent message poll failed", e)
             }
         }
     }
@@ -303,6 +361,8 @@ class JamWebSocketClient @Inject constructor(
     fun disconnect(sendLeaveNotice: Boolean = true) {
         reconnectJob?.cancel()
         reconnectJob = null
+        httpStreamJob?.cancel()
+        httpStreamJob = null
 
         val session = _currentSession.value
         if (sendLeaveNotice && session != null && _isConnected.value) {

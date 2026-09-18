@@ -22,7 +22,8 @@ private data class CachedStream(
 @Singleton
 class YouTubeStreamResolver @Inject constructor(
     private val client: OkHttpClient,
-    private val jioSaavnApi: JioSaavnApi
+    private val jioSaavnApi: JioSaavnApi,
+    private val openSourceMusicApi: OpenSourceMusicApi
 ) {
     private val gson = Gson()
     private val streamCache = ConcurrentHashMap<String, CachedStream>()
@@ -34,49 +35,56 @@ class YouTubeStreamResolver @Inject constructor(
 
     suspend fun resolveStreamUrl(track: Track, forceRefresh: Boolean = false): String = withContext(Dispatchers.IO) {
         val videoId = track.getYouTubeVideoId()
-        if (videoId.isNullOrBlank()) {
+
+        // If mediaUrl is already a playable direct audio stream and not a web link, return it immediately
+        if (videoId.isNullOrBlank() && JamProtocolHelper.isPlayableDirectStreamUrl(track.mediaUrl)) {
             return@withContext track.mediaUrl
         }
 
+        val cacheKey = videoId ?: track.id
+
         // 1. Check in-memory cache if not forcing refresh
         if (!forceRefresh) {
-            val cached = streamCache[videoId]
+            val cached = streamCache[cacheKey]
             if (cached != null && System.currentTimeMillis() < cached.expiresAtMs) {
-                Log.d("YouTubeStreamResolver", "Serving cached stream for $videoId")
+                Log.d("YouTubeStreamResolver", "Serving cached stream for $cacheKey")
                 return@withContext cached.url
             }
         }
 
-        // 2. Refresh visitor token if older than 12 hours
-        ensureVisitorToken()
-
-        // 3. Extract direct audio stream from YouTube Innertube VisionOS
-        val directStreamUrl = extractFromInnertube(videoId)
-        if (!directStreamUrl.isNullOrBlank()) {
-            Log.d("YouTubeStreamResolver", "Successfully extracted direct GoogleVideo audio for $videoId")
-            // Cache for 4 hours (GoogleVideo CDN links typically expire in 6 hours)
-            streamCache[videoId] = CachedStream(
-                url = directStreamUrl,
-                expiresAtMs = System.currentTimeMillis() + (4 * 3600 * 1000L)
+        // 2. High-speed Lossless Master Stream via JioSaavn / OpenSource Catalog
+        val masterStreamUrl = resolveViaCatalog(track)
+        if (!masterStreamUrl.isNullOrBlank()) {
+            Log.d("YouTubeStreamResolver", "Resolved $cacheKey via lossless master catalog: $masterStreamUrl")
+            streamCache[cacheKey] = CachedStream(
+                url = masterStreamUrl,
+                expiresAtMs = System.currentTimeMillis() + (12 * 3600 * 1000L)
             )
-            return@withContext directStreamUrl
+            return@withContext masterStreamUrl
         }
 
-        // 4. Fallback: Search 320 kbps lossless catalog by track metadata
-        Log.w("YouTubeStreamResolver", "Direct extraction failed for $videoId, trying master audio fallback")
-        val fallbackUrl = resolveViaCatalog(track)
-        if (!fallbackUrl.isNullOrBlank()) {
-            Log.d("YouTubeStreamResolver", "Resolved $videoId via master audio fallback")
-            streamCache[videoId] = CachedStream(
-                url = fallbackUrl,
-                expiresAtMs = System.currentTimeMillis() + (24 * 3600 * 1000L)
-            )
-            return@withContext fallbackUrl
+        // 3. Fallback: YouTube Innertube Direct Audio Extraction
+        if (!videoId.isNullOrBlank()) {
+            ensureVisitorToken()
+            val directStreamUrl = extractFromInnertube(videoId)
+            if (!directStreamUrl.isNullOrBlank()) {
+                Log.d("YouTubeStreamResolver", "Successfully extracted direct GoogleVideo audio for $videoId")
+                streamCache[cacheKey] = CachedStream(
+                    url = directStreamUrl,
+                    expiresAtMs = System.currentTimeMillis() + (4 * 3600 * 1000L)
+                )
+                return@withContext directStreamUrl
+            }
         }
 
-        // 5. If all fails, return original mediaUrl
+        // 4. Validate if original mediaUrl is directly playable
+        if (JamProtocolHelper.isPlayableDirectStreamUrl(track.mediaUrl)) {
+            return@withContext track.mediaUrl
+        }
+
         Log.e("YouTubeStreamResolver", "Could not resolve stream URL for ${track.title} ($videoId)")
-        track.mediaUrl
+        // Never return an unplayable web page URL to ExoPlayer
+        ""
     }
 
     private fun ensureVisitorToken() {
@@ -188,16 +196,25 @@ class YouTubeStreamResolver @Inject constructor(
 
     private suspend fun resolveViaCatalog(track: Track): String? {
         try {
-            val cleanTitle = track.title.replace(Regex("(?i)\\(.*\\)|\\[.*\\]|official|video|audio|lyrics|hd|4k"), "").trim()
-            val searchQuery = "$cleanTitle ${track.artist}".trim()
-            val resp = jioSaavnApi.searchSongs(query = searchQuery, count = 1)
-            val first = resp.results?.firstOrNull()
+            val searchQuery = JamProtocolHelper.cleanSearchQuery(track.title, track.artist)
+            val resp = jioSaavnApi.searchSongs(query = searchQuery, count = 5)
+            val candidates = resp.results.orEmpty()
 
-            if (first != null) {
-                val mediaUrl = JioSaavnDecryptor.decryptMediaUrl(first.moreInfo?.encryptedMediaUrl)
-                if (!mediaUrl.isNullOrBlank()) {
-                    return mediaUrl
+            for (candidate in candidates) {
+                val encrypted = candidate.moreInfo?.encryptedMediaUrl
+                if (!encrypted.isNullOrBlank()) {
+                    val mediaUrl = JioSaavnDecryptor.decryptMediaUrl(encrypted)
+                    if (!mediaUrl.isNullOrBlank()) {
+                        return mediaUrl
+                    }
                 }
+            }
+
+            // Fallback: OpenSource / Deezer preview stream
+            val deezerResp = openSourceMusicApi.searchTracks(query = searchQuery, limit = 1)
+            val firstDeezer = deezerResp.data?.firstOrNull()
+            if (!firstDeezer?.preview.isNullOrBlank()) {
+                return firstDeezer?.preview
             }
         } catch (e: Exception) {
             Log.w("YouTubeStreamResolver", "Catalog resolution failed for ${track.title}", e)
@@ -205,3 +222,4 @@ class YouTubeStreamResolver @Inject constructor(
         return null
     }
 }
+
