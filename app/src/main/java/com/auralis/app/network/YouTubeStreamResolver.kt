@@ -34,6 +34,10 @@ class YouTubeStreamResolver @Inject constructor(
     @Volatile private var lastTokenRefreshTime: Long = 0L
 
     suspend fun resolveStreamUrl(track: Track, forceRefresh: Boolean = false): String = withContext(Dispatchers.IO) {
+        if (JamProtocolHelper.isLocalFileUrl(track.mediaUrl)) {
+            return@withContext track.mediaUrl
+        }
+
         val videoId = track.getYouTubeVideoId()
 
         // If mediaUrl is already a playable direct audio stream and not a web link, return it immediately

@@ -2,6 +2,8 @@
 <data-extraction-rules>
     <cloud-backup>
         <include domain="file" path="."/>
+        <!-- Downloaded audio is large and re-downloadable; it must not consume the backup quota. -->
+        <exclude domain="file" path="music"/>
         <include domain="database" path="."/>
         <include domain="sharedpref" path="."/>
     </cloud-backup>

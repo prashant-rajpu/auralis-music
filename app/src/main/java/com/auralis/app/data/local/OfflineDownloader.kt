@@ -4,6 +4,7 @@ import android.content.Context
 import android.util.Log
 import com.auralis.app.domain.model.Track
 import com.auralis.app.lyrics.LyricsRepository
+import com.auralis.app.network.JamProtocolHelper
 import com.auralis.app.network.YouTubeStreamResolver
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
@@ -25,7 +26,7 @@ class OfflineDownloader @Inject constructor(
 ) {
     suspend fun downloadTrack(track: Track): Boolean = withContext(Dispatchers.IO) {
         try {
-            val downloadUrl = if (track.isYouTubeTrack() || !track.mediaUrl.startsWith("http")) {
+            val downloadUrl = if (JamProtocolHelper.needsStreamResolution(track)) {
                 streamResolver.resolveStreamUrl(track)
             } else {
                 track.mediaUrl

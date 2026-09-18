@@ -1,6 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <full-backup-content>
     <include domain="file" path="."/>
+    <!-- Downloaded audio is large and re-downloadable; it must not consume the backup quota. -->
+    <exclude domain="file" path="music"/>
     <include domain="database" path="."/>
     <include domain="sharedpref" path="."/>
 </full-backup-content>

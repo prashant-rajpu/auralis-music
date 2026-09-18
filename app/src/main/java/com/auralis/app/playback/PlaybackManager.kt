@@ -3,8 +3,6 @@ package com.auralis.app.playback
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
-import android.graphics.Bitmap
-import android.graphics.drawable.BitmapDrawable
 import android.net.Uri
 import android.util.Log
 import androidx.media3.common.AudioAttributes
@@ -15,12 +13,10 @@ import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.session.MediaSession
-import coil.ImageLoader
-import coil.request.ImageRequest
-import coil.request.SuccessResult
-import java.io.ByteArrayOutputStream
+import androidx.media3.session.SessionCommands
 import com.auralis.app.domain.model.SoundProfile
 import com.auralis.app.domain.model.Track
+import com.auralis.app.network.JamProtocolHelper
 import com.auralis.app.network.JamState
 import com.auralis.app.network.JamWebSocketClient
 import com.auralis.app.network.SponsorBlockManager
@@ -123,7 +119,14 @@ class PlaybackManager @Inject constructor(
     val isInfiniteRadioLoading: StateFlow<Boolean> = _isInfiniteRadioLoading.asStateFlow()
     val isInfiniteRadioAutoplayEnabled: StateFlow<Boolean> = settingsPreferences.infiniteRadioAutoplay
 
-    private val sessionPlayedTrackIds = mutableSetOf<String>()
+    // Bounded so a long listening session cannot grow it forever and starve Infinite Radio of candidates
+    private val sessionPlayedTrackIds = LinkedHashSet<String>()
+
+    private fun markPlayed(trackId: String) {
+        if (sessionPlayedTrackIds.add(trackId) && sessionPlayedTrackIds.size > MAX_SESSION_PLAYED_IDS) {
+            sessionPlayedTrackIds.remove(sessionPlayedTrackIds.first())
+        }
+    }
 
     private var currentIndex = -1
         set(value) {
@@ -147,7 +150,6 @@ class PlaybackManager @Inject constructor(
         setupPlayer(playerB)
         startPositionTicker()
         observeJamState()
-        audioEffectManager.attachAudioSession(activePlayer.audioSessionId)
         setupMediaSession()
     }
 
@@ -176,6 +178,19 @@ class PlaybackManager @Inject constructor(
                     session: MediaSession,
                     controller: MediaSession.ControllerInfo
                 ): MediaSession.ConnectionResult {
+                    val trusted = controller.packageName == context.packageName ||
+                        controller.isTrusted ||
+                        session.isMediaNotificationController(controller) ||
+                        session.isAutomotiveController(controller) ||
+                        session.isAutoCompanionController(controller)
+                    if (!trusted) {
+                        // Unknown apps may observe playback state but never control it
+                        return MediaSession.ConnectionResult.AcceptedResultBuilder(session)
+                            .setAvailableSessionCommands(SessionCommands.EMPTY)
+                            .setAvailablePlayerCommands(Player.Commands.EMPTY)
+                            .build()
+                    }
+
                     val sessionCommands = MediaSession.ConnectionResult.DEFAULT_SESSION_COMMANDS.buildUpon().build()
                     val playerCommands = MediaSession.ConnectionResult.DEFAULT_PLAYER_COMMANDS.buildUpon()
                         .add(Player.COMMAND_SEEK_TO_NEXT)
@@ -241,11 +256,14 @@ class PlaybackManager @Inject constructor(
                 }
             }
 
+            override fun onAudioSessionIdChanged(audioSessionId: Int) {
+                audioEffectManager.attachAudioSession(audioSessionId)
+            }
+
             override fun onPlaybackStateChanged(playbackState: Int) {
                 if (player == activePlayer) {
                     if (playbackState == Player.STATE_READY) {
                         _durationMs.value = player.duration.coerceAtLeast(0L)
-                        audioEffectManager.attachAudioSession(player.audioSessionId)
                         _currentTrack.value?.let { personalizationManager.recordTrackPlay(it) }
                     } else if (playbackState == Player.STATE_ENDED && !isCrossfading) {
                         if (_repeatMode.value == RepeatMode.ONE) {
@@ -450,14 +468,14 @@ class PlaybackManager @Inject constructor(
         currentIndex = _queue.value.indexOfFirst { it.id == track.id }
 
         scope.launch {
-            val resolvedTrack = if (track.isYouTubeTrack() || !com.auralis.app.network.JamProtocolHelper.isPlayableDirectStreamUrl(track.mediaUrl)) {
+            val resolvedTrack = if (JamProtocolHelper.needsStreamResolution(track)) {
                 val resolvedUrl = streamResolver.resolveStreamUrl(track, forceRefresh = true)
                 track.copy(mediaUrl = resolvedUrl)
             } else {
                 track
             }
 
-            if (!com.auralis.app.network.JamProtocolHelper.isPlayableDirectStreamUrl(resolvedTrack.mediaUrl)) {
+            if (!JamProtocolHelper.isPlayableDirectStreamUrl(resolvedTrack.mediaUrl)) {
                 Log.e("PlaybackManager", "Cannot play track from Jam: stream URL unresolvable for ${track.title}")
                 _lastJamAction.value = "Cannot play ${track.title} ⚠️"
                 scheduleActionDismiss()
@@ -480,7 +498,6 @@ class PlaybackManager @Inject constructor(
                 activePlayer.pause()
             }
 
-            audioEffectManager.attachAudioSession(activePlayer.audioSessionId)
             applySponsorBlockIntroSkip(resolvedTrack)
             personalizationManager.recordTrackPlay(resolvedTrack)
         }
@@ -498,18 +515,18 @@ class PlaybackManager @Inject constructor(
         _currentPositionMs.value = 0L
         _durationMs.value = track.durationMs
 
-        sessionPlayedTrackIds.add(track.id)
+        markPlayed(track.id)
         ensureMediaServiceStarted()
 
         scope.launch {
-            val resolvedTrack = if (track.isYouTubeTrack() || !com.auralis.app.network.JamProtocolHelper.isPlayableDirectStreamUrl(track.mediaUrl)) {
+            val resolvedTrack = if (JamProtocolHelper.needsStreamResolution(track)) {
                 val resolvedUrl = streamResolver.resolveStreamUrl(track)
                 track.copy(mediaUrl = resolvedUrl)
             } else {
                 track
             }
 
-            if (!com.auralis.app.network.JamProtocolHelper.isPlayableDirectStreamUrl(resolvedTrack.mediaUrl)) {
+            if (!JamProtocolHelper.isPlayableDirectStreamUrl(resolvedTrack.mediaUrl)) {
                 Log.e("PlaybackManager", "Cannot play track: stream URL unresolvable for ${track.title}")
                 _lastJamAction.value = "Cannot play ${track.title} ⚠️"
                 scheduleActionDismiss()
@@ -526,7 +543,6 @@ class PlaybackManager @Inject constructor(
             activePlayer.prepare()
             activePlayer.play()
 
-            audioEffectManager.attachAudioSession(activePlayer.audioSessionId)
             // Instant broadcast so partner's phone changes to this song immediately
             jamClient.broadcastPlaybackState(resolvedTrack, 0L, true, action = "change_track")
 
@@ -573,7 +589,7 @@ class PlaybackManager @Inject constructor(
         if (index in q.indices) {
             val target = q[index]
             currentIndex = index
-            sessionPlayedTrackIds.add(target.id)
+            markPlayed(target.id)
             jamClient.broadcastPlaybackState(target, 0L, true, action = "change_track")
             startCrossfadeTo(target)
             checkAndPrefetchRadioBuffer()
@@ -770,7 +786,7 @@ class PlaybackManager @Inject constructor(
         if (nextIdx != -1) {
             val nextTrack = q[nextIdx]
             currentIndex = nextIdx
-            sessionPlayedTrackIds.add(nextTrack.id)
+            markPlayed(nextTrack.id)
             jamClient.broadcastPlaybackState(nextTrack, 0L, true, action = "next_track")
             startCrossfadeTo(nextTrack)
             checkAndPrefetchRadioBuffer()
@@ -824,7 +840,7 @@ class PlaybackManager @Inject constructor(
                         if (currentIndex + 1 < _queue.value.size) {
                             val nextTrack = _queue.value[currentIndex + 1]
                             currentIndex += 1
-                            sessionPlayedTrackIds.add(nextTrack.id)
+                            markPlayed(nextTrack.id)
                             jamClient.broadcastPlaybackState(nextTrack, 0L, true, action = "radio_autoplay")
                             startCrossfadeTo(nextTrack)
                         }
@@ -870,52 +886,54 @@ class PlaybackManager @Inject constructor(
 
         crossfadeJob?.cancel()
         crossfadeJob = scope.launch {
+            val thisJob = coroutineContext[Job]
             isCrossfading = true
+            try {
+                val resolvedNext = if (JamProtocolHelper.needsStreamResolution(nextTrack)) {
+                    val resolvedUrl = streamResolver.resolveStreamUrl(nextTrack)
+                    nextTrack.copy(mediaUrl = resolvedUrl)
+                } else {
+                    nextTrack
+                }
 
-            val resolvedNext = if (nextTrack.isYouTubeTrack() || !nextTrack.mediaUrl.startsWith("http")) {
-                val resolvedUrl = streamResolver.resolveStreamUrl(nextTrack)
-                nextTrack.copy(mediaUrl = resolvedUrl)
-            } else {
-                nextTrack
+                // Prepare standby player with next song at 0 volume
+                standbyPlayer.stop()
+                standbyPlayer.volume = 0.0f
+                loadMediaToPlayer(standbyPlayer, resolvedNext)
+                standbyPlayer.prepare()
+                standbyPlayer.play()
+
+                _currentTrack.value = resolvedNext
+
+                // Simultaneous cross-mixing volume interpolation
+                val stepInterval = 50L
+                val totalSteps = (crossfadeMs / stepInterval).coerceAtLeast(1L)
+
+                for (step in 1..totalSteps) {
+                    val progress = step.toFloat() / totalSteps.toFloat()
+                    activePlayer.volume = (1.0f - progress).coerceIn(0f, 1f)
+                    standbyPlayer.volume = progress.coerceIn(0f, 1f)
+                    delay(stepInterval)
+                }
+
+                // Transition complete: finalize swap
+                activePlayer.stop()
+                activePlayer.volume = 1.0f
+                standbyPlayer.volume = 1.0f
+
+                // Swap players
+                val temp = activePlayer
+                activePlayer = standbyPlayer
+                standbyPlayer = temp
+
+                mediaSession?.setPlayer(createForwardingPlayer(activePlayer))
+                _isPlaying.value = true
+
+                applySponsorBlockIntroSkip(resolvedNext)
+            } finally {
+                // A cancelled fade must not leave the flag set, but a newer fade owns it now
+                if (crossfadeJob === thisJob) isCrossfading = false
             }
-
-            // Prepare standby player with next song at 0 volume
-            standbyPlayer.stop()
-            standbyPlayer.volume = 0.0f
-            loadMediaToPlayer(standbyPlayer, resolvedNext)
-            standbyPlayer.prepare()
-            standbyPlayer.play()
-
-            _currentTrack.value = resolvedNext
-
-            // Simultaneous cross-mixing volume interpolation
-            val stepInterval = 50L
-            val totalSteps = (crossfadeMs / stepInterval).coerceAtLeast(1L)
-
-            for (step in 1..totalSteps) {
-                val progress = step.toFloat() / totalSteps.toFloat()
-                activePlayer.volume = (1.0f - progress).coerceIn(0f, 1f)
-                standbyPlayer.volume = progress.coerceIn(0f, 1f)
-                delay(stepInterval)
-            }
-
-            // Transition complete: finalize swap
-            activePlayer.stop()
-            activePlayer.volume = 1.0f
-            standbyPlayer.volume = 1.0f
-
-            // Swap players
-            val temp = activePlayer
-            activePlayer = standbyPlayer
-            standbyPlayer = temp
-
-            mediaSession?.setPlayer(createForwardingPlayer(activePlayer))
-
-            audioEffectManager.attachAudioSession(activePlayer.audioSessionId)
-            _isPlaying.value = true
-            isCrossfading = false
-
-            applySponsorBlockIntroSkip(resolvedNext)
         }
     }
 
@@ -934,43 +952,6 @@ class PlaybackManager @Inject constructor(
             )
             .build()
         player.setMediaItem(mediaItem)
-        fetchArtworkBitmap(player, track)
-    }
-
-    private fun fetchArtworkBitmap(player: ExoPlayer, track: Track) {
-        val artUrl = track.albumArtUrl ?: return
-        scope.launch(Dispatchers.IO) {
-            try {
-                val loader = coil.ImageLoader(context)
-                val request = coil.request.ImageRequest.Builder(context)
-                    .data(artUrl)
-                    .allowHardware(false)
-                    .build()
-                val result = (loader.execute(request) as? coil.request.SuccessResult)?.drawable
-                val bitmap = (result as? android.graphics.drawable.BitmapDrawable)?.bitmap
-                if (bitmap != null && _currentTrack.value?.id == track.id) {
-                    val stream = java.io.ByteArrayOutputStream()
-                    bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 90, stream)
-                    val byteArray = stream.toByteArray()
-                    withContext(Dispatchers.Main) {
-                        if (_currentTrack.value?.id == track.id) {
-                            val currentItem = player.currentMediaItem
-                            if (currentItem != null && currentItem.mediaId == track.id) {
-                                val updatedMetadata = currentItem.mediaMetadata.buildUpon()
-                                    .setArtworkData(byteArray, MediaMetadata.PICTURE_TYPE_FRONT_COVER)
-                                    .build()
-                                val updatedItem = currentItem.buildUpon()
-                                    .setMediaMetadata(updatedMetadata)
-                                    .build()
-                                player.replaceMediaItem(player.currentMediaItemIndex, updatedItem)
-                            }
-                        }
-                    }
-                }
-            } catch (e: Exception) {
-                Log.w("PlaybackManager", "Failed to fetch artwork byte array for notification", e)
-            }
-        }
     }
 
     fun seekTo(positionMs: Long) {
@@ -1012,5 +993,9 @@ class PlaybackManager @Inject constructor(
 
     fun applySoundProfile(profile: SoundProfile) {
         audioEffectManager.applyProfile(profile)
+    }
+
+    private companion object {
+        const val MAX_SESSION_PLAYED_IDS = 500
     }
 }

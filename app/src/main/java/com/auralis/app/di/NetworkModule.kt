@@ -1,5 +1,6 @@
 package com.auralis.app.di
 
+import com.auralis.app.BuildConfig
 import com.auralis.app.network.AudiusApi
 import com.auralis.app.network.JioSaavnApi
 import com.auralis.app.network.LrclibApi
@@ -20,14 +21,25 @@ import javax.inject.Singleton
 @InstallIn(SingletonComponent::class)
 object NetworkModule {
 
+    private val userAgent = "Auralis/${BuildConfig.VERSION_NAME} (Android)"
+
     @Provides
     @Singleton
     fun provideOkHttpClient(): OkHttpClient {
-        val logging = HttpLoggingInterceptor().apply {
-            level = HttpLoggingInterceptor.Level.HEADERS
-        }
         return OkHttpClient.Builder()
-            .addInterceptor(logging)
+            .apply {
+                if (BuildConfig.DEBUG) {
+                    addInterceptor(HttpLoggingInterceptor().apply { level = HttpLoggingInterceptor.Level.HEADERS })
+                }
+            }
+            .addInterceptor { chain ->
+                val request = chain.request()
+                if (request.header("User-Agent") != null) {
+                    chain.proceed(request)
+                } else {
+                    chain.proceed(request.newBuilder().header("User-Agent", userAgent).build())
+                }
+            }
             .connectTimeout(15, TimeUnit.SECONDS)
             .readTimeout(15, TimeUnit.SECONDS)
             .followRedirects(true)

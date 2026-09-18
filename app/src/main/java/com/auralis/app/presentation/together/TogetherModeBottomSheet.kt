@@ -31,6 +31,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import com.auralis.app.network.JamProtocolHelper
 import com.auralis.app.network.JamSession
 import com.auralis.app.ui.theme.*
 import kotlin.random.Random
@@ -636,12 +637,12 @@ fun TogetherModeBottomSheet(
 
                             Button(
                                 onClick = {
-                                    if (joinCodeInput.isNotBlank()) {
+                                    if (JamProtocolHelper.isValidJamCode(joinCodeInput)) {
                                         val name = usernameInput.ifBlank { "Laddu" }
                                         onJoinTogether(joinCodeInput, name)
                                     }
                                 },
-                                enabled = joinCodeInput.isNotBlank(),
+                                enabled = JamProtocolHelper.isValidJamCode(joinCodeInput),
                                 colors = ButtonDefaults.buttonColors(
                                     containerColor = BabyPinkPrimary,
                                     disabledContainerColor = BabyPinkPrimary.copy(alpha = 0.4f)

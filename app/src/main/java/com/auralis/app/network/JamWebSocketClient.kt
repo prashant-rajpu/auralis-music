@@ -14,7 +14,6 @@ import kotlinx.coroutines.launch
 import okhttp3.*
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.RequestBody.Companion.toRequestBody
-import org.json.JSONObject
 import java.io.IOException
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
@@ -55,6 +54,7 @@ class JamWebSocketClient @Inject constructor(
     private var webSocket: WebSocket? = null
     private var httpStreamJob: Job? = null
     private var reconnectJob: Job? = null
+    private val recentMessageIds = RecentMessageIds()
 
     // Dedicated clean OkHttpClient with NO logging interceptor to prevent WebSocket handshake corruption
     private val wsClient = OkHttpClient.Builder()
@@ -72,8 +72,6 @@ class JamWebSocketClient @Inject constructor(
 
     private val _jamState = MutableStateFlow<JamState>(JamState.Idle)
     val jamState = _jamState.asStateFlow()
-
-    private fun cleanTopic(jamId: String): String = JamProtocolHelper.cleanTopic(jamId)
 
     fun startJam(jamId: String, username: String) {
         connectInternal(jamId, username, isHost = true)
@@ -94,6 +92,11 @@ class JamWebSocketClient @Inject constructor(
     }
 
     private fun connectInternal(jamId: String, username: String, isHost: Boolean, isAutoReconnect: Boolean = false) {
+        if (!JamProtocolHelper.isValidJamCode(jamId)) {
+            _jamState.value = JamState.Error("Session code needs at least 4 letters or digits")
+            return
+        }
+
         if (!isAutoReconnect) {
             disconnect(sendLeaveNotice = false)
         } else {
@@ -103,7 +106,7 @@ class JamWebSocketClient @Inject constructor(
             httpStreamJob = null
         }
 
-        val topic = cleanTopic(jamId)
+        val topic = JamProtocolHelper.cleanTopic(jamId)
         val session = _currentSession.value ?: JamSession(
             jamId = jamId.uppercase(),
             username = username.ifBlank { if (isHost) "Host" else "Partner" },
@@ -137,20 +140,7 @@ class JamWebSocketClient @Inject constructor(
             }
 
             override fun onMessage(webSocket: WebSocket, text: String) {
-                try {
-                    val ntfyMsg = JSONObject(text)
-                    val event = ntfyMsg.optString("event")
-                    if (event == "message") {
-                        val messageBody = ntfyMsg.optString("message")
-                        if (messageBody.isNotEmpty()) {
-                            handleJamPayload(messageBody)
-                        }
-                    } else if (event == "open" || event == "keepalive") {
-                        _isConnected.value = true
-                    }
-                } catch (e: Exception) {
-                    Log.e("JamClient", "Error parsing WebSocket message", e)
-                }
+                handleNtfyEvent(text)
             }
 
             override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
@@ -177,24 +167,11 @@ class JamWebSocketClient @Inject constructor(
                         if (response.isSuccessful) {
                             _isConnected.value = true
                             backoffMs = 1500L
-                            val source = response.body?.source() ?: return@use
+                            val source = response.body.source()
                             while (!source.exhausted() && isActive && _currentSession.value != null) {
                                 val line = source.readUtf8Line() ?: break
                                 if (line.isBlank()) continue
-                                try {
-                                    val ntfyMsg = JSONObject(line)
-                                    val event = ntfyMsg.optString("event")
-                                    if (event == "message") {
-                                        val messageBody = ntfyMsg.optString("message")
-                                        if (messageBody.isNotEmpty()) {
-                                            handleJamPayload(messageBody)
-                                        }
-                                    } else if (event == "open" || event == "keepalive") {
-                                        _isConnected.value = true
-                                    }
-                                } catch (e: Exception) {
-                                    Log.w("JamClient", "Error parsing stream line", e)
-                                }
+                                handleNtfyEvent(line)
                             }
                         }
                     }
@@ -215,18 +192,38 @@ class JamWebSocketClient @Inject constructor(
                 client.newCall(request).execute().use { response ->
                     if (response.isSuccessful) {
                         _isConnected.value = true
-                        val body = response.body?.string().orEmpty()
+                        val body = response.body.string()
                         for (line in body.lines()) {
-                            val msg = JamProtocolHelper.extractMessageBody(line)
-                            if (!msg.isNullOrBlank()) {
-                                handleJamPayload(msg)
-                            }
+                            if (line.isNotBlank()) handleNtfyEvent(line)
                         }
                     }
                 }
             } catch (e: Exception) {
                 Log.w("JamClient", "Recent message poll failed", e)
             }
+        }
+    }
+
+    // Single ingress for the poll, the WebSocket and the HTTP stream, so a message that arrives on
+    // more than one transport is only acted on once.
+    private fun handleNtfyEvent(rawJsonLine: String) {
+        val event = try {
+            JamProtocolHelper.parseNtfyEvent(rawJsonLine)
+        } catch (e: Exception) {
+            Log.w("JamClient", "Error parsing ntfy event", e)
+            null
+        } ?: return
+
+        when (event.event) {
+            "message" -> {
+                val body = event.message
+                if (body.isNullOrEmpty()) return
+                val id = event.id
+                if (id == null || recentMessageIds.markSeen(id)) {
+                    handleJamPayload(body)
+                }
+            }
+            "open", "keepalive" -> _isConnected.value = true
         }
     }
 
@@ -281,14 +278,9 @@ class JamWebSocketClient @Inject constructor(
         val session = _currentSession.value ?: return
         scope.launch {
             try {
-                val cleanMediaUrl = if (track.isYouTubeTrack() && track.mediaUrl.contains("googlevideo.com")) {
-                    val vid = track.getYouTubeVideoId()
-                    if (vid != null) "https://www.youtube.com/watch?v=$vid" else track.mediaUrl
-                } else {
-                    track.mediaUrl
-                }
-                val cleanTrack = track.copy(mediaUrl = cleanMediaUrl)
-                val json = JamProtocolHelper.buildSyncPlaybackJson(session.username, cleanTrack, position, isPlaying, action)
+                val json = JamProtocolHelper.buildSyncPlaybackJson(
+                    session.username, shareableTrack(track), position, isPlaying, action
+                )
                 publishToTopic(session.jamId, json)
             } catch (e: Exception) {
                 Log.e("JamClient", "Failed to broadcast playback state", e)
@@ -324,14 +316,7 @@ class JamWebSocketClient @Inject constructor(
         val session = _currentSession.value ?: return
         scope.launch {
             try {
-                val cleanMediaUrl = if (track.isYouTubeTrack() && track.mediaUrl.contains("googlevideo.com")) {
-                    val vid = track.getYouTubeVideoId()
-                    if (vid != null) "https://www.youtube.com/watch?v=$vid" else track.mediaUrl
-                } else {
-                    track.mediaUrl
-                }
-                val cleanTrack = track.copy(mediaUrl = cleanMediaUrl)
-                val json = JamProtocolHelper.buildQueueTrackJson(session.username, cleanTrack)
+                val json = JamProtocolHelper.buildQueueTrackJson(session.username, shareableTrack(track))
                 publishToTopic(session.jamId, json)
             } catch (e: Exception) {
                 Log.e("JamClient", "Failed to broadcast queue track", e)
@@ -339,8 +324,19 @@ class JamWebSocketClient @Inject constructor(
         }
     }
 
+    // Resolved googlevideo URLs are IP-bound and expire, so peers always get the watch URL instead.
+    private fun shareableTrack(track: Track): Track {
+        val cleanMediaUrl = if (track.isYouTubeTrack() && track.mediaUrl.contains("googlevideo.com")) {
+            val vid = track.getYouTubeVideoId()
+            if (vid != null) "https://www.youtube.com/watch?v=$vid" else track.mediaUrl
+        } else {
+            track.mediaUrl
+        }
+        return track.copy(mediaUrl = cleanMediaUrl)
+    }
+
     private fun publishToTopic(jamId: String, payload: String) {
-        val topic = cleanTopic(jamId)
+        val topic = JamProtocolHelper.cleanTopic(jamId)
         val url = "https://ntfy.sh/$topic"
         val requestBody = payload.toRequestBody("application/json".toMediaType())
         val request = Request.Builder()
