@@ -53,19 +53,20 @@ class PlaybackManager @Inject constructor(
 ) {
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
-    // Call-compatible audio attributes: Music usage with handleAudioFocus = false
-    // so music continues playing without being paused when on video/voice calls (WhatsApp, Instagram, Meet, etc.)
+    // Full Audio Focus & Becoming Noisy handling for daily driver stability on Android & One UI
     private val audioAttributes = AudioAttributes.Builder()
         .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
         .setUsage(C.USAGE_MEDIA)
         .build()
 
     private var playerA: ExoPlayer = ExoPlayer.Builder(context)
-        .setAudioAttributes(audioAttributes, /* handleAudioFocus = */ false)
+        .setAudioAttributes(audioAttributes, /* handleAudioFocus = */ true)
+        .setHandleAudioBecomingNoisy(true)
         .build()
 
     private var playerB: ExoPlayer = ExoPlayer.Builder(context)
-        .setAudioAttributes(audioAttributes, /* handleAudioFocus = */ false)
+        .setAudioAttributes(audioAttributes, /* handleAudioFocus = */ true)
+        .setHandleAudioBecomingNoisy(true)
         .build()
 
     // playerA is initially active; playerB is standby for crossfade
@@ -202,7 +203,7 @@ class PlaybackManager @Inject constructor(
     fun ensureMediaServiceStarted() {
         try {
             val intent = Intent(context, AuralisMediaSessionService::class.java)
-            context.startService(intent)
+            androidx.core.content.ContextCompat.startForegroundService(context, intent)
         } catch (e: Exception) {
             Log.e("PlaybackManager", "Failed to start AuralisMediaSessionService", e)
         }

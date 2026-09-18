@@ -24,6 +24,9 @@ jobs:
       with:
         gradle-version: '8.4'
 
+    - name: Run Unit Tests
+      run: gradle testDebugUnitTest
+
     - name: Build with Gradle
       run: gradle assembleDebug
 

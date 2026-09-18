@@ -58,14 +58,27 @@ class NetworkMusicRepository @Inject constructor(
             Log.w("NetworkMusicRepository", "Global trending failed", e)
         }
 
-        // 3. Offline Fallback: If all networks fail, serve cached offline tracks!
+        // 3. YouTube Music Top Hits fallback
+        try {
+            val ytTracks = youTubeMusicApi.searchTracks("Top Global Hits 2026")
+            if (ytTracks.isNotEmpty()) {
+                Log.d("NetworkMusicRepository", "Fetched ${ytTracks.size} YouTube trending tracks")
+                return@withContext enrichWithDownloadStatus(ytTracks)
+            }
+        } catch (e: Exception) {
+            Log.w("NetworkMusicRepository", "YouTube trending fallback failed", e)
+        }
+
+        // 4. Offline Fallback: If all networks fail, serve cached offline tracks!
         val offlineTracks = fetchLocalTracks()
         if (offlineTracks.isNotEmpty()) {
             Log.d("NetworkMusicRepository", "Serving ${offlineTracks.size} offline downloaded tracks")
             return@withContext offlineTracks
         }
 
-        throw IllegalStateException("No tracks available online or offline. Please check your connection.")
+        // 5. Curated Guaranteed Catalog Fallback
+        Log.d("NetworkMusicRepository", "Serving curated starter tracks")
+        return@withContext enrichWithDownloadStatus(com.auralis.app.playback.CuratedCatalog.getStarterTracks())
     }
 
     override suspend fun searchTracks(query: String): List<Track> {
