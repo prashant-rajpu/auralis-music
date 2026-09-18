@@ -46,7 +46,8 @@ class PlaybackManager @Inject constructor(
     private val musicRepository: MusicRepository,
     private val segmentSkippers: Set<@JvmSuppressWildcards SegmentSkipper>,
     val personalizationManager: PersonalizationManager,
-    private val historyRecorder: PlaybackHistoryRecorder
+    private val historyRecorder: PlaybackHistoryRecorder,
+    private val statePersister: PlaybackStatePersister
 ) {
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
@@ -163,7 +164,47 @@ class PlaybackManager @Inject constructor(
         observeJamState()
         setupMediaSession()
         historyRecorder.attach(scope, _currentTrack, _currentPositionMs, _durationMs)
+        restoreLastSession()
+        statePersister.attach(scope, _queue, _currentQueueIndex, _currentPositionMs, _isShuffleEnabled, _repeatMode)
     }
+
+    /**
+     * Brings back the queue and position from the last run, showing the track without playing it
+     * and without touching the network. Nothing is prepared until the user presses play: resolving
+     * a stream on cold start would spend someone's data on a song they never asked to hear.
+     *
+     * The restored track is marked as needing preparation so [play] knows to load it first.
+     */
+    private fun restoreLastSession() {
+        scope.launch {
+            if (_currentTrack.value != null) return@launch
+            val restored = statePersister.restore() ?: return@launch
+            val track = restored.currentTrack ?: return@launch
+
+            updateQueue {
+                QueueState(
+                    tracks = restored.tracks,
+                    currentIndex = restored.currentIndex,
+                    isShuffled = restored.isShuffled,
+                    repeatMode = restored.repeatMode,
+                    // The pre-shuffle order is not persisted, so un-shuffling after a restore
+                    // keeps the current order rather than inventing one.
+                    unshuffledOrder = null
+                )
+            }
+
+            _currentTrack.value = track
+            _isPlaying.value = false
+            _currentPositionMs.value = restored.positionMs
+            _durationMs.value = track.durationMs
+            pendingRestorePositionMs = restored.positionMs
+            needsPreparation = true
+        }
+    }
+
+    /** True while a restored track is on screen but has never been loaded into a player. */
+    private var needsPreparation = false
+    private var pendingRestorePositionMs = 0L
 
     private fun createForwardingPlayer(player: ExoPlayer): AuralisQueueForwardingPlayer {
         return AuralisQueueForwardingPlayer(
@@ -516,6 +557,7 @@ class PlaybackManager @Inject constructor(
     }
 
     fun playTrack(track: Track, newQueue: List<Track> = listOf(track)) {
+        needsPreparation = false
         updateQueue { QueueOps.play(it, track, newQueue) }
 
         crossfadeJob?.cancel()
@@ -915,6 +957,25 @@ class PlaybackManager @Inject constructor(
     }
 
     fun play() {
+        // A restored session shows a track that was never loaded; load it now, at the saved spot.
+        if (needsPreparation) {
+            val track = _currentTrack.value
+            if (track != null) {
+                needsPreparation = false
+                val resumeAt = pendingRestorePositionMs
+                playTrack(track, _queue.value.ifEmpty { listOf(track) })
+                if (resumeAt > 0L) {
+                    scope.launch {
+                        // Seek once the player has something to seek within.
+                        while (activePlayer.duration <= 0L) kotlinx.coroutines.delay(50)
+                        seekTo(resumeAt)
+                    }
+                }
+                return
+            }
+            needsPreparation = false
+        }
+
         ensureMediaServiceStarted()
         if (!activePlayer.isPlaying) {
             activePlayer.play()
