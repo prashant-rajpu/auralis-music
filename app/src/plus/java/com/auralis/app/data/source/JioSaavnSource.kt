@@ -4,11 +4,11 @@ import android.util.Log
 import com.auralis.app.domain.model.Provider
 import com.auralis.app.domain.model.Track
 import com.auralis.app.domain.source.MusicSource
-import com.auralis.app.network.JioSaavnApi
-import com.auralis.app.network.JioSaavnDecryptor
-import com.auralis.app.network.JioSaavnSongDto
 import javax.inject.Inject
 import javax.inject.Singleton
+import com.auralis.app.data.remote.jiosaavn.JioSaavnApi
+import com.auralis.app.data.remote.jiosaavn.JioSaavnDecryptor
+import com.auralis.app.data.remote.jiosaavn.JioSaavnSongDto
 
 @Singleton
 class JioSaavnSource @Inject constructor(

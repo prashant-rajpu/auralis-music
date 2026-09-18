@@ -39,14 +39,14 @@ jobs:
         AURALIS_KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
         AURALIS_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
         AURALIS_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-      run: ./gradlew testDebugUnitTest assembleRelease
+      run: ./gradlew testPlusDebugUnitTest assemblePlusRelease
 
     - name: Package artifacts
       run: |
-        APK=app/build/outputs/apk/release/app-release.apk
+        APK=app/build/outputs/apk/plus/release/app-plus-release.apk
         if [ ! -f "$APK" ]; then
           echo "::error::Signed APK not found - check the KEYSTORE_PASSWORD / KEY_ALIAS / KEY_PASSWORD secrets"
-          ls -l app/build/outputs/apk/release
+          ls -l app/build/outputs/apk/plus/release
           exit 1
         fi
         mkdir -p dist

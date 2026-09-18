@@ -1,4 +1,4 @@
-package com.auralis.app.network
+package com.auralis.app.data.remote.sponsorblock
 
 import com.google.gson.annotations.SerializedName
 import retrofit2.http.GET

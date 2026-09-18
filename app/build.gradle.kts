@@ -39,6 +39,24 @@ android {
         buildConfigField("String", "JAMENDO_CLIENT_ID", "\"$jamendoClientId\"")
     }
 
+    // `play` is Play-Store safe: it compiles none of the unofficial-endpoint code, which lives
+    // entirely in src/plus. `plus` is the sideload build and keeps YouTube Music and JioSaavn.
+    flavorDimensions += "distribution"
+    productFlavors {
+        create("play") {
+            dimension = "distribution"
+            buildConfigField("boolean", "HAS_SCRAPED_SOURCES", "false")
+        }
+        create("plus") {
+            dimension = "distribution"
+            // A distinct id lets both editions coexist and stops Play from replacing a
+            // sideloaded plus build with the play one
+            applicationIdSuffix = ".plus"
+            versionNameSuffix = "-plus"
+            buildConfigField("boolean", "HAS_SCRAPED_SOURCES", "true")
+        }
+    }
+
     signingConfigs {
         getByName("debug") {
             storeFile = file("debug.keystore")

@@ -1,10 +1,11 @@
 package com.auralis.app.lyrics
 
 import com.auralis.app.domain.model.LyricLine
-import com.auralis.app.network.NetEaseLyricsApi
+
 import com.auralis.app.playback.LyricsProvider
 import javax.inject.Inject
 import javax.inject.Singleton
+import com.auralis.app.data.remote.netease.NetEaseLyricsApi
 
 @Singleton
 class NetEaseLyricsSource @Inject constructor(

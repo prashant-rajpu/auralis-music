@@ -3,9 +3,9 @@ package com.auralis.app.data.source
 import com.auralis.app.domain.model.Provider
 import com.auralis.app.domain.model.Track
 import com.auralis.app.domain.source.MusicSource
-import com.auralis.app.network.YouTubeMusicApi
 import javax.inject.Inject
 import javax.inject.Singleton
+import com.auralis.app.data.remote.youtube.YouTubeMusicApi
 
 @Singleton
 class YouTubeMusicSource @Inject constructor(

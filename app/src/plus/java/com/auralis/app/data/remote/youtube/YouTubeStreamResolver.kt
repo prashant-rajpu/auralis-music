@@ -1,4 +1,4 @@
-package com.auralis.app.network
+package com.auralis.app.data.remote.youtube
 
 import android.util.Log
 import com.auralis.app.domain.model.AudioQualitySetting
@@ -15,6 +15,9 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 import javax.inject.Singleton
+import com.auralis.app.network.JamProtocolHelper
+import com.auralis.app.data.remote.jiosaavn.JioSaavnApi
+import com.auralis.app.data.remote.jiosaavn.JioSaavnDecryptor
 
 private data class CachedStream(
     val url: String,

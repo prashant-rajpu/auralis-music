@@ -5,9 +5,9 @@ import com.auralis.app.domain.model.Provider
 import com.auralis.app.domain.model.Track
 import com.auralis.app.domain.source.StreamResolver
 import com.auralis.app.network.JamProtocolHelper
-import com.auralis.app.network.JioSaavnDecryptor
 import javax.inject.Inject
 import javax.inject.Singleton
+import com.auralis.app.data.remote.jiosaavn.JioSaavnDecryptor
 
 @Singleton
 class JioSaavnStreamResolver @Inject constructor() : StreamResolver {

@@ -1,4 +1,4 @@
-package com.auralis.app.network
+package com.auralis.app.data.remote.youtube
 
 import android.util.Log
 import com.auralis.app.domain.model.ArtistProfile

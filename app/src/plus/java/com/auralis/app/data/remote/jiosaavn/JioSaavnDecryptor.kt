@@ -1,4 +1,4 @@
-package com.auralis.app.network
+package com.auralis.app.data.remote.jiosaavn
 
 import android.util.Base64
 import android.util.Log

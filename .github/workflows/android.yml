@@ -23,11 +23,20 @@ jobs:
     - name: Set up Gradle
       uses: gradle/actions/setup-gradle@v4
 
-    - name: Lint, unit tests, debug and release builds
-      run: ./gradlew lint testDebugUnitTest assembleDebug assembleRelease
+    - name: Lint, unit tests, debug and release builds (both flavors)
+      run: >-
+        ./gradlew lint
+        testPlayDebugUnitTest testPlusDebugUnitTest
+        assemblePlayDebug assemblePlusDebug
+        assemblePlayRelease assemblePlusRelease
 
-    - name: Upload debug APK
+    - name: Verify the play build contains no unofficial-endpoint code
+      run: ./scripts/verify-play-flavor.sh
+
+    - name: Upload debug APKs
       uses: actions/upload-artifact@v4
       with:
-        name: auralis-debug-apk
-        path: app/build/outputs/apk/debug/app-debug.apk
+        name: auralis-debug-apks
+        path: |
+          app/build/outputs/apk/play/debug/app-play-debug.apk
+          app/build/outputs/apk/plus/debug/app-plus-debug.apk

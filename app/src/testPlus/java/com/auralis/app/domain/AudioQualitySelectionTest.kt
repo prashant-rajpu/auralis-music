@@ -1,8 +1,8 @@
 package com.auralis.app.domain
 
 import com.auralis.app.domain.model.AudioQualitySetting
-import com.auralis.app.network.JioSaavnDecryptor
-import com.auralis.app.network.YouTubeStreamResolver
+import com.auralis.app.data.remote.jiosaavn.JioSaavnDecryptor
+import com.auralis.app.data.remote.youtube.YouTubeStreamResolver
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test

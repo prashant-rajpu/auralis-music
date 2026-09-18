@@ -9,11 +9,11 @@ import com.auralis.app.domain.source.MusicSource
 import com.auralis.app.domain.source.StreamResolver
 import com.auralis.app.lyrics.LyricsSource
 import com.auralis.app.lyrics.NetEaseLyricsSource
-import com.auralis.app.network.JioSaavnApi
-import com.auralis.app.network.NetEaseLyricsApi
-import com.auralis.app.network.SponsorBlockApi
-import com.auralis.app.network.SponsorBlockManager
-import com.auralis.app.network.YouTubeStreamResolver
+import com.auralis.app.data.remote.jiosaavn.JioSaavnApi
+import com.auralis.app.data.remote.netease.NetEaseLyricsApi
+import com.auralis.app.data.remote.sponsorblock.SponsorBlockApi
+import com.auralis.app.data.remote.sponsorblock.SponsorBlockManager
+import com.auralis.app.data.remote.youtube.YouTubeStreamResolver
 import com.auralis.app.playback.SegmentSkipper
 import dagger.Binds
 import dagger.Module
