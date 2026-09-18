@@ -36,6 +36,11 @@ without one that source is simply disabled.
   over public ntfy.sh topics.
 - **Extras**: Infinite Radio autoplay, SponsorBlock skipping for YouTube tracks, playlist
   import/export links, recently played and top artists.
+- **Interface**: light, dark and AMOLED themes (or follow the system) with six accents, applied
+  live from Settings; the player is a draggable sheet over the tabs rather than a separate
+  screen; Home is a feed of shelves built per catalog and from what you actually play; Explore is
+  search with mood and genre tiles; Library holds downloads, on-device files, recently played and
+  your most-played artists.
 
 ## Known limitations
 
@@ -43,9 +48,13 @@ without one that source is simply disabled.
   notice and are not acceptable on Google Play. A Play-safe flavor is planned (Phase 1).
 - Together Mode has no authentication: anyone with the session code can join and send messages.
   Incoming URLs are allowlisted so a peer cannot make the app open arbitrary content.
-- The accent-theme picker in Settings is stored but not applied; there is no dark mode.
-- Likes/dislikes in the player are in-memory only; there is no Library, Playlists or Liked Songs
-  screen. Playlist import/export lives in Settings.
+- Likes/dislikes in the player are in-memory only, and there is no Playlists or Liked Songs
+  screen yet; the Library tab shows downloads, on-device files, recent plays and top artists.
+  Playlist import/export still lives in Settings.
+- Home's shelves are built from search and trending calls per visit; there is no learned
+  affinity model or daily mix yet (Phase 4).
+- Together Mode's top-level copy is neutral, but the saved name presets and reactions are still
+  fixed rather than editable (Phase 5).
 - Only the English UI exists; strings are hardcoded.
 - Single Gradle module; unit tests cover the LRC parser, Together protocol and queue helpers only.
 
@@ -55,11 +64,12 @@ without one that source is simply disabled.
 |---|---|---|
 | 0 | Modern toolchain, signed release builds, security and correctness fixes | Done |
 | 1 | `play` / `plus` product flavors, `MusicSource` abstraction, local library | Done |
-| 2 | Single ExoPlayer owned by the media service, persistent queue | Planned |
+| 2 | Single ExoPlayer owned by the media service, persistent queue | In progress |
 | 3 | Room v3: playlists, likes, history, downloads with progress, backup | Planned |
 | 4 | On-device discovery: daily mixes, learned moods, listening stats | Planned |
 | 5 | Listen Together 2.0 on an authenticated relay with roles and chat | Planned |
-| 6 | Sheet player, dark/dynamic themes, haptics, localization, widgets, Android Auto | Planned |
+| 6 | Sheet player, dark/AMOLED themes, real Explore and Library, Home feed | Done |
+| 6b | Dynamic colour, localization, accessibility pass, widgets, Android Auto | Planned |
 | 7 | Release automation, lint gates, store listings, compliance | Planned |
 
 ## Verifying a build
