@@ -32,6 +32,8 @@ import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.auralis.app.domain.model.Track
 import com.auralis.app.presentation.common.TrackContextMenuBottomSheet
+import com.auralis.app.presentation.player.PlaybackSpeedBottomSheet
+import com.auralis.app.presentation.player.SleepTimerBottomSheet
 import com.auralis.app.presentation.together.*
 import com.auralis.app.ui.theme.*
 
@@ -53,8 +55,13 @@ fun HomeScreen(
     val recentTracks by viewModel.recentTracks.collectAsState()
     val topArtists by viewModel.topArtists.collectAsState()
     val (timeGreeting, timeSubtitle) = remember { viewModel.getTimeOfDayGreeting() }
+    val isJamConnected by viewModel.isJamConnected.collectAsState()
+    val playbackSpeed by viewModel.playbackSpeed.collectAsState()
+    val sleepTimerMinutesRemaining by viewModel.sleepTimerMinutesRemaining.collectAsState()
 
     var showJamDialog by remember { mutableStateOf(false) }
+    var showSleepTimerSheet by remember { mutableStateOf(false) }
+    var showSpeedSheet by remember { mutableStateOf(false) }
     var isSearchExpanded by remember { mutableStateOf(false) }
     var selectedTrackForMenu by remember { mutableStateOf<Track?>(null) }
 
@@ -348,6 +355,8 @@ fun HomeScreen(
                 if (showJamDialog) {
                     TogetherModeBottomSheet(
                         session = jamSession,
+                        isConnected = isJamConnected,
+                        onReconnect = { viewModel.reconnectJam() },
                         onStartTogether = { code, name ->
                             viewModel.startJam(code, name)
                             showJamDialog = false
@@ -360,6 +369,24 @@ fun HomeScreen(
                             viewModel.leaveJam()
                         },
                         onDismiss = { showJamDialog = false }
+                    )
+                }
+
+                // Sleep Timer Modal from Home
+                if (showSleepTimerSheet) {
+                    SleepTimerBottomSheet(
+                        minutesRemaining = sleepTimerMinutesRemaining,
+                        onSetTimer = { viewModel.setSleepTimer(it) },
+                        onDismiss = { showSleepTimerSheet = false }
+                    )
+                }
+
+                // Playback Speed Modal from Home
+                if (showSpeedSheet) {
+                    PlaybackSpeedBottomSheet(
+                        currentSpeed = playbackSpeed,
+                        onSelectSpeed = { viewModel.setPlaybackSpeed(it) },
+                        onDismiss = { showSpeedSheet = false }
                     )
                 }
 
@@ -454,6 +481,273 @@ fun HomeScreen(
                                                 fontWeight = FontWeight.SemiBold,
                                                 fontSize = 11.sp
                                             )
+                                        }
+                                    }
+                                }
+
+                                // Section 0.3: Auralis Studio & Features Shelf
+                                item {
+                                    Column {
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(horizontal = 16.dp),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Default.AutoAwesome,
+                                                    contentDescription = null,
+                                                    tint = BabyPinkPrimary,
+                                                    modifier = Modifier.size(18.dp)
+                                                )
+                                                Text(
+                                                    text = "Auralis Pro Features",
+                                                    style = MaterialTheme.typography.titleMedium.copy(
+                                                        fontWeight = FontWeight.Bold
+                                                    ),
+                                                    color = BabyPinkTextPrimary
+                                                )
+                                            }
+                                            Text(
+                                                text = "Quick Studio",
+                                                color = BabyPinkPrimary,
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        }
+
+                                        Spacer(modifier = Modifier.height(8.dp))
+
+                                        LazyRow(
+                                            contentPadding = PaddingValues(horizontal = 16.dp),
+                                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                        ) {
+                                            // 1. Together Mode (Laddu Sync)
+                                            item {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .width(180.dp)
+                                                        .glassCard(cornerRadius = 18.dp)
+                                                        .hapticPress(scaleDown = 0.94f)
+                                                        .clickable { showJamDialog = true }
+                                                        .padding(12.dp)
+                                                ) {
+                                                    Column {
+                                                        Row(
+                                                            verticalAlignment = Alignment.CenterVertically,
+                                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                                            modifier = Modifier.fillMaxWidth()
+                                                        ) {
+                                                            Box(
+                                                                modifier = Modifier
+                                                                    .size(32.dp)
+                                                                    .clip(CircleShape)
+                                                                    .background(BabyPinkPrimary),
+                                                                contentAlignment = Alignment.Center
+                                                            ) {
+                                                                Icon(
+                                                                    Icons.Default.Favorite,
+                                                                    contentDescription = null,
+                                                                    tint = Color.White,
+                                                                    modifier = Modifier.size(16.dp)
+                                                                )
+                                                            }
+                                                            Text(
+                                                                text = if (jamSession != null) "SYNCED 🟢" else "START 💗",
+                                                                color = BabyPinkPrimary,
+                                                                fontWeight = FontWeight.Bold,
+                                                                fontSize = 10.sp
+                                                            )
+                                                        }
+                                                        Spacer(modifier = Modifier.height(8.dp))
+                                                        Text(
+                                                            text = "Listen Together",
+                                                            color = BabyPinkTextPrimary,
+                                                            fontWeight = FontWeight.Bold,
+                                                            fontSize = 13.sp
+                                                        )
+                                                        Text(
+                                                            text = "Sync music live with partner",
+                                                            color = BabyPinkTextSecondary,
+                                                            fontSize = 11.sp,
+                                                            maxLines = 1,
+                                                            overflow = TextOverflow.Ellipsis
+                                                        )
+                                                    }
+                                                }
+                                            }
+
+                                            // 2. Sleep Timer
+                                            item {
+                                                val isTimerActive = sleepTimerMinutesRemaining != null
+                                                Box(
+                                                    modifier = Modifier
+                                                        .width(170.dp)
+                                                        .glassCard(cornerRadius = 18.dp)
+                                                        .hapticPress(scaleDown = 0.94f)
+                                                        .clickable { showSleepTimerSheet = true }
+                                                        .padding(12.dp)
+                                                ) {
+                                                    Column {
+                                                        Row(
+                                                            verticalAlignment = Alignment.CenterVertically,
+                                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                                            modifier = Modifier.fillMaxWidth()
+                                                        ) {
+                                                            Box(
+                                                                modifier = Modifier
+                                                                    .size(32.dp)
+                                                                    .clip(CircleShape)
+                                                                    .background(if (isTimerActive) BabyPinkPrimary else GlassSurfaceStrong),
+                                                                contentAlignment = Alignment.Center
+                                                            ) {
+                                                                Icon(
+                                                                    Icons.Default.Bedtime,
+                                                                    contentDescription = null,
+                                                                    tint = if (isTimerActive) Color.White else BabyPinkPrimary,
+                                                                    modifier = Modifier.size(16.dp)
+                                                                )
+                                                            }
+                                                            Text(
+                                                                text = if (isTimerActive) "${sleepTimerMinutesRemaining}m" else "TIMER",
+                                                                color = BabyPinkPrimary,
+                                                                fontWeight = FontWeight.Bold,
+                                                                fontSize = 10.sp
+                                                            )
+                                                        }
+                                                        Spacer(modifier = Modifier.height(8.dp))
+                                                        Text(
+                                                            text = "Sleep Timer",
+                                                            color = BabyPinkTextPrimary,
+                                                            fontWeight = FontWeight.Bold,
+                                                            fontSize = 13.sp
+                                                        )
+                                                        Text(
+                                                            text = "Gentle 10s volume fade-out",
+                                                            color = BabyPinkTextSecondary,
+                                                            fontSize = 11.sp,
+                                                            maxLines = 1,
+                                                            overflow = TextOverflow.Ellipsis
+                                                        )
+                                                    }
+                                                }
+                                            }
+
+                                            // 3. Playback Speed
+                                            item {
+                                                val isSpeedActive = playbackSpeed != 1.0f
+                                                Box(
+                                                    modifier = Modifier
+                                                        .width(170.dp)
+                                                        .glassCard(cornerRadius = 18.dp)
+                                                        .hapticPress(scaleDown = 0.94f)
+                                                        .clickable { showSpeedSheet = true }
+                                                        .padding(12.dp)
+                                                ) {
+                                                    Column {
+                                                        Row(
+                                                            verticalAlignment = Alignment.CenterVertically,
+                                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                                            modifier = Modifier.fillMaxWidth()
+                                                        ) {
+                                                            Box(
+                                                                modifier = Modifier
+                                                                    .size(32.dp)
+                                                                    .clip(CircleShape)
+                                                                    .background(if (isSpeedActive) BabyPinkPrimary else GlassSurfaceStrong),
+                                                                contentAlignment = Alignment.Center
+                                                            ) {
+                                                                Icon(
+                                                                    Icons.Default.Speed,
+                                                                    contentDescription = null,
+                                                                    tint = if (isSpeedActive) Color.White else BabyPinkPrimary,
+                                                                    modifier = Modifier.size(16.dp)
+                                                                )
+                                                            }
+                                                            Text(
+                                                                text = "${playbackSpeed}x",
+                                                                color = BabyPinkPrimary,
+                                                                fontWeight = FontWeight.Bold,
+                                                                fontSize = 10.sp
+                                                            )
+                                                        }
+                                                        Spacer(modifier = Modifier.height(8.dp))
+                                                        Text(
+                                                            text = "Playback Speed",
+                                                            color = BabyPinkTextPrimary,
+                                                            fontWeight = FontWeight.Bold,
+                                                            fontSize = 13.sp
+                                                        )
+                                                        Text(
+                                                            text = "0.75x–2.0x pitch preserved",
+                                                            color = BabyPinkTextSecondary,
+                                                            fontSize = 11.sp,
+                                                            maxLines = 1,
+                                                            overflow = TextOverflow.Ellipsis
+                                                        )
+                                                    }
+                                                }
+                                            }
+
+                                            // 4. Customization & Settings
+                                            item {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .width(170.dp)
+                                                        .glassCard(cornerRadius = 18.dp)
+                                                        .hapticPress(scaleDown = 0.94f)
+                                                        .clickable { onNavigateToSettings() }
+                                                        .padding(12.dp)
+                                                ) {
+                                                    Column {
+                                                        Row(
+                                                            verticalAlignment = Alignment.CenterVertically,
+                                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                                            modifier = Modifier.fillMaxWidth()
+                                                        ) {
+                                                            Box(
+                                                                modifier = Modifier
+                                                                    .size(32.dp)
+                                                                    .clip(CircleShape)
+                                                                    .background(GlassSurfaceStrong),
+                                                                contentAlignment = Alignment.Center
+                                                            ) {
+                                                                Icon(
+                                                                    Icons.Default.Tune,
+                                                                    contentDescription = null,
+                                                                    tint = BabyPinkPrimary,
+                                                                    modifier = Modifier.size(16.dp)
+                                                                )
+                                                            }
+                                                            Text(
+                                                                text = "CUSTOMIZE",
+                                                                color = BabyPinkPrimary,
+                                                                fontWeight = FontWeight.Bold,
+                                                                fontSize = 10.sp
+                                                            )
+                                                        }
+                                                        Spacer(modifier = Modifier.height(8.dp))
+                                                        Text(
+                                                            text = "Pink Themes & FX",
+                                                            color = BabyPinkTextPrimary,
+                                                            fontWeight = FontWeight.Bold,
+                                                            fontSize = 13.sp
+                                                        )
+                                                        Text(
+                                                            text = "Theme, lyrics & radio",
+                                                            color = BabyPinkTextSecondary,
+                                                            fontSize = 11.sp,
+                                                            maxLines = 1,
+                                                            overflow = TextOverflow.Ellipsis
+                                                        )
+                                                    }
+                                                }
+                                            }
                                         }
                                     }
                                 }

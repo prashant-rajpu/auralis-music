@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">Auralis</string>
+    <string name="media_playback_channel_name">Music Playback</string>
 </resources>

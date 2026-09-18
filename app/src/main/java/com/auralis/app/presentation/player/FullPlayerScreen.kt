@@ -64,6 +64,7 @@ fun FullPlayerScreen(
     val currentQueueIndex by viewModel.currentQueueIndex.collectAsState()
     val playbackSpeed by viewModel.playbackSpeed.collectAsState()
     val sleepTimerMinutesRemaining by viewModel.sleepTimerMinutesRemaining.collectAsState()
+    val isJamConnected by viewModel.isJamConnected.collectAsState()
 
     var showSleepTimerSheet by remember { mutableStateOf(false) }
     var showSpeedSheet by remember { mutableStateOf(false) }
@@ -341,6 +342,35 @@ fun FullPlayerScreen(
                                             modifier = Modifier.fillMaxSize(),
                                             verticalArrangement = Arrangement.spacedBy(8.dp)
                                         ) {
+                                            item {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .clip(RoundedCornerShape(12.dp))
+                                                        .background(BabyPinkSoftRose.copy(alpha = 0.25f))
+                                                        .border(1.dp, BabyPinkPrimary.copy(alpha = 0.35f), RoundedCornerShape(12.dp))
+                                                        .padding(horizontal = 12.dp, vertical = 6.dp)
+                                                ) {
+                                                    Row(
+                                                        verticalAlignment = Alignment.CenterVertically,
+                                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                                    ) {
+                                                        Icon(
+                                                            Icons.Default.Tune,
+                                                            contentDescription = null,
+                                                            tint = BabyPinkPrimary,
+                                                            modifier = Modifier.size(14.dp)
+                                                        )
+                                                        Text(
+                                                            text = "💡 Reorder songs with ▲ & ▼ • Tap ⋮ for Play Next",
+                                                            color = BabyPinkTextPrimary,
+                                                            fontSize = 11.sp,
+                                                            fontWeight = FontWeight.Medium
+                                                        )
+                                                    }
+                                                }
+                                            }
+
                                             // 1. Currently Playing
                                             item {
                                                 Text(
@@ -856,23 +886,165 @@ fun FullPlayerScreen(
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(10.dp))
+                    Spacer(modifier = Modifier.height(8.dp))
 
-                    // Together Mode Live Reaction Bar or Start Button (Section 11.3 E & 11.3 A)
+                    // Prominent Quick Actions Frosted Glass Row: Sleep Timer, Speed, Jam, FX
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState())
+                            .padding(vertical = 4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        // 1. Sleep Timer Pill
+                        val isSleepTimerActive = sleepTimerMinutesRemaining != null
+                        Box(
+                            modifier = Modifier
+                                .hapticPress(scaleDown = 0.92f)
+                                .clip(RoundedCornerShape(16.dp))
+                                .background(if (isSleepTimerActive) BabyPinkPrimary.copy(alpha = 0.25f) else GlassSurfaceStrong)
+                                .border(
+                                    1.dp,
+                                    if (isSleepTimerActive) BabyPinkPrimary else GlassBorder,
+                                    RoundedCornerShape(16.dp)
+                                )
+                                .clickable { showSleepTimerSheet = true }
+                                .padding(horizontal = 12.dp, vertical = 6.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Bedtime,
+                                    contentDescription = null,
+                                    tint = if (isSleepTimerActive) BabyPinkPrimary else BabyPinkTextPrimary,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                                Text(
+                                    text = if (isSleepTimerActive) "${sleepTimerMinutesRemaining}m" else "Sleep Timer",
+                                    color = if (isSleepTimerActive) BabyPinkPrimary else BabyPinkTextPrimary,
+                                    fontWeight = if (isSleepTimerActive) FontWeight.Bold else FontWeight.Medium,
+                                    fontSize = 12.sp
+                                )
+                            }
+                        }
+
+                        // 2. Playback Speed Pill
+                        val isSpeedModified = playbackSpeed != 1.0f
+                        Box(
+                            modifier = Modifier
+                                .hapticPress(scaleDown = 0.92f)
+                                .clip(RoundedCornerShape(16.dp))
+                                .background(if (isSpeedModified) BabyPinkPrimary.copy(alpha = 0.25f) else GlassSurfaceStrong)
+                                .border(
+                                    1.dp,
+                                    if (isSpeedModified) BabyPinkPrimary else GlassBorder,
+                                    RoundedCornerShape(16.dp)
+                                )
+                                .clickable { showSpeedSheet = true }
+                                .padding(horizontal = 12.dp, vertical = 6.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Speed,
+                                    contentDescription = null,
+                                    tint = if (isSpeedModified) BabyPinkPrimary else BabyPinkTextPrimary,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                                Text(
+                                    text = "${playbackSpeed}x",
+                                    color = if (isSpeedModified) BabyPinkPrimary else BabyPinkTextPrimary,
+                                    fontWeight = if (isSpeedModified) FontWeight.Bold else FontWeight.Medium,
+                                    fontSize = 12.sp
+                                )
+                            }
+                        }
+
+                        // 3. Jam Together Mode Pill
+                        val isJamActive = jamSession != null
+                        Box(
+                            modifier = Modifier
+                                .hapticPress(scaleDown = 0.92f)
+                                .clip(RoundedCornerShape(16.dp))
+                                .background(if (isJamActive) BabyPinkPrimary else GlassSurfaceStrong)
+                                .border(
+                                    1.dp,
+                                    if (isJamActive) Color.White else GlassBorder,
+                                    RoundedCornerShape(16.dp)
+                                )
+                                .clickable { viewModel.setJamSheetVisible(true) }
+                                .padding(horizontal = 12.dp, vertical = 6.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Favorite,
+                                    contentDescription = null,
+                                    tint = if (isJamActive) Color.White else BabyPinkPrimary,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                                Text(
+                                    text = if (isJamActive) "Synced 💗" else "Jam 💗",
+                                    color = if (isJamActive) Color.White else BabyPinkTextPrimary,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 12.sp
+                                )
+                            }
+                        }
+
+                        // 4. Equalizer / FX Pill
+                        Box(
+                            modifier = Modifier
+                                .hapticPress(scaleDown = 0.92f)
+                                .clip(RoundedCornerShape(16.dp))
+                                .background(GlassSurfaceStrong)
+                                .border(1.dp, GlassBorder, RoundedCornerShape(16.dp))
+                                .clickable { viewModel.setSoundProfilesVisible(true) }
+                                .padding(horizontal = 12.dp, vertical = 6.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.GraphicEq,
+                                    contentDescription = null,
+                                    tint = BabyPinkPrimary,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                                Text(
+                                    text = "FX & EQ",
+                                    color = BabyPinkTextPrimary,
+                                    fontWeight = FontWeight.Medium,
+                                    fontSize = 12.sp
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    // Together Mode Live Reaction Bar (when active)
                     if (jamSession != null) {
                         TogetherLiveReactionsTray(
                             onSendReaction = { emoji -> viewModel.sendJamReaction(emoji) },
                             onTriggerQuote = { viewModel.sendMemoryQuote("I love you jaanaa 💋") },
                             modifier = Modifier.padding(bottom = 6.dp)
                         )
-                    } else {
-                        TogetherModeButton(
-                            onClick = { viewModel.setJamSheetVisible(true) },
-                            modifier = Modifier.padding(bottom = 6.dp)
-                        )
                     }
 
-                    Spacer(modifier = Modifier.height(18.dp))
+                    Spacer(modifier = Modifier.height(10.dp))
 
                     // 3-Tab Segmented Pill Bar: [ UP NEXT ] [ LYRICS ] [ RELATED ]
                     Row(
@@ -934,6 +1106,8 @@ fun FullPlayerScreen(
     if (isJamSheetVisible) {
         TogetherModeBottomSheet(
             session = jamSession,
+            isConnected = isJamConnected,
+            onReconnect = { viewModel.reconnectJam() },
             onStartTogether = { code, name ->
                 viewModel.startJam(code, name)
                 viewModel.setJamSheetVisible(false)

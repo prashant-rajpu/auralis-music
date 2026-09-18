@@ -44,6 +44,8 @@ import kotlin.random.Random
 @Composable
 fun TogetherModeBottomSheet(
     session: JamSession?,
+    isConnected: Boolean = true,
+    onReconnect: () -> Unit = {},
     onStartTogether: (jamId: String, username: String) -> Unit,
     onJoinTogether: (jamId: String, username: String) -> Unit,
     onLeaveTogether: () -> Unit,
@@ -194,19 +196,42 @@ fun TogetherModeBottomSheet(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
+                                val infiniteTransition = rememberInfiniteTransition(label = "jam_status_pulse")
+                                val statusAlpha by infiniteTransition.animateFloat(
+                                    initialValue = 0.4f,
+                                    targetValue = 1.0f,
+                                    animationSpec = infiniteRepeatable(
+                                        animation = tween(800, easing = FastOutSlowInEasing),
+                                        repeatMode = RepeatMode.Reverse
+                                    ),
+                                    label = "status_alpha"
+                                )
                                 Box(
                                     modifier = Modifier
                                         .size(10.dp)
                                         .clip(CircleShape)
-                                        .background(BabyPinkPrimary)
+                                        .background(
+                                            if (isConnected) Color(0xFF4CAF50).copy(alpha = statusAlpha)
+                                            else Color(0xFFFF9800).copy(alpha = statusAlpha)
+                                        )
                                 )
                                 Text(
-                                    text = "REAL-TIME SYNCED BROADCAST",
-                                    color = BabyPinkPrimary,
+                                    text = if (isConnected) "REAL-TIME SYNC ACTIVE 🟢" else "RECONNECTING... 🟡",
+                                    color = if (isConnected) Color(0xFF2E7D32) else Color(0xFFE65100),
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.Bold,
                                     letterSpacing = 1.sp
                                 )
+                                if (!isConnected) {
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = "Retry",
+                                        color = BabyPinkPrimary,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        modifier = Modifier.clickable { onReconnect() }
+                                    )
+                                }
                             }
 
                             Spacer(modifier = Modifier.height(8.dp))

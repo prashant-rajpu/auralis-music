@@ -211,6 +211,12 @@ class PlayerViewModel @Inject constructor(
         playbackManager.jamClient.joinJam(jamId, username)
     }
 
+    val isJamConnected = playbackManager.jamClient.isConnected
+
+    fun reconnectJam() {
+        playbackManager.jamClient.reconnect()
+    }
+
     fun leaveJam() {
         playbackManager.jamClient.disconnect()
     }

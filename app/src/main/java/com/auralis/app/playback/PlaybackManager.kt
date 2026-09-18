@@ -1,6 +1,10 @@
 package com.auralis.app.playback
 
+import android.app.PendingIntent
 import android.content.Context
+import android.content.Intent
+import android.graphics.Bitmap
+import android.graphics.drawable.BitmapDrawable
 import android.net.Uri
 import android.util.Log
 import androidx.media3.common.AudioAttributes
@@ -11,6 +15,10 @@ import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.session.MediaSession
+import coil.ImageLoader
+import coil.request.ImageRequest
+import coil.request.SuccessResult
+import java.io.ByteArrayOutputStream
 import com.auralis.app.domain.model.SoundProfile
 import com.auralis.app.domain.model.Track
 import com.auralis.app.network.JamState
@@ -120,7 +128,11 @@ class PlaybackManager @Inject constructor(
     private var crossfadeJob: Job? = null
     private var dismissJob: Job? = null
     private var tickCounter = 0
-    private var mediaSession: MediaSession? = null
+    var mediaSession: MediaSession? = null
+        private set
+
+    val activePlayerInstance: ExoPlayer
+        get() = activePlayer
 
     init {
         setupPlayer(playerA)
@@ -128,12 +140,64 @@ class PlaybackManager @Inject constructor(
         startPositionTicker()
         observeJamState()
         audioEffectManager.attachAudioSession(activePlayer.audioSessionId)
+        setupMediaSession()
+    }
+
+    private fun createForwardingPlayer(player: ExoPlayer): AuralisQueueForwardingPlayer {
+        return AuralisQueueForwardingPlayer(
+            player = player,
+            onSkipNext = { skipNext() },
+            onSkipPrevious = { skipPrevious() }
+        )
+    }
+
+    private fun setupMediaSession() {
         try {
-            mediaSession = MediaSession.Builder(context, activePlayer)
+            val intent = Intent(context, com.auralis.app.MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            }
+            val pendingIntent = PendingIntent.getActivity(
+                context,
+                0,
+                intent,
+                PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+            )
+
+            val sessionCallback = object : MediaSession.Callback {
+                override fun onConnect(
+                    session: MediaSession,
+                    controller: MediaSession.ControllerInfo
+                ): MediaSession.ConnectionResult {
+                    val sessionCommands = MediaSession.ConnectionResult.DEFAULT_SESSION_COMMANDS.buildUpon().build()
+                    val playerCommands = MediaSession.ConnectionResult.DEFAULT_PLAYER_COMMANDS.buildUpon()
+                        .add(Player.COMMAND_SEEK_TO_NEXT)
+                        .add(Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM)
+                        .add(Player.COMMAND_SEEK_TO_PREVIOUS)
+                        .add(Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM)
+                        .build()
+                    return MediaSession.ConnectionResult.AcceptedResultBuilder(session)
+                        .setAvailableSessionCommands(sessionCommands)
+                        .setAvailablePlayerCommands(playerCommands)
+                        .build()
+                }
+            }
+
+            mediaSession = MediaSession.Builder(context, createForwardingPlayer(activePlayer))
                 .setId("AuralisTogetherMediaSession")
+                .setSessionActivity(pendingIntent)
+                .setCallback(sessionCallback)
                 .build()
         } catch (e: Exception) {
             Log.e("PlaybackManager", "Failed to build MediaSession", e)
+        }
+    }
+
+    fun ensureMediaServiceStarted() {
+        try {
+            val intent = Intent(context, AuralisMediaSessionService::class.java)
+            context.startService(intent)
+        } catch (e: Exception) {
+            Log.e("PlaybackManager", "Failed to start AuralisMediaSessionService", e)
         }
     }
 
@@ -299,10 +363,10 @@ class PlaybackManager @Inject constructor(
                     }
 
 
-                    is JamState.UserJoined -> {
+                    is JamState.RequestSync -> {
                         val session = jamClient.currentSession.value
                         val current = _currentTrack.value
-                        if (session != null && session.isHost && current != null) {
+                        if (session != null && current != null) {
                             jamClient.broadcastPlaybackState(
                                 track = current,
                                 position = activePlayer.currentPosition,
@@ -310,7 +374,20 @@ class PlaybackManager @Inject constructor(
                                 action = "sync_response"
                             )
                         }
-                        _lastJamAction.value = "${state.username} joined the Jam"
+                    }
+
+                    is JamState.UserJoined -> {
+                        val session = jamClient.currentSession.value
+                        val current = _currentTrack.value
+                        if (session != null && current != null) {
+                            jamClient.broadcastPlaybackState(
+                                track = current,
+                                position = activePlayer.currentPosition,
+                                isPlaying = activePlayer.isPlaying,
+                                action = "sync_response"
+                            )
+                        }
+                        _lastJamAction.value = "${state.username} joined the Jam 💗"
                         scheduleActionDismiss()
                     }
 
@@ -361,8 +438,8 @@ class PlaybackManager @Inject constructor(
         currentIndex = _queue.value.indexOfFirst { it.id == track.id }
 
         scope.launch {
-            val resolvedTrack = if (track.isYouTubeTrack() || !track.mediaUrl.startsWith("http")) {
-                val resolvedUrl = streamResolver.resolveStreamUrl(track)
+            val resolvedTrack = if (track.isYouTubeTrack() || !track.mediaUrl.startsWith("http") || track.mediaUrl.contains("googlevideo.com")) {
+                val resolvedUrl = streamResolver.resolveStreamUrl(track, forceRefresh = true)
                 track.copy(mediaUrl = resolvedUrl)
             } else {
                 track
@@ -374,6 +451,7 @@ class PlaybackManager @Inject constructor(
             activePlayer.stop()
             activePlayer.volume = 1.0f
 
+            ensureMediaServiceStarted()
             loadMediaToPlayer(activePlayer, resolvedTrack)
             activePlayer.prepare()
             activePlayer.seekTo(position)
@@ -385,6 +463,7 @@ class PlaybackManager @Inject constructor(
 
             audioEffectManager.attachAudioSession(activePlayer.audioSessionId)
             applySponsorBlockIntroSkip(resolvedTrack)
+            personalizationManager.recordTrackPlay(resolvedTrack)
         }
     }
 
@@ -399,6 +478,8 @@ class PlaybackManager @Inject constructor(
         _isPlaying.value = true
         _currentPositionMs.value = 0L
         _durationMs.value = track.durationMs
+
+        ensureMediaServiceStarted()
 
         scope.launch {
             val resolvedTrack = if (track.isYouTubeTrack() || !track.mediaUrl.startsWith("http")) {
@@ -705,6 +786,8 @@ class PlaybackManager @Inject constructor(
             activePlayer = standbyPlayer
             standbyPlayer = temp
 
+            mediaSession?.setPlayer(createForwardingPlayer(activePlayer))
+
             audioEffectManager.attachAudioSession(activePlayer.audioSessionId)
             _isPlaying.value = true
             isCrossfading = false
@@ -721,11 +804,50 @@ class PlaybackManager @Inject constructor(
                 MediaMetadata.Builder()
                     .setTitle(track.title)
                     .setArtist(track.artist)
+                    .setDisplayTitle(track.title)
+                    .setSubtitle(track.artist)
                     .setArtworkUri(track.albumArtUrl?.let { Uri.parse(it) })
                     .build()
             )
             .build()
         player.setMediaItem(mediaItem)
+        fetchArtworkBitmap(player, track)
+    }
+
+    private fun fetchArtworkBitmap(player: ExoPlayer, track: Track) {
+        val artUrl = track.albumArtUrl ?: return
+        scope.launch(Dispatchers.IO) {
+            try {
+                val loader = coil.ImageLoader(context)
+                val request = coil.request.ImageRequest.Builder(context)
+                    .data(artUrl)
+                    .allowHardware(false)
+                    .build()
+                val result = (loader.execute(request) as? coil.request.SuccessResult)?.drawable
+                val bitmap = (result as? android.graphics.drawable.BitmapDrawable)?.bitmap
+                if (bitmap != null && _currentTrack.value?.id == track.id) {
+                    val stream = java.io.ByteArrayOutputStream()
+                    bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 90, stream)
+                    val byteArray = stream.toByteArray()
+                    withContext(Dispatchers.Main) {
+                        if (_currentTrack.value?.id == track.id) {
+                            val currentItem = player.currentMediaItem
+                            if (currentItem != null && currentItem.mediaId == track.id) {
+                                val updatedMetadata = currentItem.mediaMetadata.buildUpon()
+                                    .setArtworkData(byteArray, MediaMetadata.PICTURE_TYPE_FRONT_COVER)
+                                    .build()
+                                val updatedItem = currentItem.buildUpon()
+                                    .setMediaMetadata(updatedMetadata)
+                                    .build()
+                                player.replaceMediaItem(player.currentMediaItemIndex, updatedItem)
+                            }
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                Log.w("PlaybackManager", "Failed to fetch artwork byte array for notification", e)
+            }
+        }
     }
 
     fun seekTo(positionMs: Long) {
@@ -747,6 +869,7 @@ class PlaybackManager @Inject constructor(
     }
 
     fun play() {
+        ensureMediaServiceStarted()
         if (!activePlayer.isPlaying) {
             activePlayer.play()
             _isPlaying.value = true

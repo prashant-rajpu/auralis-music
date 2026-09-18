@@ -4,7 +4,9 @@ import android.util.Log
 import com.auralis.app.domain.model.Track
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
@@ -13,6 +15,7 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
 import java.io.IOException
+import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -49,6 +52,16 @@ class JamWebSocketClient @Inject constructor(
 ) {
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private var webSocket: WebSocket? = null
+    private var reconnectJob: Job? = null
+
+    // Dedicated WebSocket client with RFC-compliant 10s pingInterval, zero read timeout,
+    // and automatic retry on connection failure
+    private val wsClient = client.newBuilder()
+        .pingInterval(10, TimeUnit.SECONDS)
+        .readTimeout(0, TimeUnit.MILLISECONDS)
+        .connectTimeout(15, TimeUnit.SECONDS)
+        .retryOnConnectionFailure(true)
+        .build()
 
     private val _isConnected = MutableStateFlow(false)
     val isConnected = _isConnected.asStateFlow()
@@ -76,11 +89,21 @@ class JamWebSocketClient @Inject constructor(
         connectInternal(jamId, username, isHost = false)
     }
 
-    private fun connectInternal(jamId: String, username: String, isHost: Boolean) {
-        disconnect()
+    fun reconnect() {
+        val session = _currentSession.value ?: return
+        connectInternal(session.jamId, session.username, session.isHost, isAutoReconnect = false)
+    }
+
+    private fun connectInternal(jamId: String, username: String, isHost: Boolean, isAutoReconnect: Boolean = false) {
+        if (!isAutoReconnect) {
+            disconnect(sendLeaveNotice = false)
+        } else {
+            webSocket?.cancel()
+            webSocket = null
+        }
 
         val topic = cleanTopic(jamId)
-        val session = JamSession(
+        val session = _currentSession.value ?: JamSession(
             jamId = jamId.uppercase(),
             username = username.ifBlank { if (isHost) "Host" else "Partner" },
             isHost = isHost,
@@ -91,8 +114,9 @@ class JamWebSocketClient @Inject constructor(
         val wsUrl = "wss://ntfy.sh/$topic/ws"
         val request = Request.Builder().url(wsUrl).build()
 
-        webSocket = client.newWebSocket(request, object : WebSocketListener() {
+        webSocket = wsClient.newWebSocket(request, object : WebSocketListener() {
             override fun onOpen(webSocket: WebSocket, response: Response) {
+                Log.d("JamClient", "WebSocket connected successfully to topic: $topic")
                 _isConnected.value = true
                 _jamState.value = JamState.Connected(session)
 
@@ -104,11 +128,14 @@ class JamWebSocketClient @Inject constructor(
             override fun onMessage(webSocket: WebSocket, text: String) {
                 try {
                     val ntfyMsg = JSONObject(text)
-                    if (ntfyMsg.optString("event") == "message") {
+                    val event = ntfyMsg.optString("event")
+                    if (event == "message") {
                         val messageBody = ntfyMsg.optString("message")
                         if (messageBody.isNotEmpty()) {
                             handleJamPayload(messageBody)
                         }
+                    } else if (event == "open" || event == "keepalive") {
+                        _isConnected.value = true
                     }
                 } catch (e: Exception) {
                     Log.e("JamClient", "Error parsing incoming jam msg", e)
@@ -116,15 +143,35 @@ class JamWebSocketClient @Inject constructor(
             }
 
             override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
+                Log.w("JamClient", "WebSocket closed: $code / $reason")
                 _isConnected.value = false
                 _jamState.value = JamState.Disconnected
+                if (_currentSession.value != null && code != 1000) {
+                    scheduleReconnect()
+                }
             }
 
             override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
+                Log.e("JamClient", "WebSocket failure: ${t.message}", t)
                 _isConnected.value = false
                 _jamState.value = JamState.Error(t.message ?: "Connection error")
+                if (_currentSession.value != null) {
+                    scheduleReconnect()
+                }
             }
         })
+    }
+
+    private fun scheduleReconnect() {
+        val session = _currentSession.value ?: return
+        reconnectJob?.cancel()
+        reconnectJob = scope.launch {
+            delay(2500L)
+            if (_currentSession.value != null && !_isConnected.value) {
+                Log.d("JamClient", "Attempting automatic Jam reconnect for session ${session.jamId}...")
+                connectInternal(session.jamId, session.username, session.isHost, isAutoReconnect = true)
+            }
+        }
     }
 
     private fun handleJamPayload(jsonString: String) {
@@ -251,10 +298,17 @@ class JamWebSocketClient @Inject constructor(
 
     fun broadcastPlaybackState(track: Track, position: Long, isPlaying: Boolean, action: String = "sync") {
         val session = _currentSession.value ?: return
-        if (!_isConnected.value) return
 
         scope.launch {
             try {
+                // If it's a YouTube track, send the original YouTube URL or videoId so the partner can resolve cleanly
+                val cleanMediaUrl = if (track.isYouTubeTrack() && track.mediaUrl.contains("googlevideo.com")) {
+                    val vid = track.getYouTubeVideoId()
+                    if (vid != null) "https://www.youtube.com/watch?v=$vid" else track.mediaUrl
+                } else {
+                    track.mediaUrl
+                }
+
                 val json = JSONObject().apply {
                     put("type", "sync_playback")
                     put("sender", session.username)
@@ -265,7 +319,7 @@ class JamWebSocketClient @Inject constructor(
                         put("id", track.id)
                         put("title", track.title)
                         put("artist", track.artist)
-                        put("mediaUrl", track.mediaUrl)
+                        put("mediaUrl", cleanMediaUrl)
                         put("albumArtUrl", track.albumArtUrl ?: "")
                         put("durationMs", track.durationMs)
                         put("qualityBadge", track.qualityBadge)
@@ -314,6 +368,13 @@ class JamWebSocketClient @Inject constructor(
         val session = _currentSession.value ?: return
         scope.launch {
             try {
+                val cleanMediaUrl = if (track.isYouTubeTrack() && track.mediaUrl.contains("googlevideo.com")) {
+                    val vid = track.getYouTubeVideoId()
+                    if (vid != null) "https://www.youtube.com/watch?v=$vid" else track.mediaUrl
+                } else {
+                    track.mediaUrl
+                }
+
                 val json = JSONObject().apply {
                     put("type", "queue_track")
                     put("sender", session.username)
@@ -321,7 +382,7 @@ class JamWebSocketClient @Inject constructor(
                         put("id", track.id)
                         put("title", track.title)
                         put("artist", track.artist)
-                        put("mediaUrl", track.mediaUrl)
+                        put("mediaUrl", cleanMediaUrl)
                         put("albumArtUrl", track.albumArtUrl ?: "")
                         put("durationMs", track.durationMs)
                         put("qualityBadge", track.qualityBadge)
@@ -355,9 +416,12 @@ class JamWebSocketClient @Inject constructor(
         })
     }
 
-    fun disconnect() {
+    fun disconnect(sendLeaveNotice: Boolean = true) {
+        reconnectJob?.cancel()
+        reconnectJob = null
+
         val session = _currentSession.value
-        if (session != null && _isConnected.value) {
+        if (sendLeaveNotice && session != null && _isConnected.value) {
             val json = JSONObject().apply {
                 put("type", "user_left")
                 put("sender", session.username)

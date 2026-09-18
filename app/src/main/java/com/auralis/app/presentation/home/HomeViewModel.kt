@@ -220,6 +220,12 @@ class HomeViewModel @Inject constructor(
         playbackManager.jamClient.joinJam(jamId, username)
     }
 
+    val isJamConnected = playbackManager.jamClient.isConnected
+
+    fun reconnectJam() {
+        playbackManager.jamClient.reconnect()
+    }
+
     fun leaveJam() {
         playbackManager.jamClient.disconnect()
     }
@@ -243,6 +249,17 @@ class HomeViewModel @Inject constructor(
 
     fun startRadio(track: Track) {
         playbackManager.startRadio(track)
+    }
+
+    val playbackSpeed = playbackManager.playbackSpeed
+    val sleepTimerMinutesRemaining = playbackManager.sleepTimerMinutesRemaining
+
+    fun setPlaybackSpeed(speed: Float) {
+        playbackManager.setPlaybackSpeed(speed)
+    }
+
+    fun setSleepTimer(minutes: Int?) {
+        playbackManager.setSleepTimer(minutes)
     }
 }
 
