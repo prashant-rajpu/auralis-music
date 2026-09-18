@@ -375,7 +375,7 @@ fun HomeScreen(
                 // Sleep Timer Modal from Home
                 if (showSleepTimerSheet) {
                     SleepTimerBottomSheet(
-                        minutesRemaining = sleepTimerMinutesRemaining,
+                        remainingMinutes = sleepTimerMinutesRemaining,
                         onSetTimer = { viewModel.setSleepTimer(it) },
                         onDismiss = { showSleepTimerSheet = false }
                     )
@@ -385,7 +385,7 @@ fun HomeScreen(
                 if (showSpeedSheet) {
                     PlaybackSpeedBottomSheet(
                         currentSpeed = playbackSpeed,
-                        onSelectSpeed = { viewModel.setPlaybackSpeed(it) },
+                        onSpeedSelected = { viewModel.setPlaybackSpeed(it) },
                         onDismiss = { showSpeedSheet = false }
                     )
                 }
