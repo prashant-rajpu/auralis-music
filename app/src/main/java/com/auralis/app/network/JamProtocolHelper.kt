@@ -2,9 +2,30 @@ package com.auralis.app.network
 
 import com.auralis.app.domain.model.Track
 import com.google.gson.Gson
-import com.google.gson.JsonObject
-import com.google.gson.JsonParser
 import kotlin.math.abs
+
+data class JamTrackDto(
+    val id: String = "",
+    val title: String = "",
+    val artist: String = "",
+    val mediaUrl: String = "",
+    val albumArtUrl: String? = null,
+    val durationMs: Long = 0L,
+    val qualityBadge: String = "320 kbps Master",
+    val source: String = "Auralis Master"
+)
+
+data class JamMessageDto(
+    val type: String = "",
+    val sender: String = "",
+    val user: String? = null,
+    val position: Long = 0L,
+    val isPlaying: Boolean = false,
+    val action: String = "sync",
+    val emoji: String? = null,
+    val quote: String? = null,
+    val track: JamTrackDto? = null
+)
 
 /**
  * Pure protocol helper for Spotify Jam & Together Mode sync.
@@ -30,161 +51,150 @@ object JamProtocolHelper {
         isPlaying: Boolean,
         action: String = "sync"
     ): String {
-        val root = JsonObject().apply {
-            addProperty("type", "sync_playback")
-            addProperty("sender", username)
-            addProperty("position", position)
-            addProperty("isPlaying", isPlaying)
-            addProperty("action", action)
-
-            val trackObj = JsonObject().apply {
-                addProperty("id", track.id)
-                addProperty("title", track.title)
-                addProperty("artist", track.artist)
-                addProperty("mediaUrl", track.mediaUrl)
-                addProperty("albumArtUrl", track.albumArtUrl ?: "")
-                addProperty("durationMs", track.durationMs)
-                addProperty("qualityBadge", track.qualityBadge)
-                addProperty("source", track.source)
-            }
-            add("track", trackObj)
-        }
-        return gson.toJson(root)
+        val dto = JamMessageDto(
+            type = "sync_playback",
+            sender = username,
+            position = position,
+            isPlaying = isPlaying,
+            action = action,
+            track = JamTrackDto(
+                id = track.id,
+                title = track.title,
+                artist = track.artist,
+                mediaUrl = track.mediaUrl,
+                albumArtUrl = track.albumArtUrl,
+                durationMs = track.durationMs,
+                qualityBadge = track.qualityBadge,
+                source = track.source
+            )
+        )
+        return gson.toJson(dto)
     }
 
     fun buildRequestSyncJson(username: String): String {
-        val root = JsonObject().apply {
-            addProperty("type", "request_sync")
-            addProperty("sender", username)
-        }
-        return gson.toJson(root)
+        val dto = JamMessageDto(
+            type = "request_sync",
+            sender = username
+        )
+        return gson.toJson(dto)
     }
 
     fun buildUserJoinedJson(username: String): String {
-        val root = JsonObject().apply {
-            addProperty("type", "user_joined")
-            addProperty("sender", username)
-            addProperty("user", username)
-        }
-        return gson.toJson(root)
+        val dto = JamMessageDto(
+            type = "user_joined",
+            sender = username,
+            user = username
+        )
+        return gson.toJson(dto)
     }
 
     fun buildUserLeftJson(username: String): String {
-        val root = JsonObject().apply {
-            addProperty("type", "user_left")
-            addProperty("sender", username)
-            addProperty("user", username)
-        }
-        return gson.toJson(root)
+        val dto = JamMessageDto(
+            type = "user_left",
+            sender = username,
+            user = username
+        )
+        return gson.toJson(dto)
     }
 
     fun buildReactionJson(username: String, emoji: String): String {
-        val root = JsonObject().apply {
-            addProperty("type", "reaction")
-            addProperty("sender", username)
-            addProperty("emoji", emoji)
-        }
-        return gson.toJson(root)
+        val dto = JamMessageDto(
+            type = "reaction",
+            sender = username,
+            emoji = emoji
+        )
+        return gson.toJson(dto)
     }
 
     fun buildMemoryQuoteJson(username: String, quote: String): String {
-        val root = JsonObject().apply {
-            addProperty("type", "memory_quote")
-            addProperty("sender", username)
-            addProperty("quote", quote)
-        }
-        return gson.toJson(root)
+        val dto = JamMessageDto(
+            type = "memory_quote",
+            sender = username,
+            quote = quote
+        )
+        return gson.toJson(dto)
     }
 
     fun buildQueueTrackJson(username: String, track: Track): String {
-        val root = JsonObject().apply {
-            addProperty("type", "queue_track")
-            addProperty("sender", username)
-
-            val trackObj = JsonObject().apply {
-                addProperty("id", track.id)
-                addProperty("title", track.title)
-                addProperty("artist", track.artist)
-                addProperty("mediaUrl", track.mediaUrl)
-                addProperty("albumArtUrl", track.albumArtUrl ?: "")
-                addProperty("durationMs", track.durationMs)
-                addProperty("qualityBadge", track.qualityBadge)
-                addProperty("source", track.source)
-            }
-            add("track", trackObj)
-        }
-        return gson.toJson(root)
+        val dto = JamMessageDto(
+            type = "queue_track",
+            sender = username,
+            track = JamTrackDto(
+                id = track.id,
+                title = track.title,
+                artist = track.artist,
+                mediaUrl = track.mediaUrl,
+                albumArtUrl = track.albumArtUrl,
+                durationMs = track.durationMs,
+                qualityBadge = track.qualityBadge,
+                source = track.source
+            )
+        )
+        return gson.toJson(dto)
     }
 
     fun parseJamPayload(jsonString: String, currentUsername: String): JamState? {
         return try {
-            val json = JsonParser.parseString(jsonString).asJsonObject
-            val sender = json.get("sender")?.asString ?: ""
+            val dto = gson.fromJson(jsonString, JamMessageDto::class.java) ?: return null
 
             // Echo suppression: Ignore own echoes (case-insensitive)
-            if (sender.equals(currentUsername, ignoreCase = true)) {
+            if (dto.sender.equals(currentUsername, ignoreCase = true)) {
                 return null
             }
 
-            val type = json.get("type")?.asString ?: return null
-
-            when (type) {
+            when (dto.type) {
                 "sync_playback" -> {
-                    val position = json.get("position")?.asLong ?: 0L
-                    val isPlaying = json.get("isPlaying")?.asBoolean ?: false
-                    val action = json.get("action")?.asString ?: "sync"
-                    val trackObj = json.getAsJsonObject("track") ?: return null
-
+                    val trackDto = dto.track ?: return null
                     val track = Track(
-                        id = trackObj.get("id")?.asString ?: "",
-                        title = trackObj.get("title")?.asString ?: "Unknown",
-                        artist = trackObj.get("artist")?.asString ?: "Unknown",
-                        mediaUrl = trackObj.get("mediaUrl")?.asString ?: "",
-                        albumArtUrl = trackObj.get("albumArtUrl")?.asString?.ifEmpty { null },
-                        durationMs = trackObj.get("durationMs")?.asLong ?: 0L,
-                        qualityBadge = trackObj.get("qualityBadge")?.asString ?: "320 kbps Master",
-                        source = trackObj.get("source")?.asString ?: "Auralis Master"
+                        id = trackDto.id,
+                        title = trackDto.title,
+                        artist = trackDto.artist,
+                        mediaUrl = trackDto.mediaUrl,
+                        albumArtUrl = trackDto.albumArtUrl,
+                        durationMs = trackDto.durationMs,
+                        qualityBadge = trackDto.qualityBadge,
+                        source = trackDto.source
                     )
-                    JamState.SyncPlayback(track, position, isPlaying, sender, action)
+                    JamState.SyncPlayback(track, dto.position, dto.isPlaying, dto.sender, dto.action)
                 }
 
                 "request_sync" -> {
-                    JamState.RequestSync(sender)
+                    JamState.RequestSync(dto.sender)
                 }
 
                 "user_joined" -> {
-                    val joinedUser = json.get("user")?.asString ?: sender
+                    val joinedUser = dto.user ?: dto.sender
                     JamState.UserJoined(joinedUser)
                 }
 
                 "user_left" -> {
-                    val leftUser = json.get("user")?.asString ?: sender
+                    val leftUser = dto.user ?: dto.sender
                     JamState.UserLeft(leftUser)
                 }
 
                 "reaction" -> {
-                    val emoji = json.get("emoji")?.asString ?: "❤️"
-                    JamState.ReactionReceived(emoji, sender)
+                    val emoji = dto.emoji ?: "❤️"
+                    JamState.ReactionReceived(emoji, dto.sender)
                 }
 
                 "memory_quote" -> {
-                    val quote = json.get("quote")?.asString ?: "I love you jaanaa 💋"
-                    JamState.MemoryQuoteReceived(quote, sender)
+                    val quote = dto.quote ?: "I love you jaanaa 💋"
+                    JamState.MemoryQuoteReceived(quote, dto.sender)
                 }
 
                 "queue_track" -> {
-                    val trackObj = json.getAsJsonObject("track") ?: return null
+                    val trackDto = dto.track ?: return null
                     val track = Track(
-                        id = trackObj.get("id")?.asString ?: "",
-                        title = trackObj.get("title")?.asString ?: "Unknown",
-                        artist = trackObj.get("artist")?.asString ?: "Unknown",
-                        mediaUrl = trackObj.get("mediaUrl")?.asString ?: "",
-                        albumArtUrl = trackObj.get("albumArtUrl")?.asString?.ifEmpty { null },
-                        durationMs = trackObj.get("durationMs")?.asLong ?: 0L,
-                        qualityBadge = trackObj.get("qualityBadge")?.asString ?: "320 kbps Master",
-                        source = trackObj.get("source")?.asString ?: "Auralis Master"
+                        id = trackDto.id,
+                        title = trackDto.title,
+                        artist = trackDto.artist,
+                        mediaUrl = trackDto.mediaUrl,
+                        albumArtUrl = trackDto.albumArtUrl,
+                        durationMs = trackDto.durationMs,
+                        qualityBadge = trackDto.qualityBadge,
+                        source = trackDto.source
                     )
-                    JamState.QueueTrack(track, sender)
+                    JamState.QueueTrack(track, dto.sender)
                 }
 
                 else -> null
