@@ -2,6 +2,7 @@ package com.auralis.app.presentation.home
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.auralis.app.data.local.MediaStoreSource
 import com.auralis.app.domain.model.Provider
 import com.auralis.app.domain.model.Track
 import com.auralis.app.domain.repository.MusicRepository
@@ -25,8 +26,24 @@ enum class HomeTab {
 class HomeViewModel @Inject constructor(
     private val repository: MusicRepository,
     private val playbackManager: PlaybackManager,
-    private val jamClient: JamWebSocketClient
+    private val jamClient: JamWebSocketClient,
+    private val mediaStoreSource: MediaStoreSource
 ) : ViewModel() {
+
+    /** Runtime permission that unlocks on-device music, and whether it has been granted. */
+    val localAudioPermission: String = mediaStoreSource.permission
+
+    private val _hasLocalAudioPermission = MutableStateFlow(mediaStoreSource.hasPermission())
+    val hasLocalAudioPermission: StateFlow<Boolean> = _hasLocalAudioPermission.asStateFlow()
+
+    fun refreshLocalAudioPermission() {
+        val granted = mediaStoreSource.hasPermission()
+        val changed = granted != _hasLocalAudioPermission.value
+        _hasLocalAudioPermission.value = granted
+        if (changed && granted && _selectedTab.value == HomeTab.Downloaded) {
+            loadOfflineTracks()
+        }
+    }
 
     private val _selectedTab = MutableStateFlow(HomeTab.Trending)
     val selectedTab: StateFlow<HomeTab> = _selectedTab.asStateFlow()
@@ -169,7 +186,13 @@ class HomeViewModel @Inject constructor(
             try {
                 val tracks = repository.fetchLocalTracks()
                 if (tracks.isEmpty()) {
-                    _uiState.value = HomeUiState.Error("No downloaded tracks yet. Tap download on any song to save for offline playback!")
+                    _uiState.value = HomeUiState.Error(
+                        if (_hasLocalAudioPermission.value) {
+                            "Nothing here yet. Download a song, or add music to this device."
+                        } else {
+                            "Nothing downloaded yet. Allow access to find music already on this device."
+                        }
+                    )
                 } else {
                     _uiState.value = HomeUiState.Success(tracks)
                 }

@@ -1,5 +1,7 @@
 package com.auralis.app.presentation.home
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -23,11 +25,14 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.auralis.app.domain.model.Provider
@@ -60,12 +65,27 @@ fun HomeScreen(
     val playbackSpeed by viewModel.playbackSpeed.collectAsState()
     val sleepTimerMinutesRemaining by viewModel.sleepTimerMinutesRemaining.collectAsState()
     val isInfiniteRadioAutoplayEnabled by viewModel.isInfiniteRadioAutoplayEnabled.collectAsState()
+    val hasLocalAudioPermission by viewModel.hasLocalAudioPermission.collectAsState()
 
     var showJamDialog by remember { mutableStateOf(false) }
     var showSleepTimerSheet by remember { mutableStateOf(false) }
     var showSpeedSheet by remember { mutableStateOf(false) }
     var isSearchExpanded by remember { mutableStateOf(false) }
     var selectedTrackForMenu by remember { mutableStateOf<Track?>(null) }
+
+    val permissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { viewModel.refreshLocalAudioPermission() }
+
+    // The user can grant the permission in system settings and come back
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) viewModel.refreshLocalAudioPermission()
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
 
     Surface(
         modifier = Modifier.fillMaxSize(),
@@ -426,6 +446,13 @@ fun HomeScreen(
                                 verticalArrangement = Arrangement.spacedBy(8.dp),
                                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
                             ) {
+                                if (selectedTab == HomeTab.Downloaded && !hasLocalAudioPermission) {
+                                    item {
+                                        LocalAudioPermissionCard(
+                                            onGrantClick = { permissionLauncher.launch(viewModel.localAudioPermission) }
+                                        )
+                                    }
+                                }
                                 item {
                                     Text(
                                         text = if (selectedTab == HomeTab.Downloaded) "Library (${tracks.size})" else "Results for '$searchQuery'",
@@ -973,6 +1000,12 @@ fun HomeScreen(
                                     fontSize = 14.sp,
                                     modifier = Modifier.padding(bottom = 16.dp)
                                 )
+                                if (selectedTab == HomeTab.Downloaded && !hasLocalAudioPermission) {
+                                    LocalAudioPermissionCard(
+                                        onGrantClick = { permissionLauncher.launch(viewModel.localAudioPermission) }
+                                    )
+                                    Spacer(modifier = Modifier.height(16.dp))
+                                }
                                 Button(
                                     onClick = { viewModel.loadTrendingTracks() },
                                     colors = ButtonDefaults.buttonColors(containerColor = BabyPinkPrimary)
@@ -1049,6 +1082,7 @@ fun GlassTrackListItem(
             }
         }
 
+        if (track.provider != Provider.LOCAL) {
         IconButton(
             onClick = onDownloadClick,
             modifier = Modifier.hapticPress(scaleDown = 0.85f)
@@ -1068,6 +1102,7 @@ fun GlassTrackListItem(
                     modifier = Modifier.size(22.dp)
                 )
             }
+        }
         }
 
         IconButton(
@@ -1172,5 +1207,48 @@ fun GlassMusicCardItem(
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
         )
+    }
+}
+
+@Composable
+private fun LocalAudioPermissionCard(onGrantClick: () -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(bottom = 12.dp)
+            .glassCard(cornerRadius = 18.dp)
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Default.LibraryMusic,
+                contentDescription = null,
+                tint = BabyPinkPrimary,
+                modifier = Modifier.size(22.dp)
+            )
+            Text(
+                text = "Play music on this device",
+                color = BabyPinkTextPrimary,
+                fontWeight = FontWeight.Bold,
+                fontSize = 15.sp
+            )
+        }
+        Text(
+            text = "Allow access to your audio files and they appear here alongside your downloads.",
+            color = BabyPinkTextSecondary,
+            fontSize = 13.sp
+        )
+        Button(
+            onClick = onGrantClick,
+            colors = ButtonDefaults.buttonColors(containerColor = BabyPinkPrimary),
+            shape = RoundedCornerShape(16.dp),
+            modifier = Modifier.hapticPress(scaleDown = 0.96f)
+        ) {
+            Text("Allow access", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+        }
     }
 }

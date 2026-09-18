@@ -1,5 +1,6 @@
 package com.auralis.app.di
 
+import com.auralis.app.data.local.MediaStoreSource
 import com.auralis.app.data.repository.AggregatedMusicRepository
 import com.auralis.app.data.source.AudiusSource
 import com.auralis.app.data.source.DirectStreamResolver
@@ -36,6 +37,10 @@ abstract class SourcesModule {
 
     @Multibinds
     abstract fun segmentSkippers(): Set<@JvmSuppressWildcards SegmentSkipper>
+
+    @Binds
+    @IntoSet
+    abstract fun mediaStoreSource(source: MediaStoreSource): MusicSource
 
     @Binds
     @IntoSet

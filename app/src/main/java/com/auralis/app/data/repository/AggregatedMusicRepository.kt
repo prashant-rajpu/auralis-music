@@ -80,9 +80,20 @@ class AggregatedMusicRepository @Inject constructor(
         }.flatten()
 
         val local = if (filter == null || filter == Provider.LOCAL) {
-            fetchLocalTracks().filter {
+            // Downloads are a small table, but the device library is queried rather than
+            // loaded in full and filtered in memory
+            val downloads = trackDao.getAllTracks().map { it.toDomainModel() }.filter {
                 it.title.contains(query, ignoreCase = true) || it.artist.contains(query, ignoreCase = true)
             }
+            val device = localSources.flatMap { source ->
+                try {
+                    source.search(query)
+                } catch (e: Exception) {
+                    Log.w("AggregatedMusicRepository", "Local search failed", e)
+                    emptyList()
+                }
+            }
+            (downloads + device).distinctBy { it.id }
         } else {
             emptyList()
         }
