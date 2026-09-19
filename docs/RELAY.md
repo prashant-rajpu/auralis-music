@@ -123,17 +123,28 @@ someone actually did something.
 
 ## Testing
 
+Two suites, and they cover different halves.
+
 ```bash
-cd relay && npm test
+cd relay
+npm test                                      # the protocol, no runtime needed
+npm run smoke -- https://your-relay.workers.dev   # a real deployment
 ```
 
 `src/protocol.ts` is deliberately pure — no Workers APIs, no I/O — because it
 holds the entire security boundary and is worth testing without a runtime.
+`npm test` covers it.
 
-The Durable Object wiring in `src/room.ts` is **not** covered by automated
-tests. `@cloudflare/vitest-pool-workers`, which would run it in the real
-`workerd` runtime, could not be installed (npm fails resolving its vitest 4
-peer with an internal `edgesOut` error). Until that is fixed, room behaviour —
-host handover, presence, hibernation, the alarm-driven TTL — is exercised only
-by hand against `npm run dev`. The logic that a malicious peer could reach is
-all in `protocol.ts`, which is covered.
+`npm run smoke` covers what a pure test cannot: it creates a room on a live
+relay, connects two clients, and checks presence, the injected server clock,
+the shared queue, opaque chat, and host handover when the host drops. It also
+re-checks the rule that matters against a *running* room rather than a
+function — a frame carrying `mediaUrl` is refused, and never reaches the peer.
+
+It needs a URL because it talks to a real deployment, so it is not part of CI.
+**Run it after every deploy.**
+
+Still uncovered: hibernation and the alarm-driven 30-day TTL, both of which
+take real time to observe. `@cloudflare/vitest-pool-workers` would let those be
+tested in `workerd`, but it cannot be installed here — npm fails resolving its
+vitest 4 peer with an internal `edgesOut` error.
