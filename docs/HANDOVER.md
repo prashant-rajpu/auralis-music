@@ -1,7 +1,7 @@
 # Auralis — Handover
 
 Everything done, everything left, and how to pick it up on a desktop.
-Accurate as of commit `4c8a9da` on branch `claude/grill-me-c8klg5`.
+Accurate as of commit `56c6172` on branch `claude/grill-me-c8klg5`.
 
 ---
 
@@ -9,11 +9,11 @@ Accurate as of commit `4c8a9da` on branch `claude/grill-me-c8klg5`.
 
 | | |
 |---|---|
-| Working branch | `claude/grill-me-c8klg5` — **9 commits ahead of `main`**, all pushed |
-| `main` | `9b20507` (PR #1, merged) |
-| Open PR | **None.** The 9 commits are pushed but no PR is open for them |
-| CI | **Green** on every commit (latest: Android CI run #57 on `4c8a9da`) |
-| Tests | **106** on `play`, **113** on `plus`, 0 failures |
+| Working branch | `claude/grill-me-c8klg5` — **4 commits ahead of `origin/main`** |
+| `main` | `5b2f02e` (PR #2, merged — it carried the theme, the sheet player, the screens, Room v4 and queue persistence) |
+| Open PR | **[#3](https://github.com/prashant-rajpu/auralis-music/pull/3)** — the handover, the foreground-service crash fix, the doc cleanup and the relay |
+| CI | **Green** on every commit |
+| Tests | **106** on `play`, **113** on `plus`, **26** in `relay/`, 0 failures |
 | Size | ~15,000 lines of Kotlin in `app/src/main` |
 | Editions | `play` (Play-Store-safe) and `plus` (sideload, adds YouTube Music + JioSaavn) |
 
@@ -146,7 +146,7 @@ there is no server clock so drift correction is guesswork (the current
 
 | Part | Contents |
 |---|---|
-| **A. Relay** | `relay/` — Cloudflare Worker + Durable Objects (TypeScript). One DO per room with WebSocket Hibernation. `POST /rooms` → `{code, hostToken}`; `GET /rooms/{code}/ws`. Server injects `senderId` and `serverMs` — the trustworthy shared clock is the whole reason a relay exists. Schema validation, 4 KB cap, 16 members, 10 msg/s, per-IP join limits, 30-day idle TTL, host handover after 30 s. Plus `docs/RELAY.md`. |
+| **A. Relay** | **Done** — `relay/`, documented in [`docs/RELAY.md`](RELAY.md). Cloudflare Worker + one Durable Object per room with WebSocket Hibernation. `POST /rooms` → `{code, hostToken}`; `GET /rooms/{code}/ws`. Server injects `senderId` and `serverMs`. Allowlist validation (no stream URL can reach the wire), 4 KB cap, 16 members, 10 msg/s, per-IP join limits, 30-day idle TTL, immediate host handover with token reclaim. Not yet deployed, and not yet spoken to by the app. |
 | **B. Protocol + sync** | `TogetherProtocol.kt` (kotlinx.serialization). **`TrackRef` never carries a stream URL** — the receiver resolves locally, so the Phase-0 security fix holds by construction. `ClockSync` (min-RTT EMA offset). `SyncController` drift table: >400 ms hard seek, 120–400 ms speed nudge to 0.98×/1.02× for ≤3 s, <120 ms leave alone, hold while buffering. `RelayWebSocketTransport` behind a `TogetherTransport` interface so ntfy stays as a fallback, then gets deleted. |
 | **C. Social** | Shared queue with host/free modes, live presence, in-session chat, floating reactions across both screens, skip voting, invites (6-char code + `auralis://join/CODE` + QR), rejoin from a stored token. |
 | **D. Couple layer** | Our Songs (from `shared_plays`), listening streak, partner's local time, scheduled sessions, dedicate-a-song inbox, lyric moments, goodnight mode (sleep timer fires on both phones), knock, couple profile, session memories. Name/reaction presets become editable with **Couple as the default pack**. |
@@ -288,6 +288,11 @@ with a partner. That turns the sync thresholds from guesses into numbers.
 
 ## 7. Suggested next step
 
-Open a PR for the 9 commits on `claude/grill-me-c8klg5` (CI is green on all
-of them), then start v4.1 part A — the relay — since it can be built and
-tested entirely locally before any phone is involved.
+v4.1 part B — the Android side of Together 2.0. `TogetherProtocol.kt` mirroring
+the wire format the relay already speaks, `ClockSync`, the `SyncController`
+drift table, and `RelayWebSocketTransport` behind a `TogetherTransport`
+interface so the ntfy client can stay as a fallback during the migration.
+
+All of that is testable without a phone. What is not: deploying the relay
+(`cd relay && npx wrangler login && npm run deploy`), which needs a Cloudflare
+account and takes about two minutes.

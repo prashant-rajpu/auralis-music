@@ -22,6 +22,15 @@ The last script is the one that matters for Play compliance: it inspects the
 built `play` APK for scraped-source packages rather than trusting the source
 layout.
 
+`relay/` is a separate Cloudflare Worker with its own toolchain, and the
+Gradle build does not touch it. If you changed anything under `relay/`:
+
+```bash
+cd relay && npm test && npm run typecheck
+```
+
+See [`docs/RELAY.md`](docs/RELAY.md) for what it is and how it deploys.
+
 ## Things that will bite you
 
 1. **AGP 9 has Kotlin built in.** Do not apply `org.jetbrains.kotlin.android`
