@@ -1,7 +1,7 @@
 # Auralis — Handover
 
 Everything done, everything left, and how to pick it up on a desktop.
-Accurate as of commit `8a2da15` on branch `claude/grill-me-c8klg5`.
+Accurate as of commit `dbdc05b` on branch `claude/grill-me-c8klg5`.
 
 ---
 
@@ -9,11 +9,11 @@ Accurate as of commit `8a2da15` on branch `claude/grill-me-c8klg5`.
 
 | | |
 |---|---|
-| Working branch | `claude/grill-me-c8klg5` — **4 commits ahead of `origin/main`** |
-| `main` | `5b2f02e` (PR #2, merged — it carried the theme, the sheet player, the screens, Room v4 and queue persistence) |
-| Open PR | **[#3](https://github.com/prashant-rajpu/auralis-music/pull/3)** — the handover, the foreground-service crash fix, the doc cleanup and the relay |
+| Working branch | `claude/grill-me-c8klg5` — **1 commit ahead of `origin/main`** (the relay-address fix) |
+| `main` | `33fef8f` (PR #3, merged — all of v4.1: the relay, the sync layer, encryption, the Together tab and the couple layer) |
+| Open PR | **None.** PR #3 is merged; the one commit on the branch has no PR yet |
 | CI | **Green** on every commit |
-| Tests | **106** on `play`, **113** on `plus`, **26** in `relay/`, 0 failures |
+| Tests | **274** on `play`, **281** on `plus`, **26** in `relay/`, 0 failures |
 | Size | ~15,000 lines of Kotlin in `app/src/main` |
 | Editions | `play` (Play-Store-safe) and `plus` (sideload, adds YouTube Music + JioSaavn) |
 
@@ -288,11 +288,11 @@ with a partner. That turns the sync thresholds from guesses into numbers.
 
 ## 7. Suggested next step
 
-v4.1 part B — the Android side of Together 2.0. `TogetherProtocol.kt` mirroring
-the wire format the relay already speaks, `ClockSync`, the `SyncController`
-drift table, and `RelayWebSocketTransport` behind a `TogetherTransport`
-interface so the ntfy client can stay as a fallback during the migration.
+**Deploy the relay and run the two-phone test.** Everything in v4.1 is written
+and machine-checked; none of it has spoken to a real relay or a second device.
+`cd relay && npx wrangler login && npm run deploy`, then put the printed URL
+in `auralis.relayUrl` (or Settings → Together). Until that happens, the
+Together tab correctly reports that it has nowhere to connect.
 
-All of that is testable without a phone. What is not: deploying the relay
-(`cd relay && npx wrangler login && npm run deploy`), which needs a Cloudflare
-account and takes about two minutes.
+After that, v4.2 — the showpiece player: artwork-driven colour with a contrast
+guard, the waveform scrubber, swipe-between-tracks and drag-to-reorder.
