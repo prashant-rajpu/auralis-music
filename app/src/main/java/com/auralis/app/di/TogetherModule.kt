@@ -3,7 +3,9 @@ package com.auralis.app.di
 import com.auralis.app.together.PlaybackManagerTogetherPlayer
 import com.auralis.app.together.RelayUrlProvider
 import com.auralis.app.together.RelayWebSocketTransport
+import com.auralis.app.data.repository.CoupleRepository
 import com.auralis.app.together.TogetherPlayer
+import com.auralis.app.together.TogetherRecorder
 import com.auralis.app.together.TogetherPreferences
 import com.auralis.app.together.TogetherScope
 import com.auralis.app.together.TogetherStore
@@ -45,6 +47,10 @@ abstract class TogetherModule {
     @Binds
     @Singleton
     abstract fun bindTogetherStore(preferences: TogetherPreferences): TogetherStore
+
+    @Binds
+    @Singleton
+    abstract fun bindTogetherRecorder(repository: CoupleRepository): TogetherRecorder
 
     companion object {
         /** Injected rather than called directly so a session can be driven by a test clock. */

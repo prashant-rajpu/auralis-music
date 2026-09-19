@@ -41,9 +41,13 @@ data class TogetherChatMessage(
     val senderId: String,
     val senderName: String,
     val serverMs: Long,
-    val text: String,
+    /** Null when this phone has no key for it — sent with a different invite. */
+    val note: TogetherNote?,
     val isMine: Boolean,
 )
+
+/** Thinking of you, from them. Transient, so it is an event rather than state. */
+data class TogetherKnock(val senderId: String, val senderName: String)
 
 data class TogetherReaction(val senderId: String, val senderName: String, val emoji: String)
 
@@ -60,6 +64,8 @@ data class TogetherUiState(
     /** Set when the peer is playing something this edition cannot get to at all. */
     val unplayable: TrackRef? = null,
     val message: String? = null,
+    /** Room time at which both phones fade out together. Null when no one has said goodnight. */
+    val goodnightAtServerMs: Long? = null,
 ) {
     val isActive: Boolean get() = room != null
 }
@@ -86,6 +92,7 @@ class TogetherSession @Inject constructor(
     private val store: TogetherStore,
     private val player: TogetherPlayer,
     private val repository: MusicRepository,
+    private val recorder: TogetherRecorder,
     private val clock: WallClock,
     @TogetherScope private val scope: CoroutineScope,
 ) {
@@ -99,7 +106,17 @@ class TogetherSession @Inject constructor(
     private val _reactions = MutableSharedFlow<TogetherReaction>(extraBufferCapacity = 16)
     val reactions = _reactions.asSharedFlow()
 
+    private val _knocks = MutableSharedFlow<TogetherKnock>(extraBufferCapacity = 8)
+    val knocks = _knocks.asSharedFlow()
+
     private var key: RoomKey? = null
+
+    /** The row every play and note in this session is filed under, once there is a partner. */
+    private var recordedSessionId: String? = null
+
+    /** Filed once per track per session, not once per tick. */
+    private val recordedTracks = mutableSetOf<String>()
+
     private var remote: RemotePlayback? = null
     private var jobs = mutableListOf<Job>()
     private var appliedSpeed = 1f
@@ -147,6 +164,12 @@ class TogetherSession @Inject constructor(
     }
 
     fun leave() {
+        recordedSessionId?.let { id ->
+            // Closed on its own scope: the session is going away, and the timeline should not.
+            scope.launch { runCatching { recorder.endSession(id) } }
+        }
+        recordedSessionId = null
+        recordedTracks.clear()
         transport.leave()
         stop()
         if (appliedSpeed != 1f) {
@@ -166,6 +189,8 @@ class TogetherSession @Inject constructor(
         lastBroadcast = null
         appliedSpeed = 1f
         quietUntilMs = 0L
+        recordedSessionId = null
+        recordedTracks.clear()
 
         _state.value = TogetherUiState(
             connection = TogetherConnection.Connecting,
@@ -195,7 +220,47 @@ class TogetherSession @Inject constructor(
     fun sendChat(text: String) {
         val body = text.trim()
         if (body.isEmpty()) return
-        val sealed = key?.let { TogetherCrypto.seal(it, body) } ?: return
+        sendNote(TogetherNote.Text(body))
+    }
+
+    /** A song, with something said about it. It is the note that makes it a dedication. */
+    fun dedicate(track: Track, note: String) {
+        sendNote(TogetherNote.Dedication(TogetherProtocol.trackRef(track), note.trim().take(500)))
+    }
+
+    /** One line of what is playing, sent at the moment it plays. */
+    fun sendLyricMoment(line: String, positionMs: Long) {
+        val track = player.currentTrack ?: return
+        val trimmed = line.trim().take(300)
+        if (trimmed.isEmpty()) return
+        sendNote(
+            TogetherNote.LyricMoment(
+                line = trimmed,
+                track = TogetherProtocol.trackRef(track),
+                positionMs = positionMs,
+            ),
+        )
+    }
+
+    fun knock() = sendNote(TogetherNote.Knock)
+
+    /**
+     * Fade out on both phones at the same moment. Scheduled in room time rather than as a local
+     * countdown, so "in twenty minutes" means the same instant on both sides of the world.
+     */
+    fun goodnightIn(delayMs: Long) {
+        if (!clockSync.isSynced) return
+        val at = clockSync.serverNow(clock.nowMs()) + delayMs.coerceAtLeast(0L)
+        _state.update { it.copy(goodnightAtServerMs = at) }
+        sendNote(TogetherNote.Goodnight(at))
+    }
+
+    fun cancelGoodnight() {
+        _state.update { it.copy(goodnightAtServerMs = null) }
+    }
+
+    private fun sendNote(note: TogetherNote) {
+        val sealed = key?.let { TogetherNotes.seal(it, note) } ?: return
         transport.send(TogetherClientMessage.Chat(sealed))
     }
 
@@ -264,6 +329,7 @@ class TogetherSession @Inject constructor(
                 _state.update {
                     it.copy(chat = message.state.chat.map { e -> decrypt(e, message.state.members) })
                 }
+                openMemoryIfPartnerIsHere()
                 message.state.playback?.let { playback ->
                     remote = RemotePlayback(
                         trackKey = playback.track.key,
@@ -292,8 +358,11 @@ class TogetherSession @Inject constructor(
                 }
             }
 
-            is TogetherServerMessage.Presence -> _state.update {
-                it.copy(room = it.room?.copy(members = message.members, hostId = message.hostId))
+            is TogetherServerMessage.Presence -> {
+                _state.update {
+                    it.copy(room = it.room?.copy(members = message.members, hostId = message.hostId))
+                }
+                openMemoryIfPartnerIsHere()
             }
 
             is TogetherServerMessage.Playback -> {
@@ -316,9 +385,22 @@ class TogetherSession @Inject constructor(
 
             is TogetherServerMessage.Queue -> _state.update { it.copy(queue = message.items) }
 
-            is TogetherServerMessage.Chat -> _state.update {
+            is TogetherServerMessage.Chat -> {
                 val entry = ChatEntry(message.senderId, message.serverMs, message.ciphertext)
-                it.copy(chat = (it.chat + decrypt(entry, it.room?.members.orEmpty())).takeLast(MAX_CHAT))
+                val decrypted = decrypt(entry, _state.value.room?.members.orEmpty())
+                when (val note = decrypted.note) {
+                    // A knock is a moment, not a line in a transcript.
+                    is TogetherNote.Knock ->
+                        if (!decrypted.isMine) {
+                            _knocks.tryEmit(TogetherKnock(entry.senderId, decrypted.senderName))
+                        }
+
+                    is TogetherNote.Goodnight ->
+                        _state.update { it.copy(goodnightAtServerMs = note.atServerMs) }
+
+                    else -> _state.update { it.copy(chat = (it.chat + decrypted).takeLast(MAX_CHAT)) }
+                }
+                decrypted.note?.let { fileNote(it, fromMe = decrypted.isMine) }
             }
 
             is TogetherServerMessage.Reaction -> {
@@ -356,6 +438,7 @@ class TogetherSession @Inject constructor(
     @VisibleForTesting
     internal fun tick() {
         sampleStall()
+        fadeOutIfGoodnightHasArrived()
 
         val target = remote?.copy(peerBuffering = peerIsBuffering()) ?: return
         if (!clockSync.isSynced) return
@@ -432,6 +515,7 @@ class TogetherSession @Inject constructor(
         }
 
         broadcastLocalPlayback()
+        fileSharedPlay(track)
         remote = RemotePlayback(
             trackKey = key,
             positionMs = player.positionMs,
@@ -453,9 +537,11 @@ class TogetherSession @Inject constructor(
         when (TogetherProtocol.availability(ref, BuildConfig.HAS_SCRAPED_SOURCES)) {
             TrackAvailability.DIRECT -> {
                 _state.update { it.copy(unplayable = null) }
-                player.playFromPeer(TogetherProtocol.toTrack(ref))
+                val local = TogetherProtocol.toTrack(ref)
+                player.playFromPeer(local)
                 quietUntilMs = clock.nowMs() + BROADCAST_QUIET_MS
                 noteBroadcast()
+                fileSharedPlay(local)
             }
 
             TrackAvailability.FALLBACK_SEARCH -> {
@@ -488,6 +574,75 @@ class TogetherSession @Inject constructor(
         player.playFromPeer(found)
         quietUntilMs = clock.nowMs() + BROADCAST_QUIET_MS
         noteBroadcast()
+        fileSharedPlay(found)
+    }
+
+    /**
+     * A room you are sitting in alone is not a session the two of you had, so nothing is filed
+     * until someone else is actually there.
+     */
+    private fun openMemoryIfPartnerIsHere() {
+        if (recordedSessionId != null) return
+        val room = _state.value.room ?: return
+        val partner = room.partner ?: return
+        scope.launch {
+            val id = runCatching {
+                recorder.beginSession(room.code, partner.name, room.isHost)
+            }.getOrNull() ?: return@launch
+            recordedSessionId = id
+            // The track already playing when they arrived counts too.
+            player.currentTrack?.let { fileSharedPlay(it) }
+        }
+    }
+
+    /** Once per track per session: Our Songs counts sessions, not seconds. */
+    private fun fileSharedPlay(track: Track) {
+        val id = recordedSessionId ?: return
+        val key = TogetherProtocol.trackRef(track).key
+        if (!recordedTracks.add(key)) return
+        val partner = _state.value.room?.partner?.name
+        scope.launch {
+            runCatching { recorder.recordSharedPlay(id, track, partner, addedByMe = true) }
+        }
+    }
+
+    private fun fileNote(note: TogetherNote, fromMe: Boolean) {
+        val id = recordedSessionId ?: return
+        val (type, payload, trackId) = when (note) {
+            is TogetherNote.Text -> Triple(TogetherRecorder.EVENT_CHAT, note.body, null)
+            is TogetherNote.Dedication -> Triple(
+                TogetherRecorder.EVENT_DEDICATION,
+                note.note,
+                TogetherProtocol.toTrack(note.track).id,
+            )
+            is TogetherNote.LyricMoment -> Triple(
+                TogetherRecorder.EVENT_LYRIC,
+                note.line,
+                TogetherProtocol.toTrack(note.track).id,
+            )
+            is TogetherNote.Knock -> Triple(TogetherRecorder.EVENT_KNOCK, null, null)
+            // Not a memory: a sleep timer is plumbing.
+            is TogetherNote.Goodnight -> return
+        }
+        scope.launch {
+            runCatching { recorder.recordEvent(id, type, payload, fromMe, trackId) }
+        }
+    }
+
+    /**
+     * The sleep timer both phones share. Compared in room time, so the two fade out on the same
+     * beat rather than however many seconds apart their clocks happen to be.
+     */
+    private fun fadeOutIfGoodnightHasArrived() {
+        val at = _state.value.goodnightAtServerMs ?: return
+        if (!clockSync.isSynced) return
+        if (clockSync.serverNow(clock.nowMs()) < at) return
+
+        player.pause()
+        _state.update { it.copy(goodnightAtServerMs = null) }
+        // Nothing to correct against any more, and nothing to announce: they are stopping too.
+        remote = null
+        quietUntilMs = clock.nowMs() + BROADCAST_QUIET_MS
     }
 
     /** Remembers where we are without telling anyone, because they already know. */
@@ -525,14 +680,14 @@ class TogetherSession @Inject constructor(
         _state.value.room?.members?.firstOrNull { it.id == memberId }?.name ?: "Them"
 
     private fun decrypt(entry: ChatEntry, members: List<Member>): TogetherChatMessage {
-        val opened = key?.let { TogetherCrypto.open(it, entry.ciphertext) }
+        // A note we cannot open is kept as null and shown as such, rather than dropped: silently
+        // hiding it would look like the other person never sent anything.
+        val note = key?.let { TogetherNotes.open(it, entry.ciphertext) }
         return TogetherChatMessage(
             senderId = entry.senderId,
             senderName = members.firstOrNull { it.id == entry.senderId }?.name ?: "Them",
             serverMs = entry.serverMs,
-            // Shown rather than hidden: silently dropping a message we cannot open would look
-            // like the other person never sent anything.
-            text = opened ?: UNREADABLE,
+            note = note,
             isMine = isOurs(entry.senderId),
         )
     }

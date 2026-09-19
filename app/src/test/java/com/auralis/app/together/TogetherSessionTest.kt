@@ -34,6 +34,7 @@ class TogetherSessionTest {
         val player: FakePlayer = FakePlayer(),
         val store: FakeStore = FakeStore(),
         val repository: FakeRepository = FakeRepository(),
+        val recorder: FakeRecorder = FakeRecorder(),
         val clock: TestClock = TestClock(),
     )
 
@@ -42,6 +43,7 @@ class TogetherSessionTest {
         store = f.store,
         player = f.player,
         repository = f.repository,
+        recorder = f.recorder,
         clock = f.clock,
         scope = scope,
     )
@@ -200,15 +202,18 @@ class TogetherSessionTest {
                     members = listOf(me, them),
                     hostId = "them",
                     chat = listOf(
-                        ChatEntry("them", 900, TogetherCrypto.seal(key, "are you awake?")),
-                        ChatEntry("me", 950, TogetherCrypto.seal(key, "always")),
+                        ChatEntry("them", 900, TogetherNotes.seal(key, TogetherNote.Text("are you awake?"))),
+                        ChatEntry("me", 950, TogetherNotes.seal(key, TogetherNote.Text("always"))),
                     ),
                 ),
             ),
         )
 
         val chat = session.state.value.chat
-        assertEquals(listOf("are you awake?", "always"), chat.map { it.text })
+        assertEquals(
+            listOf("are you awake?", "always"),
+            chat.map { (it.note as TogetherNote.Text).body },
+        )
         assertEquals(listOf(false, true), chat.map { it.isMine })
         assertEquals("Priya", chat.first().senderName)
         session.leave()
@@ -224,7 +229,7 @@ class TogetherSessionTest {
         val other = TogetherCrypto.deriveKey("ABCDEF", "MNJKHGFEDCBA98765432")
         session.handle(TogetherServerMessage.Chat("them", 1_000, TogetherCrypto.seal(other, "hi")))
 
-        assertEquals(TogetherSession.UNREADABLE, session.state.value.chat.last().text)
+        assertNull(session.state.value.chat.last().note)
         session.leave()
     }
 
@@ -238,7 +243,7 @@ class TogetherSessionTest {
 
         val chat = f.transport.meaningful.filterIsInstance<TogetherClientMessage.Chat>().single()
         assertFalse(chat.ciphertext.contains("meet me at nine"))
-        assertEquals("meet me at nine", TogetherCrypto.open(key, chat.ciphertext))
+        assertEquals(TogetherNote.Text("meet me at nine"), TogetherNotes.open(key, chat.ciphertext))
         session.leave()
     }
 
@@ -271,6 +276,190 @@ class TogetherSessionTest {
 
         assertEquals(listOf("🌙"), seen.map { it.emoji })
         collector.cancel()
+        session.leave()
+    }
+
+    // --- the things that only make sense between two people ---
+
+    @Test
+    fun `a knock is a moment, not a line in the transcript`() = runTest {
+        val f = Fixture()
+        val session = TestFixtureScope(backgroundScope).session(f)
+        session.join(invite, "Me")
+        session.welcome()
+
+        val seen = mutableListOf<TogetherKnock>()
+        val collector = backgroundScope.launch { session.knocks.collect(seen::add) }
+        runCurrent()
+
+        session.handle(
+            TogetherServerMessage.Chat("them", 1_000, TogetherNotes.seal(key, TogetherNote.Knock)),
+        )
+        runCurrent()
+
+        assertEquals(listOf("Priya"), seen.map { it.senderName })
+        assertTrue("a knock should not appear as a message", session.state.value.chat.isEmpty())
+        collector.cancel()
+        session.leave()
+    }
+
+    @Test
+    fun `our own knock does not knock back at us`() = runTest {
+        val f = Fixture()
+        val session = TestFixtureScope(backgroundScope).session(f)
+        session.join(invite, "Me")
+        session.welcome()
+
+        val seen = mutableListOf<TogetherKnock>()
+        val collector = backgroundScope.launch { session.knocks.collect(seen::add) }
+        runCurrent()
+
+        session.handle(
+            TogetherServerMessage.Chat("me", 1_000, TogetherNotes.seal(key, TogetherNote.Knock)),
+        )
+        runCurrent()
+
+        assertTrue(seen.isEmpty())
+        collector.cancel()
+        session.leave()
+    }
+
+    @Test
+    fun `a dedication carries a reference and a note, and nothing playable`() = runTest {
+        val f = Fixture()
+        val session = TestFixtureScope(backgroundScope).session(f)
+        session.join(invite, "Me")
+
+        session.dedicate(track(), "this one is yours")
+
+        val sent = f.transport.meaningful.filterIsInstance<TogetherClientMessage.Chat>().single()
+        assertFalse(sent.ciphertext.contains("audius.co"))
+        val note = TogetherNotes.open(key, sent.ciphertext) as TogetherNote.Dedication
+        assertEquals("this one is yours", note.note)
+        assertEquals("", TogetherProtocol.toTrack(note.track).mediaUrl)
+        session.leave()
+    }
+
+    @Test
+    fun `a lyric moment needs something to be playing`() = runTest {
+        val f = Fixture()
+        val session = TestFixtureScope(backgroundScope).session(f)
+        session.join(invite, "Me")
+
+        session.sendLyricMoment("and the night goes on", 61_000)
+        assertTrue(f.transport.meaningful.isEmpty())
+
+        f.player.currentTrack = track()
+        session.sendLyricMoment("and the night goes on", 61_000)
+
+        val sent = f.transport.meaningful.filterIsInstance<TogetherClientMessage.Chat>().single()
+        val note = TogetherNotes.open(key, sent.ciphertext) as TogetherNote.LyricMoment
+        assertEquals("and the night goes on", note.line)
+        assertEquals(61_000L, note.positionMs)
+        session.leave()
+    }
+
+    /** The point of goodnight: the same instant on both phones, not the same countdown. */
+    @Test
+    fun `goodnight is scheduled in room time and fires on both sides`() = runTest {
+        val f = Fixture()
+        val session = TestFixtureScope(backgroundScope).session(f)
+        session.join(invite, "Me")
+        session.welcome()
+        // Their clock is four seconds ahead of ours; the fade must still land together.
+        session.syncClock(f, offsetMs = 4_000)
+
+        session.goodnightIn(delayMs = 60_000)
+
+        val at = session.state.value.goodnightAtServerMs
+        assertNotNull(at)
+        val sent = f.transport.meaningful.filterIsInstance<TogetherClientMessage.Chat>().single()
+        assertEquals(TogetherNote.Goodnight(at!!), TogetherNotes.open(key, sent.ciphertext))
+        // It is a room timestamp, so it is offset from our own clock by exactly the measured skew.
+        assertEquals(f.clock.nowMs() + 60_000 + 4_000, at)
+        session.leave()
+    }
+
+    @Test
+    fun `when goodnight arrives, the music stops`() = runTest {
+        val f = Fixture()
+        val session = TestFixtureScope(backgroundScope).session(f)
+        session.join(invite, "Me")
+        session.welcome()
+        session.syncClock(f, offsetMs = 0)
+        f.player.currentTrack = track()
+        f.player.isPlaying = true
+
+        session.goodnightIn(delayMs = 10_000)
+        session.tick()
+        assertTrue("too early to stop", f.player.isPlaying)
+
+        f.clock.advance(11_000)
+        session.tick()
+
+        assertFalse(f.player.isPlaying)
+        assertNull(session.state.value.goodnightAtServerMs)
+        session.leave()
+    }
+
+    @Test
+    fun `their goodnight stops our music too`() = runTest {
+        val f = Fixture()
+        val session = TestFixtureScope(backgroundScope).session(f)
+        session.join(invite, "Me")
+        session.welcome()
+        session.syncClock(f, offsetMs = 0)
+        f.player.currentTrack = track()
+        f.player.isPlaying = true
+
+        val at = f.clock.nowMs() + 5_000
+        session.handle(
+            TogetherServerMessage.Chat(
+                "them",
+                1_000,
+                TogetherNotes.seal(key, TogetherNote.Goodnight(at)),
+            ),
+        )
+        assertEquals(at, session.state.value.goodnightAtServerMs)
+        assertTrue("a goodnight is not a chat message", session.state.value.chat.isEmpty())
+
+        f.clock.advance(6_000)
+        session.tick()
+
+        assertFalse(f.player.isPlaying)
+        session.leave()
+    }
+
+    @Test
+    fun `goodnight can be called off`() = runTest {
+        val f = Fixture()
+        val session = TestFixtureScope(backgroundScope).session(f)
+        session.join(invite, "Me")
+        session.welcome()
+        session.syncClock(f, offsetMs = 0)
+        f.player.currentTrack = track()
+        f.player.isPlaying = true
+
+        session.goodnightIn(delayMs = 5_000)
+        session.cancelGoodnight()
+        f.clock.advance(10_000)
+        session.tick()
+
+        assertTrue(f.player.isPlaying)
+        session.leave()
+    }
+
+    @Test
+    fun `goodnight needs a clock it can trust`() = runTest {
+        val f = Fixture()
+        val session = TestFixtureScope(backgroundScope).session(f)
+        session.join(invite, "Me")
+        session.welcome()
+
+        session.goodnightIn(delayMs = 5_000)
+
+        assertNull(session.state.value.goodnightAtServerMs)
+        assertTrue(f.transport.meaningful.isEmpty())
         session.leave()
     }
 
@@ -372,6 +561,130 @@ class TogetherSessionTest {
         assertTrue("edition=${BuildConfig.HAS_SCRAPED_SOURCES}", f.repository.queries.isEmpty())
         assertEquals(1, f.player.loaded.size)
         session.leave()
+    }
+
+    // --- what gets remembered ---
+
+    @Test
+    fun `a room you are sitting in alone is not a session you had together`() = runTest {
+        val f = Fixture()
+        val session = TestFixtureScope(backgroundScope).session(f)
+        session.join(invite, "Me")
+        session.welcome(listOf(me))
+        runCurrent()
+
+        assertNull("nothing to remember yet", f.recorder.sessionId)
+        session.leave()
+    }
+
+    @Test
+    fun `the timeline opens the moment they arrive`() = runTest {
+        val f = Fixture()
+        val session = TestFixtureScope(backgroundScope).session(f)
+        session.join(invite, "Me")
+        session.welcome(listOf(me))
+        runCurrent()
+
+        session.handle(TogetherServerMessage.Presence(listOf(me, them), "them", 1_000))
+        runCurrent()
+
+        assertEquals("session-ABCDEF", f.recorder.sessionId)
+        session.leave()
+    }
+
+    @Test
+    fun `a track playing when they arrive counts as one you heard together`() = runTest {
+        val f = Fixture()
+        f.player.currentTrack = track()
+        val session = TestFixtureScope(backgroundScope).session(f)
+        session.join(invite, "Me")
+        session.welcome()
+        runCurrent()
+
+        assertEquals(listOf("session-ABCDEF" to "auralis_global_abc"), f.recorder.sharedPlays)
+        session.leave()
+    }
+
+    /** Our Songs counts sessions, not seconds, so a long track is not a hundred shared plays. */
+    @Test
+    fun `a track is filed once per session, however many ticks it survives`() = runTest {
+        val f = Fixture()
+        val session = TestFixtureScope(backgroundScope).session(f)
+        session.join(invite, "Me")
+        session.welcome()
+        session.syncClock(f, offsetMs = 0)
+
+        session.handle(TogetherServerMessage.Playback("them", f.clock.nowMs(), theirTrack, 0, true, 1f))
+        runCurrent()
+        repeat(10) {
+            f.clock.advance(TogetherSession.TICK_MS)
+            f.player.positionMs += TogetherSession.TICK_MS
+            session.tick()
+        }
+        runCurrent()
+
+        assertEquals(1, f.recorder.sharedPlays.size)
+        session.leave()
+    }
+
+    @Test
+    fun `a dedication lands in the timeline with its note`() = runTest {
+        val f = Fixture()
+        val session = TestFixtureScope(backgroundScope).session(f)
+        session.join(invite, "Me")
+        session.welcome()
+        runCurrent()
+
+        session.handle(
+            TogetherServerMessage.Chat(
+                "them",
+                1_000,
+                TogetherNotes.seal(key, TogetherNote.Dedication(theirTrack, "this one is yours")),
+            ),
+        )
+        runCurrent()
+
+        assertEquals(
+            listOf(Triple("dedication", "this one is yours", false)),
+            f.recorder.events,
+        )
+        session.leave()
+    }
+
+    @Test
+    fun `a sleep timer is plumbing, not a memory`() = runTest {
+        val f = Fixture()
+        val session = TestFixtureScope(backgroundScope).session(f)
+        session.join(invite, "Me")
+        session.welcome()
+        session.syncClock(f, offsetMs = 0)
+        runCurrent()
+
+        session.handle(
+            TogetherServerMessage.Chat(
+                "them",
+                1_000,
+                TogetherNotes.seal(key, TogetherNote.Goodnight(f.clock.nowMs() + 5_000)),
+            ),
+        )
+        runCurrent()
+
+        assertTrue(f.recorder.events.isEmpty())
+        session.leave()
+    }
+
+    @Test
+    fun `leaving closes the session rather than leaving it open forever`() = runTest {
+        val f = Fixture()
+        val session = TestFixtureScope(backgroundScope).session(f)
+        session.join(invite, "Me")
+        session.welcome()
+        runCurrent()
+
+        session.leave()
+        runCurrent()
+
+        assertTrue(f.recorder.ended)
     }
 
     // --- correcting drift ---

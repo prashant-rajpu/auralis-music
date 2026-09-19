@@ -127,3 +127,39 @@ fun track(id: String = "auralis_global_abc", title: String = "A Song"): Track = 
     mediaUrl = "https://audius.co/stream.mp3",
     durationMs = 240_000,
 )
+
+class FakeRecorder : TogetherRecorder {
+    var sessionId: String? = null
+    val sharedPlays = mutableListOf<Pair<String, String>>() // session id to track id
+    val events = mutableListOf<Triple<String, String?, Boolean>>() // type, payload, fromMe
+    var ended = false
+
+    override suspend fun beginSession(roomCode: String, partnerName: String?, wasHost: Boolean): String {
+        val id = "session-$roomCode"
+        sessionId = id
+        return id
+    }
+
+    override suspend fun recordSharedPlay(
+        sessionId: String,
+        track: Track,
+        partnerName: String?,
+        addedByMe: Boolean,
+    ) {
+        sharedPlays.add(sessionId to track.id)
+    }
+
+    override suspend fun recordEvent(
+        sessionId: String,
+        type: String,
+        payload: String?,
+        fromMe: Boolean,
+        trackId: String?,
+    ) {
+        events.add(Triple(type, payload, fromMe))
+    }
+
+    override suspend fun endSession(sessionId: String) {
+        ended = true
+    }
+}

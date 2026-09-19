@@ -9,6 +9,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
@@ -33,7 +34,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.auralis.app.data.repository.SessionMemory
 import com.auralis.app.together.EncryptionStrength
+import com.auralis.app.together.ListeningStreak
 import com.auralis.app.together.Invite
 import com.auralis.app.together.Member
 import com.auralis.app.together.PartnerClock
@@ -41,9 +44,11 @@ import com.auralis.app.together.QueueEntry
 import com.auralis.app.together.SyncState
 import com.auralis.app.together.TogetherChatMessage
 import com.auralis.app.together.TogetherConnection
+import com.auralis.app.together.TogetherNote
 import com.auralis.app.together.TogetherRoom
 import com.auralis.app.together.TogetherUiState
 import com.auralis.app.ui.theme.*
+import kotlinx.coroutines.delay
 import java.time.Instant
 
 /**
@@ -88,6 +93,9 @@ private fun StartOrJoin(viewModel: TogetherViewModel) {
     val error by viewModel.error.collectAsState()
     val lastRoom by viewModel.lastRoom.collectAsState()
     val invite by viewModel.invite.collectAsState()
+    val streak by viewModel.streak.collectAsState()
+    val ourSongs by viewModel.ourSongs.collectAsState()
+    val memories by viewModel.memories.collectAsState()
     val context = LocalContext.current
     val clipboard = LocalClipboardManager.current
 
@@ -110,6 +118,37 @@ private fun StartOrJoin(viewModel: TogetherViewModel) {
                     fontSize = 14.sp,
                     color = TextSecondary,
                 )
+            }
+        }
+
+        if (streak.days > 0) {
+            item {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .surfaceCard(cornerRadius = 20.dp)
+                        .padding(18.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text("🔥", fontSize = 22.sp)
+                    Spacer(Modifier.width(14.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = ListeningStreak.label(streak),
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = if (streak.atRisk) WarningColor else TextPrimary,
+                        )
+                        if (streak.atRisk) {
+                            Spacer(Modifier.height(2.dp))
+                            Text(
+                                text = "One session today and it carries on",
+                                fontSize = 12.sp,
+                                color = TextTertiary,
+                            )
+                        }
+                    }
+                }
             }
         }
 
@@ -255,6 +294,86 @@ private fun StartOrJoin(viewModel: TogetherViewModel) {
             }
         }
 
+        if (ourSongs.isNotEmpty()) {
+            item {
+                Text(
+                    text = "Our songs",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = TextPrimary,
+                    modifier = Modifier.padding(top = 8.dp),
+                )
+            }
+            item {
+                Text(
+                    text = "What you actually listened to together, most-played first",
+                    fontSize = 12.sp,
+                    color = TextTertiary,
+                )
+            }
+            itemsIndexed(ourSongs, key = { _, track -> track.id }) { index, song ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .surfaceCard(cornerRadius = 16.dp)
+                        .clickable { viewModel.playOurSongs(index) }
+                        .padding(horizontal = 14.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = song.title,
+                            fontSize = 14.sp,
+                            color = TextPrimary,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        Text(
+                            text = song.artist,
+                            fontSize = 11.sp,
+                            color = TextTertiary,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                }
+            }
+        }
+
+        if (memories.isNotEmpty()) {
+            item {
+                Text(
+                    text = "Sessions",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = TextPrimary,
+                    modifier = Modifier.padding(top = 8.dp),
+                )
+            }
+            items(memories, key = { it.id }) { memory ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .surfaceCard(cornerRadius = 16.dp)
+                        .padding(horizontal = 14.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = memory.partnerName?.let { "With $it" } ?: "A session",
+                            fontSize = 14.sp,
+                            color = TextPrimary,
+                        )
+                        Text(
+                            text = sessionSubtitle(memory),
+                            fontSize = 11.sp,
+                            color = TextTertiary,
+                        )
+                    }
+                }
+            }
+        }
+
         lastRoom?.let { room ->
             item {
                 Row(
@@ -360,8 +479,38 @@ private fun InviteCard(code: String, link: String, onCopy: () -> Unit, onShare: 
 @Composable
 private fun LiveSession(state: TogetherUiState, viewModel: TogetherViewModel) {
     val room = state.room ?: return
+    var knockFrom by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(Unit) {
+        viewModel.knocks.collect { knock ->
+            knockFrom = knock.senderName
+            delay(3_000)
+            knockFrom = null
+        }
+    }
 
     Column(modifier = Modifier.fillMaxSize()) {
+        AnimatedVisibility(visible = knockFrom != null, enter = fadeIn(), exit = fadeOut()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 8.dp)
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(AccentColorSoft)
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text("👋", fontSize = 18.sp)
+                Spacer(Modifier.width(10.dp))
+                Text(
+                    text = "${knockFrom.orEmpty()} is thinking of you",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = TextPrimary,
+                )
+            }
+        }
+
         LazyColumn(
             modifier = Modifier.weight(1f),
             contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 24.dp, bottom = 12.dp),
@@ -369,6 +518,7 @@ private fun LiveSession(state: TogetherUiState, viewModel: TogetherViewModel) {
         ) {
             item { PartnerCard(room = room, connection = state.connection, onLeave = viewModel::leave) }
             item { SyncBadge(state = state) }
+            item { CoupleActions(state = state, viewModel = viewModel) }
 
             state.unplayable?.let { ref ->
                 item {
@@ -422,6 +572,125 @@ private fun LiveSession(state: TogetherUiState, viewModel: TogetherViewModel) {
             draft = viewModel.chatDraft,
             onDraftChange = viewModel::onChatDraftChange,
             onSend = viewModel::send,
+        )
+    }
+}
+
+/**
+ * The three things that only make sense between two people: a knock, a song dedicated with
+ * something said about it, and a sleep timer that stops both phones on the same beat.
+ */
+@Composable
+private fun CoupleActions(state: TogetherUiState, viewModel: TogetherViewModel) {
+    var dedicating by remember { mutableStateOf(false) }
+    var choosingGoodnight by remember { mutableStateOf(false) }
+    val playing = viewModel.nowPlaying()
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .surfaceCard(cornerRadius = 20.dp)
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            ActionChip(label = "👋  Knock", onClick = viewModel::knock, modifier = Modifier.weight(1f))
+            ActionChip(
+                label = "💌  Dedicate",
+                enabled = playing != null,
+                onClick = { dedicating = !dedicating },
+                modifier = Modifier.weight(1f),
+            )
+            ActionChip(
+                label = if (state.goodnightAtServerMs != null) "🌙  Set" else "🌙  Goodnight",
+                enabled = state.clockReady,
+                onClick = {
+                    if (state.goodnightAtServerMs != null) viewModel.cancelGoodnight()
+                    else choosingGoodnight = !choosingGoodnight
+                },
+                modifier = Modifier.weight(1f),
+            )
+        }
+
+        if (state.goodnightAtServerMs != null) {
+            Text(
+                text = "Both phones will fade out together. Tap 🌙 again to call it off.",
+                fontSize = 11.sp,
+                color = TextTertiary,
+            )
+        }
+
+        AnimatedVisibility(visible = choosingGoodnight && state.goodnightAtServerMs == null) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                for (minutes in TogetherViewModel.GOODNIGHT_MINUTES) {
+                    ActionChip(
+                        label = "${minutes}m",
+                        onClick = {
+                            viewModel.goodnightIn(minutes)
+                            choosingGoodnight = false
+                        },
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+            }
+        }
+
+        AnimatedVisibility(visible = dedicating && playing != null) {
+            Column {
+                Text(
+                    text = "Dedicating \u201c${playing?.title.orEmpty()}\u201d",
+                    fontSize = 12.sp,
+                    color = TextSecondary,
+                )
+                Spacer(Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = viewModel.dedicationDraft,
+                    onValueChange = viewModel::onDedicationDraftChange,
+                    placeholder = { Text("Say why", color = TextTertiary) },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = auralisFieldColors(),
+                )
+                Spacer(Modifier.height(8.dp))
+                Button(
+                    onClick = {
+                        viewModel.dedicateCurrent(viewModel.dedicationDraft)
+                        dedicating = false
+                    },
+                    shape = RoundedCornerShape(14.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = AccentColor,
+                        contentColor = OnAccentColor,
+                    ),
+                ) {
+                    Text("Send it", fontSize = 13.sp)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ActionChip(
+    label: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+) {
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(14.dp))
+            .background(SurfaceHighest)
+            .hapticPress(scaleDown = 0.94f)
+            .clickable(enabled = enabled, onClick = onClick)
+            .padding(vertical = 12.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = label,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Medium,
+            color = if (enabled) TextPrimary else TextTertiary,
+            maxLines = 1,
         )
     }
 }
@@ -628,7 +897,7 @@ private fun ChatBubble(message: TogetherChatMessage) {
     ) {
         Column(
             modifier = Modifier
-                .widthIn(max = 280.dp)
+                .widthIn(max = 300.dp)
                 .clip(RoundedCornerShape(18.dp))
                 .background(if (message.isMine) AccentColorSoft else SurfaceHighest)
                 .padding(horizontal = 14.dp, vertical = 10.dp),
@@ -642,7 +911,60 @@ private fun ChatBubble(message: TogetherChatMessage) {
                 )
                 Spacer(Modifier.height(2.dp))
             }
-            Text(text = message.text, fontSize = 14.sp, color = TextPrimary)
+
+            when (val note = message.note) {
+                is TogetherNote.Text -> Text(note.body, fontSize = 14.sp, color = TextPrimary)
+
+                is TogetherNote.Dedication -> {
+                    Text(
+                        text = if (message.isMine) "You dedicated" else "Dedicated to you",
+                        fontSize = 10.sp,
+                        letterSpacing = 1.sp,
+                        color = TextTertiary,
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        text = note.track.title,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = TextPrimary,
+                    )
+                    Text(note.track.artist, fontSize = 12.sp, color = TextSecondary)
+                    if (note.note.isNotBlank()) {
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            text = "\u201c${note.note}\u201d",
+                            fontSize = 14.sp,
+                            color = TextPrimary,
+                        )
+                    }
+                }
+
+                is TogetherNote.LyricMoment -> {
+                    Text(
+                        text = "\u201c${note.line}\u201d",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = TextPrimary,
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        text = "${note.track.title} \u00b7 ${note.track.artist}",
+                        fontSize = 11.sp,
+                        color = TextTertiary,
+                    )
+                }
+
+                // Neither reaches the transcript, but exhaustiveness is worth keeping.
+                is TogetherNote.Knock, is TogetherNote.Goodnight ->
+                    Text("\u2026", fontSize = 14.sp, color = TextTertiary)
+
+                null -> Text(
+                    text = "Sent with a different invite, so this phone has no key for it",
+                    fontSize = 12.sp,
+                    color = TextTertiary,
+                )
+            }
         }
     }
 }
@@ -722,6 +1044,20 @@ private fun auralisFieldColors() = OutlinedTextFieldDefaults.colors(
     focusedContainerColor = Color.Transparent,
     unfocusedContainerColor = Color.Transparent,
 )
+
+/** "3 songs · Tuesday" — enough to place it, without a paragraph. */
+private fun sessionSubtitle(memory: SessionMemory): String {
+    val songs = when (memory.trackCount) {
+        0 -> "No songs yet"
+        1 -> "1 song"
+        else -> "${memory.trackCount} songs"
+    }
+    val day = java.time.Instant.ofEpochMilli(memory.startedAtMs)
+        .atZone(java.time.ZoneId.systemDefault())
+        .toLocalDate()
+        .format(java.time.format.DateTimeFormatter.ofPattern("d MMM"))
+    return "$songs \u00b7 $day"
+}
 
 private fun share(context: android.content.Context, text: String) {
     if (text.isBlank()) return
