@@ -440,14 +440,23 @@ class TogetherSession @Inject constructor(
         sampleStall()
         fadeOutIfGoodnightHasArrived()
 
-        val target = remote?.copy(peerBuffering = peerIsBuffering()) ?: return
-        if (!clockSync.isSynced) return
+        val target = remote?.copy(peerBuffering = peerIsBuffering()) ?: run {
+            releaseSpeed()
+            return
+        }
+        if (!clockSync.isSynced) {
+            releaseSpeed()
+            return
+        }
 
         // Before correcting anything: did the person holding *this* phone just do something? If
         // they hit pause, the room should pause. Checking after the correction would mean the
         // sync loop un-pauses them a fraction of a second later, which is the single most
         // infuriating thing a feature like this can do.
-        if (takeControlIfUserActed()) return
+        if (takeControlIfUserActed()) {
+            releaseSpeed()
+            return
+        }
 
         val track = player.currentTrack
         val local = LocalPlayback(
@@ -457,12 +466,20 @@ class TogetherSession @Inject constructor(
             isBuffering = isStalled(),
         )
 
-        val decision = syncController.decide(local, target, clockSync.serverNow(clock.nowMs()))
+        val decision = syncController.decide(
+            local = local,
+            remote = target,
+            nowServerMs = clockSync.serverNow(clock.nowMs()),
+            precise = clockSync.isReliable,
+        )
         _state.update { it.copy(syncState = decision.state, driftMs = decision.driftMs) }
 
         // A track change is handled when the message arrives; re-triggering it here would restart
         // the load on every tick while it is still loading.
-        if (decision.state == SyncState.LOADING_TRACK || decision.state == SyncState.STALE) return
+        if (decision.state == SyncState.LOADING_TRACK || decision.state == SyncState.STALE) {
+            releaseSpeed()
+            return
+        }
 
         var corrected = false
         decision.seekToMs?.let {
@@ -643,6 +660,19 @@ class TogetherSession @Inject constructor(
         // Nothing to correct against any more, and nothing to announce: they are stopping too.
         remote = null
         quietUntilMs = clock.nowMs() + BROADCAST_QUIET_MS
+    }
+
+    /**
+     * Puts the speed back to normal.
+     *
+     * Every path that leaves the correction loop early has to come through here. A nudge is two
+     * percent off, which nobody hears for a second — and which sounds exactly like a broken app if
+     * a track change, a stale peer or a lost clock strands it there for the rest of the song.
+     */
+    private fun releaseSpeed() {
+        if (appliedSpeed == 1f) return
+        player.setSpeed(1f)
+        appliedSpeed = 1f
     }
 
     /** Remembers where we are without telling anyone, because they already know. */

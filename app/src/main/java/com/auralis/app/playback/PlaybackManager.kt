@@ -750,12 +750,25 @@ class PlaybackManager @Inject constructor(
     }
 
     fun setPlaybackSpeed(speed: Float) {
+        applySpeed(speed)
+        _lastJamAction.value = "Speed: ${speed}x ⚡"
+        scheduleActionDismiss()
+    }
+
+    /**
+     * Speed changed to close a drift gap rather than because anyone asked.
+     *
+     * Same effect, no banner: a Together session nudges by two percent for a second or so at a
+     * time, and announcing each one would strobe a toast across the screen for something the
+     * listener is not supposed to notice at all.
+     */
+    fun setSyncSpeed(speed: Float) = applySpeed(speed)
+
+    private fun applySpeed(speed: Float) {
         _playbackSpeed.value = speed
         val params = PlaybackParameters(speed)
         playerA.playbackParameters = params
         playerB.playbackParameters = params
-        _lastJamAction.value = "Speed: ${speed}x ⚡"
-        scheduleActionDismiss()
     }
 
     fun setSleepTimer(minutes: Int?) {

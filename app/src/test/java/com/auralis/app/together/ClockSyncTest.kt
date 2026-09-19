@@ -148,6 +148,40 @@ class ClockSyncTest {
         assertEquals(0, sync.sampleCount)
     }
 
+    /**
+     * The midpoint method assumes both legs took the same time. Over a slow link that assumption
+     * is worth a large fraction of the round trip — far more than the gap a nudge closes — so the
+     * offset is fine for "roughly where are they" and useless for drift correction.
+     */
+    @Test
+    fun `an offset measured over a slow link is synced but not reliable`() {
+        val sync = ClockSync()
+        repeat(4) {
+            val sent = it * 1_000L
+            sync.observe(sentAtMs = sent, serverMs = sent + 300 + 7_500, receivedAtMs = sent + 600)
+        }
+        assertTrue(sync.isSynced)
+        assertFalse("600ms round trips are not worth nudging against", sync.isReliable)
+    }
+
+    @Test
+    fun `a fast link is reliable`() {
+        val sync = ClockSync()
+        repeat(4) {
+            val sent = it * 1_000L
+            sync.observe(sentAtMs = sent, serverMs = sent + 20 + 7_500, receivedAtMs = sent + 40)
+        }
+        assertTrue(sync.isReliable)
+    }
+
+    @Test
+    fun `nothing is reliable before it is synced`() {
+        val sync = ClockSync()
+        sync.observe(sentAtMs = 0, serverMs = 4_010, receivedAtMs = 20)
+        assertFalse(sync.isSynced)
+        assertFalse(sync.isReliable)
+    }
+
     @Test
     fun `an offset worth telling the user about is more than a second`() {
         assertFalse(ClockSync.isLargeOffset(900))

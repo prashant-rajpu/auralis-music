@@ -50,6 +50,18 @@ class ClockSync(
     val isSynced: Boolean get() = accepted >= minSamplesForSync
 
     /**
+     * Whether the offset is good enough to correct *drift* with, as opposed to merely knowing
+     * roughly where the other phone is.
+     *
+     * The midpoint method assumes the request and response legs took the same time. Over a fast
+     * link that is nearly true and the error is a few milliseconds. Over a slow one the error can
+     * be a large fraction of the round trip — which is far more than the 120 ms gap a nudge is
+     * supposed to close. Correcting against a biased offset does not wobble around the truth: it
+     * leans one way and stays there, so one side ends up playing permanently slow.
+     */
+    val isReliable: Boolean get() = isSynced && bestRoundTripMs <= UNRELIABLE_ROUND_TRIP_MS
+
+    /**
      * Folds in one pong. Returns the sample if it was used, or null if it was discarded as too
      * slow or impossible (a clock that went backwards mid-exchange).
      */
@@ -93,6 +105,13 @@ class ClockSync(
     companion object {
         /** How far apart two clocks have to be before it is worth telling the user. */
         const val NOTICEABLE_OFFSET_MS = 1_000L
+
+        /**
+         * Above this round trip, the midpoint assumption is too weak to nudge against. A phone on
+         * wifi or a decent mobile network is well inside it; a congested one is not, and is better
+         * left roughly in sync than dragged out of time by a confident wrong number.
+         */
+        const val UNRELIABLE_ROUND_TRIP_MS = 400L
 
         fun isLargeOffset(offsetMs: Long): Boolean = abs(offsetMs) > NOTICEABLE_OFFSET_MS
     }

@@ -896,6 +896,164 @@ class TogetherSessionTest {
         session.leave()
     }
 
+    // --- the ways a nudge used to get stranded ---
+
+    /**
+     * Two percent slow is inaudible for a second and sounds like a broken app for a whole song.
+     * Every path out of the correction loop has to put the speed back.
+     */
+    @Test
+    fun `a nudge is released when the peer moves to another track`() = runTest {
+        val f = Fixture()
+        val session = TestFixtureScope(backgroundScope).session(f)
+        session.join(invite, "Me")
+        session.welcome()
+        session.syncClock(f, offsetMs = 0)
+
+        session.handle(
+            TogetherServerMessage.Playback("them", f.clock.nowMs(), theirTrack, 30_000, true, 1f),
+        )
+        f.player.currentTrack = track()
+        f.player.isPlaying = true
+        f.player.positionMs = 30_200
+        session.tick()
+        assertEquals(0.98f, f.player.appliedSpeed, 0f)
+
+        // They skip. The old code returned here and left us at 0.98x for good.
+        f.player.currentTrack = track(id = "jamendo_77")
+        session.tick()
+
+        assertEquals(1f, f.player.appliedSpeed, 0f)
+        session.leave()
+    }
+
+    @Test
+    fun `a nudge is released when the peer goes quiet`() = runTest {
+        val f = Fixture()
+        val session = TestFixtureScope(backgroundScope).session(f)
+        session.join(invite, "Me")
+        session.welcome()
+        session.syncClock(f, offsetMs = 0)
+
+        session.handle(
+            TogetherServerMessage.Playback("them", f.clock.nowMs(), theirTrack, 30_000, true, 1f),
+        )
+        f.player.currentTrack = track()
+        f.player.isPlaying = true
+        f.player.positionMs = 30_200
+        session.tick()
+        assertEquals(0.98f, f.player.appliedSpeed, 0f)
+
+        f.clock.advance(60 * 60 * 1000)
+        session.tick()
+
+        assertEquals(1f, f.player.appliedSpeed, 0f)
+        session.leave()
+    }
+
+    @Test
+    fun `a nudge is released when the user takes over`() = runTest {
+        val f = Fixture()
+        val session = TestFixtureScope(backgroundScope).session(f)
+        session.join(invite, "Me")
+        session.welcome()
+        session.syncClock(f, offsetMs = 0)
+
+        session.handle(
+            TogetherServerMessage.Playback("them", f.clock.nowMs(), theirTrack, 30_000, true, 1f),
+        )
+        f.player.currentTrack = track()
+        f.player.isPlaying = true
+        f.player.positionMs = 30_200
+        session.tick()
+        assertEquals(0.98f, f.player.appliedSpeed, 0f)
+
+        f.clock.advance(TogetherSession.BROADCAST_QUIET_MS + 1_000)
+        f.player.isPlaying = false
+        session.tick()
+
+        assertEquals(1f, f.player.appliedSpeed, 0f)
+        session.leave()
+    }
+
+    @Test
+    fun `leaving puts the speed back`() = runTest {
+        val f = Fixture()
+        val session = TestFixtureScope(backgroundScope).session(f)
+        session.join(invite, "Me")
+        session.welcome()
+        session.syncClock(f, offsetMs = 0)
+
+        session.handle(
+            TogetherServerMessage.Playback("them", f.clock.nowMs(), theirTrack, 30_000, true, 1f),
+        )
+        f.player.currentTrack = track()
+        f.player.isPlaying = true
+        f.player.positionMs = 30_200
+        session.tick()
+        assertEquals(0.98f, f.player.appliedSpeed, 0f)
+
+        session.leave()
+
+        assertEquals(1f, f.player.appliedSpeed, 0f)
+    }
+
+    /** A clock measured over a slow link leans one way, so nudging against it never stops. */
+    @Test
+    fun `a slow connection is never nudged against`() = runTest {
+        val f = Fixture()
+        val session = TestFixtureScope(backgroundScope).session(f)
+        session.join(invite, "Me")
+        session.welcome()
+        // Every exchange takes 600ms, so the offset is only good to a few hundred milliseconds.
+        repeat(4) {
+            val sent = f.clock.nowMs()
+            f.clock.advance(600)
+            session.handle(TogetherServerMessage.Pong(at = sent, serverMs = sent + 300))
+        }
+
+        session.handle(
+            TogetherServerMessage.Playback("them", f.clock.nowMs(), theirTrack, 30_000, true, 1f),
+        )
+        f.player.currentTrack = track()
+        f.player.isPlaying = true
+        f.player.positionMs = 30_200
+        f.player.seeks.clear()
+
+        session.tick()
+
+        assertEquals("a 200ms gap is inside the measurement error", 1f, f.player.appliedSpeed, 0f)
+        assertTrue(f.player.seeks.isEmpty())
+        session.leave()
+    }
+
+    @Test
+    fun `a slow connection still fixes a gap too big to be measurement error`() = runTest {
+        val f = Fixture()
+        val session = TestFixtureScope(backgroundScope).session(f)
+        session.join(invite, "Me")
+        session.welcome()
+        repeat(4) {
+            val sent = f.clock.nowMs()
+            f.clock.advance(600)
+            session.handle(TogetherServerMessage.Pong(at = sent, serverMs = sent + 300))
+        }
+
+        session.handle(
+            TogetherServerMessage.Playback("them", f.clock.nowMs(), theirTrack, 30_000, true, 1f),
+        )
+        f.player.currentTrack = track()
+        f.player.isPlaying = true
+        f.player.positionMs = 45_000
+        f.player.seeks.clear()
+
+        session.tick()
+
+        assertEquals(1, f.player.seeks.size)
+        assertEquals(1f, f.player.appliedSpeed, 0f)
+        session.leave()
+    }
+
     // --- the shared queue ---
 
     @Test
