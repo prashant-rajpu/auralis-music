@@ -40,6 +40,7 @@ class TogetherViewModel @Inject constructor(
     val displayName = preferences.displayName
     val lastRoom = preferences.lastRoom
     val relayUrl = preferences.relayUrl
+    val relayConfigured = preferences.isConfigured
 
     /** What the two of you have built up. Empty until a session has actually happened. */
     val streak = couple.streak.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), Streak(0, false))

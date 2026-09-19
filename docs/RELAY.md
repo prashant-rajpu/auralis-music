@@ -88,10 +88,21 @@ npx wrangler login
 npm run deploy
 ```
 
-`wrangler deploy` prints the worker URL. The app does not read it yet — the
-Android side of Together 2.0 is the next piece of work, and it will expose the
-URL as a Settings field rather than baking it in, so the relay can be
-self-hosted. That is what keeps Together working in an F-Droid build.
+`wrangler deploy` prints the worker URL. It looks like
+`https://auralis-relay.<your-subdomain>.workers.dev` — the subdomain is yours,
+so there is no address this repo could have guessed.
+
+Give it to the app in either of two ways:
+
+- **Per build**, so an APK ships ready to use: put
+  `auralis.relayUrl=https://…` in `~/.gradle/gradle.properties`, or set the
+  `AURALIS_RELAY_URL` environment variable (CI reads it as a secret).
+- **Per device**, under Settings → Together → Relay address. This always wins
+  over the build value, and it is what makes the relay self-hostable — which
+  is what keeps Together working in an F-Droid build.
+
+With neither set, the Together tab says so plainly instead of failing as a
+socket error, because a plausible-but-wrong default is worse than none.
 
 Local development: `npm run dev` runs the worker and the Durable Object in
 Workers' local runtime at `http://localhost:8787`.
