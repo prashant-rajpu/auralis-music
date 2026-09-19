@@ -1,20 +1,60 @@
 # Project State
 
-## Current Phase: Phase 0 - Stabilize & make releasable
-**Status**: Completed
+**For the full picture — everything done, everything left, and how to set up a
+desktop — see [`docs/HANDOVER.md`](docs/HANDOVER.md).** This file is the
+one-screen version.
 
-**Recent Actions**:
-- Upgraded the toolchain: Gradle 9.7 wrapper, AGP 9.4 with built-in Kotlin 2.4, KSP, Compose
-  BOM 2026.09 (compileSdk 37 / targetSdk 36), Media3 1.11, Room 2.8, Hilt 2.60, Java 17.
-- Release builds now work: R8 keep rules for the Gson DTOs, resource shrinking, signing from
-  `keystore.properties` or CI secrets, and a tag-triggered GitHub Release workflow.
-- Hardened Together Mode (URL allowlist for inbound tracks, session-code validation, duplicate
-  message suppression), restricted MediaSession control to trusted controllers, debug-only HTTP
-  logging, per-session audio effects, local files no longer re-resolved over the network.
-- Removed dead code, hid the unwired streaming-quality setting, made the haptic setting real,
-  and replaced inaccurate docs and quality badges with honest ones (`docs/STATUS.md`).
+## Where things are
 
-**Next Phase**: Phase 1 - `play` / `plus` product flavors and the `MusicSource` abstraction.
+| | |
+|---|---|
+| Working branch | `claude/grill-me-c8klg5`, 9 commits ahead of `main`, all pushed, no PR open |
+| CI | Green on every commit |
+| Tests | 106 on `play`, 113 on `plus` |
 
-**Blockers**:
-- None.
+## Done
+
+- **Phase 0 — Stabilise** (merged, PR #1). Modern toolchain, signed release
+  builds, R8, and the security fixes: no header logging in release, peers can
+  no longer inject stream URLs into Together Mode, MediaSession no longer
+  accepts every controller, downloads excluded from cloud backup.
+- **Phase 1 — Editions** (merged, PR #1). `play` / `plus` flavors with the
+  scraped sources compiled only into `plus`, proven on the built APK by
+  `scripts/verify-play-flavor.sh`. `MusicSource` / `StreamResolver`
+  abstractions; on-device music via MediaStore.
+- **Phase 2 (partial)** — the queue became pure, tested logic (fixing three
+  real bugs, including a shuffle that picked a random index on every skip);
+  resolved stream URLs cached in Room with expiry read from the URL itself.
+- **Design pass** — a real theme (light / dark / AMOLED, six accents,
+  persisted and applied); the player became a draggable sheet; Home, Explore
+  and Library became three different screens instead of one screen filtered
+  three ways.
+- **v4.0 — the library became real.** Room v4 with eleven new tables and an
+  additive, mutation-tested migration. Likes, playlists, play history and the
+  queue now survive a force-stop.
+
+## Next
+
+**v4.1 — Together 2.0**, the headline feature, aimed at long-distance
+couples. Cloudflare Worker relay for a trustworthy shared clock, ±150 ms
+sync with a drift-correction table, shared queue, chat, presence, and the
+couple layer (Our Songs, streaks, scheduled sessions, dedications, goodnight
+mode). Chat and dedications encrypted client-side so the relay cannot read
+them.
+
+Then: showpiece player (artwork-driven colour, waveform scrubber, gestures),
+personalization (Daily Mixes, Wrapped, Wrapped For Two), deep customization,
+and platform surfaces (widgets, Android Auto).
+
+## Deferred, deliberately
+
+Moving the player into the service — deleting `PlaybackManager` (943 lines)
+and rebuilding around `MediaController`. The user-visible result it was meant
+to deliver (queue and position surviving a force-stop) already shipped via
+`PlaybackStatePersister`, so the rewrite can now happen on its own and be
+tested on a real device, rather than carrying that feature behind it.
+
+## Blockers
+
+None. Note that no change in this project has been verified on a real device
+— see §6 of the handover for exactly what that does and does not cover.
