@@ -37,6 +37,12 @@ class RelayEndpointsTest {
     }
 
     @Test
+    fun `the socket carries our time zone, so they can see what time it is here`() {
+        val url = RelayEndpoints.socket(base, "ABCDEF", "tok-123456789012345", "Me", "Asia/Kolkata")!!
+        assertEquals("Asia/Kolkata", url.queryParameter("tz"))
+    }
+
+    @Test
     fun `a name with a space or an ampersand does not break the query`() {
         val url = RelayEndpoints.socket(base, "ABCDEF", "tok-123456789012345", "Sam & Alex")!!
         assertEquals("Sam & Alex", url.queryParameter("name"))

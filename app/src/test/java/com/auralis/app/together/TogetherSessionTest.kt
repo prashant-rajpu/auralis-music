@@ -69,7 +69,14 @@ class TogetherSessionTest {
     }
 
     private val me = Member("me", "Me", isHost = false, buffering = false, joinedAtMs = 1)
-    private val them = Member("them", "Priya", isHost = true, buffering = false, joinedAtMs = 0)
+    private val them = Member(
+        id = "them",
+        name = "Priya",
+        isHost = true,
+        buffering = false,
+        joinedAtMs = 0,
+        timeZone = "Asia/Kolkata",
+    )
 
     // --- joining ---
 
@@ -174,6 +181,7 @@ class TogetherSessionTest {
         assertEquals("them", room.hostId)
         assertFalse(room.isHost)
         assertEquals("Priya", room.partner?.name)
+        assertEquals("Asia/Kolkata", room.partner?.timeZone)
         session.leave()
     }
 

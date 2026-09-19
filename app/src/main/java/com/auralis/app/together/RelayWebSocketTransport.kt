@@ -23,6 +23,7 @@ import okhttp3.Response
 import okhttp3.WebSocket
 import okhttp3.WebSocketListener
 import java.io.IOException
+import java.util.TimeZone
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -153,7 +154,13 @@ class RelayWebSocketTransport @Inject constructor(
     private fun open() {
         val roomCode = code ?: return
         val roomToken = token ?: return
-        val url = RelayEndpoints.socket(relayUrl.baseUrl(), roomCode, roomToken, displayName)
+        val url = RelayEndpoints.socket(
+            baseUrl = relayUrl.baseUrl(),
+            code = roomCode,
+            token = roomToken,
+            displayName = displayName,
+            timeZoneId = TimeZone.getDefault().id,
+        )
         if (url == null) {
             _connection.value = TogetherConnection.Failed("The relay address or room code is not valid")
             return

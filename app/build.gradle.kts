@@ -164,6 +164,7 @@ dependencies {
     implementation(libs.okhttp.logging.interceptor)
 
     implementation(libs.kotlinx.serialization.json)
+    implementation(libs.zxing.core)
 
     implementation(libs.coil.compose)
     implementation(libs.guava)

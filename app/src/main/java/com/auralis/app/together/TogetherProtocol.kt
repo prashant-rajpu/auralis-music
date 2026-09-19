@@ -51,6 +51,12 @@ data class Member(
     val isHost: Boolean,
     val buffering: Boolean,
     val joinedAtMs: Long,
+    /**
+     * IANA zone id. Carried because the whole point of this feature is two people who are not in
+     * the same place, and knowing whether it is the middle of the night where they are changes
+     * whether you start a session at all.
+     */
+    val timeZone: String = "",
 )
 
 @Serializable

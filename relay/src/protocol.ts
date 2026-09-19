@@ -94,6 +94,11 @@ export interface Member {
   isHost: boolean;
   buffering: boolean;
   joinedAtMs: number;
+  /**
+   * IANA zone id, so the other phone can say whether it is the middle of the night where you are.
+   * Carried because the whole point of this relay is two people who are not in the same place.
+   */
+  timeZone: string;
 }
 
 export interface QueueEntry {

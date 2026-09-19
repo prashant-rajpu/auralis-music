@@ -13,10 +13,12 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -35,6 +37,7 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.auralis.app.domain.model.AudioQualitySetting
 import com.auralis.app.playback.*
+import com.auralis.app.together.RelayEndpoints
 import com.auralis.app.ui.theme.*
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -55,6 +58,11 @@ fun SettingsScreen(
     val sponsorBlockEnabled by viewModel.sponsorBlockEnabled.collectAsState()
     val audioQuality by viewModel.audioQuality.collectAsState()
     val hapticIntensity by viewModel.hapticIntensity.collectAsState()
+    val relayUrl by viewModel.relayUrl.collectAsState()
+    val togetherName by viewModel.togetherDisplayName.collectAsState()
+    var relayDraft by rememberSaveable(relayUrl) { mutableStateOf(relayUrl) }
+    var relayRejected by rememberSaveable { mutableStateOf(false) }
+    var nameDraft by rememberSaveable(togetherName) { mutableStateOf(togetherName) }
 
     val userPlaylists by viewModel.userPlaylists.collectAsState()
     val currentQueue by viewModel.currentQueue.collectAsState()
@@ -725,7 +733,86 @@ fun SettingsScreen(
                     }
                 }
 
-                // SECTION 4: HAPTICS & TACTILE PHYSICS
+                // SECTION 4: TOGETHER
+                item {
+                    SettingsSectionHeader(
+                        icon = Icons.Default.Favorite,
+                        title = "Together",
+                        subtitle = "Where your listening sessions are relayed, and who you are in them"
+                    )
+                }
+
+                item {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .surfaceCard(cornerRadius = 20.dp)
+                            .padding(16.dp)
+                    ) {
+                        Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                            OutlinedTextField(
+                                value = relayDraft,
+                                onValueChange = {
+                                    relayDraft = it
+                                    relayRejected = false
+                                },
+                                label = { Text("Relay address", color = TextTertiary) },
+                                singleLine = true,
+                                isError = relayRejected,
+                                supportingText = {
+                                    Text(
+                                        text = if (relayRejected) {
+                                            "That is not an https address this app can reach"
+                                        } else {
+                                            "Your own worker from docs/RELAY.md, or leave it as it is"
+                                        },
+                                        fontSize = 11.sp,
+                                        color = if (relayRejected) DangerColor else TextTertiary
+                                    )
+                                },
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Button(
+                                    onClick = {
+                                        relayRejected = !viewModel.setRelayUrl(relayDraft)
+                                    },
+                                    shape = RoundedCornerShape(12.dp),
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = AccentColor,
+                                        contentColor = OnAccentColor
+                                    )
+                                ) {
+                                    Text("Save", fontSize = 13.sp)
+                                }
+                                OutlinedButton(
+                                    onClick = {
+                                        relayDraft = RelayEndpoints.DEFAULT_BASE_URL
+                                        relayRejected = !viewModel.setRelayUrl(relayDraft)
+                                    },
+                                    shape = RoundedCornerShape(12.dp)
+                                ) {
+                                    Text("Reset", fontSize = 13.sp, color = TextSecondary)
+                                }
+                            }
+
+                            HorizontalDivider(color = BorderColor)
+
+                            OutlinedTextField(
+                                value = nameDraft,
+                                onValueChange = {
+                                    nameDraft = it.take(64)
+                                    viewModel.setTogetherDisplayName(nameDraft)
+                                },
+                                label = { Text("Your name in a session", color = TextTertiary) },
+                                singleLine = true,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
+                    }
+                }
+
+                // SECTION 5: HAPTICS & TACTILE PHYSICS
                 item {
                     SettingsSectionHeader(
                         icon = Icons.Default.Vibration,

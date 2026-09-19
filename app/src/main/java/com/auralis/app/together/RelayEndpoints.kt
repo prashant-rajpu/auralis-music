@@ -17,7 +17,13 @@ object RelayEndpoints {
     fun createRoom(baseUrl: String): HttpUrl? =
         base(baseUrl)?.newBuilder()?.addPathSegment("rooms")?.build()
 
-    fun socket(baseUrl: String, code: String, token: String, displayName: String): HttpUrl? {
+    fun socket(
+        baseUrl: String,
+        code: String,
+        token: String,
+        displayName: String,
+        timeZoneId: String = "",
+    ): HttpUrl? {
         if (!isValidCode(code)) return null
         return base(baseUrl)
             ?.newBuilder()
@@ -26,6 +32,7 @@ object RelayEndpoints {
             ?.addPathSegment("ws")
             ?.addQueryParameter("token", token)
             ?.addQueryParameter("name", displayName)
+            ?.addQueryParameter("tz", timeZoneId)
             ?.build()
     }
 

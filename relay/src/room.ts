@@ -32,6 +32,7 @@ interface Attachment {
   token: string;
   joinedAtMs: number;
   buffering: boolean;
+  timeZone: string;
 }
 
 interface Playback {
@@ -110,6 +111,7 @@ export class Room implements DurableObject {
     if (token.length < 16) return Response.json({ error: "unauthorized" }, { status: 401 });
 
     const name = (url.searchParams.get("name") ?? "Listener").slice(0, 64);
+    const timeZone = (url.searchParams.get("tz") ?? "").slice(0, 64);
     const memberId = crypto.randomUUID();
 
     const pair = new WebSocketPair();
@@ -122,6 +124,7 @@ export class Room implements DurableObject {
       token,
       joinedAtMs: Date.now(),
       buffering: false,
+      timeZone,
     };
     server.serializeAttachment(attachment);
 
@@ -358,6 +361,7 @@ export class Room implements DurableObject {
       isHost: attachment.memberId === hostId,
       buffering: attachment.buffering,
       joinedAtMs: attachment.joinedAtMs,
+      timeZone: attachment.timeZone,
     }));
   }
 
