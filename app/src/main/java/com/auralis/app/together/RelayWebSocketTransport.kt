@@ -1,6 +1,8 @@
 package com.auralis.app.together
 
+import android.os.Build
 import android.util.Log
+import com.auralis.app.BuildConfig
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -56,6 +58,14 @@ class RelayWebSocketTransport @Inject constructor(
         .readTimeout(0, TimeUnit.MILLISECONDS)
         .connectTimeout(15, TimeUnit.SECONDS)
         .retryOnConnectionFailure(true)
+        // Say who we are. OkHttp's default User-Agent is a bare library signature, which bot
+        // heuristics in front of a Worker legitimately treat as suspicious — and a challenge is
+        // fatal here, because no HTTP client can solve one.
+        .addInterceptor { chain ->
+            chain.proceed(
+                chain.request().newBuilder().header("User-Agent", USER_AGENT).build(),
+            )
+        }
         .build()
 
     private val _connection = MutableStateFlow<TogetherConnection>(TogetherConnection.Idle)
@@ -103,7 +113,7 @@ class RelayWebSocketTransport @Inject constructor(
                     response.use {
                         val body = it.body?.string().orEmpty()
                         if (!it.isSuccessful) {
-                            continuation.resume(Result.failure(IOException("Relay said ${it.code}")))
+                            continuation.resume(Result.failure(IOException(describe(it.code, it))))
                             return
                         }
                         val parsed = runCatching {
@@ -207,6 +217,16 @@ class RelayWebSocketTransport @Inject constructor(
                 leaving = true
                 return
             }
+            // Nor does retrying help against a bot challenge: it is a page meant for a browser,
+            // and backing off into it forever just looks like a connection that never comes up.
+            if (isChallenge(response)) {
+                _connection.value = TogetherConnection.Failed(
+                    "The relay is behind a bot check that this app cannot pass. " +
+                        "Turn the challenge off for the worker's route, or use another relay.",
+                )
+                leaving = true
+                return
+            }
             if (!leaving) scheduleReconnect(t.message ?: "Lost the connection")
         }
     }
@@ -226,6 +246,23 @@ class RelayWebSocketTransport @Inject constructor(
     private companion object {
         const val TAG = "RelayTransport"
         const val NORMAL_CLOSURE = 1000
+
+        /** Named rather than OkHttp's default, so we are not mistaken for a scraper. */
+        val USER_AGENT = "Auralis/${BuildConfig.VERSION_NAME} (Android ${Build.VERSION.RELEASE})"
+
+        /** Cloudflare and friends mark an interstitial with this; the body is a page, not our JSON. */
+        fun isChallenge(response: Response?): Boolean =
+            response != null &&
+                (response.code == 403 || response.code == 503) &&
+                response.header("cf-mitigated") != null
+
+        fun describe(code: Int, response: Response): String = when {
+            isChallenge(response) ->
+                "The relay is behind a bot check that this app cannot pass"
+            code == 404 -> "No relay at that address"
+            code == 429 -> "The relay is rate limiting this device"
+            else -> "Relay said $code"
+        }
     }
 }
 
