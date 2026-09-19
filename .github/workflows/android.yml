@@ -8,6 +8,32 @@ on:
   workflow_dispatch:
 
 jobs:
+  # The relay is a separate Cloudflare Worker with its own toolchain, and it holds the rule that a
+  # Together message can never carry a stream URL. Run its tests even on a commit that only touches
+  # Kotlin: the two sides of the protocol have to keep agreeing.
+  relay:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Node
+      uses: actions/setup-node@v4
+      with:
+        node-version: '22'
+        cache: npm
+        cache-dependency-path: relay/package-lock.json
+
+    - name: Install
+      working-directory: relay
+      run: npm ci
+
+    - name: Protocol tests and typecheck
+      working-directory: relay
+      run: |
+        npm test
+        npm run typecheck
+
   build:
     runs-on: ubuntu-latest
 

@@ -5,6 +5,7 @@ plugins {
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.ksp)
     alias(libs.plugins.hilt)
+    alias(libs.plugins.kotlin.serialization)
 }
 
 // Release signing comes from a gitignored keystore.properties or AURALIS_KEYSTORE_* env vars (CI secrets).
@@ -161,6 +162,8 @@ dependencies {
     implementation(libs.retrofit.converter.gson)
     implementation(libs.okhttp)
     implementation(libs.okhttp.logging.interceptor)
+
+    implementation(libs.kotlinx.serialization.json)
 
     implementation(libs.coil.compose)
     implementation(libs.guava)
