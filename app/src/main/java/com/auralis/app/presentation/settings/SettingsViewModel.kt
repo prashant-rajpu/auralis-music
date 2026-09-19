@@ -6,6 +6,7 @@ import com.auralis.app.domain.model.AudioQualitySetting
 import com.auralis.app.domain.model.Track
 import com.auralis.app.lyrics.LyricsRepository
 import com.auralis.app.playback.*
+import com.auralis.app.together.TogetherPreferences
 import com.auralis.app.ui.theme.AccentPalette
 import com.auralis.app.ui.theme.ThemeMode
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -25,6 +26,7 @@ class SettingsViewModel @Inject constructor(
     val preferences: AuralisSettingsPreferences,
     val playlistSharingManager: PlaylistSharingManager,
     val playbackManager: PlaybackManager,
+    private val togetherPreferences: TogetherPreferences,
     lyricsRepository: LyricsRepository,
     segmentSkippers: Set<@JvmSuppressWildcards SegmentSkipper>
 ) : ViewModel() {
@@ -42,6 +44,9 @@ class SettingsViewModel @Inject constructor(
     val audioQuality = preferences.audioQuality
     val hapticIntensity = preferences.hapticIntensity
 
+    val relayUrl = togetherPreferences.relayUrl
+    val togetherDisplayName = togetherPreferences.displayName
+
     val userPlaylists = playlistSharingManager.userPlaylists
     val currentQueue = playbackManager.queue
 
@@ -54,6 +59,11 @@ class SettingsViewModel @Inject constructor(
     fun onImportInputChanged(text: String) {
         _importInputText.value = text
     }
+
+    /** False when the address could not be used, so Settings can say so instead of the socket. */
+    fun setRelayUrl(url: String): Boolean = togetherPreferences.setRelayUrl(url)
+
+    fun setTogetherDisplayName(name: String) = togetherPreferences.setDisplayName(name)
 
     fun clearToastEvent() {
         _toastEvent.value = null

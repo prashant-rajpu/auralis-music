@@ -1,5 +1,6 @@
 package com.auralis.app.network
 
+import com.auralis.app.core.util.SearchQueryNormalizer
 import com.auralis.app.domain.model.Track
 import com.google.gson.Gson
 import com.google.gson.JsonObject
@@ -92,18 +93,10 @@ object JamProtocolHelper {
 
     /**
      * Strips noise (like "Official Video", "feat.", "lyrics") to maximize audio search hit rates.
+     * Kept as a delegate so this transport can be deleted without taking the logic with it.
      */
-    fun cleanSearchQuery(title: String, artist: String): String {
-        val cleanTitle = title
-            .replace(Regex("(?i)\\(.*?(official|feat|ft|video|audio|lyrics|remix|hd|4k).*?\\)"), "")
-            .replace(Regex("(?i)\\[.*?(official|feat|ft|video|audio|lyrics|remix|hd|4k).*?\\]"), "")
-            .replace(Regex("(?i)(official\\s+video|official\\s+audio|lyric\\s+video|visualizer|remastered|video)"), "")
-            .trim()
-        val cleanArtist = artist
-            .replace(Regex("(?i)\\b(ft\\.?|feat\\.?|featuring)\\b.*"), "")
-            .trim()
-        return "$cleanTitle $cleanArtist".trim()
-    }
+    fun cleanSearchQuery(title: String, artist: String): String =
+        SearchQueryNormalizer.normalize(title, artist)
 
     fun isLocalFileUrl(url: String?): Boolean =
         !url.isNullOrBlank() && (url.startsWith("file://") || url.startsWith("content://") || url.startsWith("/"))

@@ -42,6 +42,12 @@ without one that source is simply disabled.
   search with mood and genre tiles; Library holds downloads, on-device files, recently played and
   your most-played artists.
 
+## Handover
+
+For the full picture — every commit so far, everything still to build, desktop
+setup, and what has and has not been verified — see
+[`HANDOVER.md`](HANDOVER.md).
+
 ## Known limitations
 
 - YouTube Music and JioSaavn are accessed through unofficial endpoints; they can break without

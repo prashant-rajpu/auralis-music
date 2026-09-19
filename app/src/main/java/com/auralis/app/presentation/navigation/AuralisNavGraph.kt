@@ -10,6 +10,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Explore
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.LibraryMusic
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -43,6 +44,8 @@ import com.auralis.app.presentation.player.PlayerViewModel
 import com.auralis.app.presentation.player.rememberExpandPlayer
 import com.auralis.app.presentation.player.rememberPlayerSheetState
 import com.auralis.app.presentation.settings.SettingsScreen
+import com.auralis.app.presentation.together.TogetherScreen
+import com.auralis.app.together.Invite
 import com.auralis.app.ui.theme.*
 
 /** Heights reserved under the tab content so the bottom chrome never covers the end of a list. */
@@ -50,7 +53,10 @@ private val ChromeInsetWithPlayer = 152.dp
 private val ChromeInsetBarOnly = 76.dp
 
 @Composable
-fun AuralisNavGraph() {
+fun AuralisNavGraph(
+    pendingInvite: Invite? = null,
+    onInviteHandled: () -> Unit = {},
+) {
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
@@ -58,7 +64,8 @@ fun AuralisNavGraph() {
     // Settings and the artist page are their own full-screen destinations with their own back
     // affordance; the bottom chrome would only get in their way.
     val showsBottomChrome = currentRoute == null ||
-        currentRoute == "home" || currentRoute == "explore" || currentRoute == "library"
+        currentRoute == "home" || currentRoute == "explore" ||
+        currentRoute == "library" || currentRoute == "together"
 
     val playerViewModel: PlayerViewModel = hiltViewModel()
     val currentTrack by playerViewModel.currentTrack.collectAsState()
@@ -73,6 +80,13 @@ fun AuralisNavGraph() {
             sheetState.snapTo(PlayerSheetValue.Collapsed)
         }
     }
+    // A tapped invite should land on the session, not wherever the app happened to be.
+    LaunchedEffect(pendingInvite) {
+        if (pendingInvite != null && currentRoute != "together") {
+            navController.navigate("together") { launchSingleTop = true }
+        }
+    }
+
     val density = LocalDensity.current
 
     BoxWithConstraints(
@@ -111,6 +125,13 @@ fun AuralisNavGraph() {
             composable("library") {
                 LibraryScreen(
                     onNavigateToArtist = { artist -> navController.navigate("artist/${Uri.encode(artist)}") }
+                )
+            }
+
+            composable("together") {
+                TogetherScreen(
+                    pendingInvite = pendingInvite,
+                    onInviteHandled = onInviteHandled,
                 )
             }
 
@@ -193,6 +214,12 @@ private fun BottomNavBar(
                 isSelected = currentRoute == "library",
                 onClick = { onNavigate("library") }
             )
+            NavPillItem(
+                icon = Icons.Default.Favorite,
+                label = "Together",
+                isSelected = currentRoute == "together",
+                onClick = { onNavigate("together") }
+            )
         }
     }
 }
@@ -209,7 +236,7 @@ private fun NavPillItem(
             .clip(RoundedCornerShape(16.dp))
             .hapticPress(scaleDown = 0.90f)
             .clickable(onClick = onClick)
-            .padding(horizontal = 14.dp, vertical = 4.dp),
+            .padding(horizontal = 10.dp, vertical = 4.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {

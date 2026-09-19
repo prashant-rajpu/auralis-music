@@ -157,6 +157,10 @@ class PlaybackManager @Inject constructor(
     val activePlayerInstance: ExoPlayer
         get() = activePlayer
 
+    /** True while a restored track is on screen but has never been loaded into a player. */
+    private var needsPreparation = false
+    private var pendingRestorePositionMs = 0L
+
     init {
         setupPlayer(playerA)
         setupPlayer(playerB)
@@ -164,8 +168,17 @@ class PlaybackManager @Inject constructor(
         observeJamState()
         setupMediaSession()
         historyRecorder.attach(scope, _currentTrack, _currentPositionMs, _durationMs)
-        restoreLastSession()
-        statePersister.attach(scope, _queue, _currentQueueIndex, _currentPositionMs, _isShuffleEnabled, _repeatMode)
+
+        // The persister must not start before the restore has read the database. It saves an
+        // empty queue as "nothing playing" and clears the snapshot, so attaching it first would
+        // race the restore and delete the very state being restored — reliably so on the first
+        // launch after an upgrade, when the read waits behind a schema migration.
+        scope.launch {
+            restoreLastSession()
+            statePersister.attach(
+                scope, _queue, _currentQueueIndex, _currentPositionMs, _isShuffleEnabled, _repeatMode
+            )
+        }
     }
 
     /**
@@ -175,11 +188,11 @@ class PlaybackManager @Inject constructor(
      *
      * The restored track is marked as needing preparation so [play] knows to load it first.
      */
-    private fun restoreLastSession() {
-        scope.launch {
-            if (_currentTrack.value != null) return@launch
-            val restored = statePersister.restore() ?: return@launch
-            val track = restored.currentTrack ?: return@launch
+    private suspend fun restoreLastSession() {
+        try {
+            if (_currentTrack.value != null) return
+            val restored = statePersister.restore() ?: return
+            val track = restored.currentTrack ?: return
 
             updateQueue {
                 QueueState(
@@ -199,12 +212,11 @@ class PlaybackManager @Inject constructor(
             _durationMs.value = track.durationMs
             pendingRestorePositionMs = restored.positionMs
             needsPreparation = true
+        } catch (e: Exception) {
+            // A failed restore must never stop the app from starting.
+            Log.e("PlaybackManager", "Could not restore the last session", e)
         }
     }
-
-    /** True while a restored track is on screen but has never been loaded into a player. */
-    private var needsPreparation = false
-    private var pendingRestorePositionMs = 0L
 
     private fun createForwardingPlayer(player: ExoPlayer): AuralisQueueForwardingPlayer {
         return AuralisQueueForwardingPlayer(
@@ -268,12 +280,31 @@ class PlaybackManager @Inject constructor(
         }
     }
 
+    /**
+     * Starts the media service, which must post its notification within about ten seconds or
+     * Android kills the app with ForegroundServiceDidNotStartInTimeException. Media3 only posts it
+     * once the player is actually playing, so this must never be called speculatively — only once
+     * a playable item is loaded. [stopMediaServiceIfIdle] undoes it when playback cannot start.
+     */
     fun ensureMediaServiceStarted() {
         try {
             val intent = Intent(context, AuralisMediaSessionService::class.java)
             androidx.core.content.ContextCompat.startForegroundService(context, intent)
         } catch (e: Exception) {
             Log.e("PlaybackManager", "Failed to start AuralisMediaSessionService", e)
+        }
+    }
+
+    /**
+     * Called when playback could not start after the service was asked to. Without this the
+     * service sits started but never foregrounded, and the app is killed ten seconds later.
+     */
+    private fun stopMediaServiceIfIdle() {
+        if (activePlayer.isPlaying || activePlayer.playWhenReady) return
+        try {
+            context.stopService(Intent(context, AuralisMediaSessionService::class.java))
+        } catch (e: Exception) {
+            Log.e("PlaybackManager", "Failed to stop AuralisMediaSessionService", e)
         }
     }
 
@@ -530,8 +561,10 @@ class PlaybackManager @Inject constructor(
 
             if (!JamProtocolHelper.isPlayableDirectStreamUrl(resolvedTrack.mediaUrl)) {
                 Log.e("PlaybackManager", "Cannot play track from Jam: stream URL unresolvable for ${track.title}")
+                _isPlaying.value = false
                 _lastJamAction.value = "Cannot play ${track.title} ⚠️"
                 scheduleActionDismiss()
+                stopMediaServiceIfIdle()
                 return@launch
             }
 
@@ -569,7 +602,6 @@ class PlaybackManager @Inject constructor(
         _durationMs.value = track.durationMs
 
         markPlayed(track.id)
-        ensureMediaServiceStarted()
 
         scope.launch {
             val resolvedTrack = if (JamProtocolHelper.needsStreamResolution(track)) {
@@ -581,8 +613,10 @@ class PlaybackManager @Inject constructor(
 
             if (!JamProtocolHelper.isPlayableDirectStreamUrl(resolvedTrack.mediaUrl)) {
                 Log.e("PlaybackManager", "Cannot play track: stream URL unresolvable for ${track.title}")
+                _isPlaying.value = false
                 _lastJamAction.value = "Cannot play ${track.title} ⚠️"
                 scheduleActionDismiss()
+                stopMediaServiceIfIdle()
                 return@launch
             }
 
@@ -594,6 +628,8 @@ class PlaybackManager @Inject constructor(
 
             loadMediaToPlayer(activePlayer, resolvedTrack)
             activePlayer.prepare()
+            // Only now, with a playable item loaded, is the service guaranteed to foreground.
+            ensureMediaServiceStarted()
             activePlayer.play()
 
             // Instant broadcast so partner's phone changes to this song immediately
@@ -966,14 +1002,26 @@ class PlaybackManager @Inject constructor(
                 playTrack(track, _queue.value.ifEmpty { listOf(track) })
                 if (resumeAt > 0L) {
                     scope.launch {
-                        // Seek once the player has something to seek within.
-                        while (activePlayer.duration <= 0L) kotlinx.coroutines.delay(50)
-                        seekTo(resumeAt)
+                        // Seek once the player has something to seek within, but give up rather
+                        // than spin forever on a track that never loads.
+                        var waitedMs = 0L
+                        while (activePlayer.duration <= 0L && waitedMs < RESTORE_SEEK_TIMEOUT_MS) {
+                            kotlinx.coroutines.delay(RESTORE_SEEK_POLL_MS)
+                            waitedMs += RESTORE_SEEK_POLL_MS
+                        }
+                        if (activePlayer.duration > 0L) seekTo(resumeAt)
                     }
                 }
                 return
             }
             needsPreparation = false
+        }
+
+        if (activePlayer.mediaItemCount == 0) {
+            // Nothing is loaded, so the service would never post a notification.
+            Log.w("PlaybackManager", "play() with an empty player; ignoring")
+            _isPlaying.value = false
+            return
         }
 
         ensureMediaServiceStarted()
@@ -1000,6 +1048,8 @@ class PlaybackManager @Inject constructor(
 
     private companion object {
         const val MAX_SESSION_PLAYED_IDS = 500
+        const val RESTORE_SEEK_TIMEOUT_MS = 15_000L
+        const val RESTORE_SEEK_POLL_MS = 50L
         const val RADIO_BUFFER_THRESHOLD = 2
         const val RESTART_THRESHOLD_MS = 3000L
     }
