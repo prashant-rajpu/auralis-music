@@ -88,6 +88,7 @@ class TogetherSessionTest {
         val session = TestFixtureScope(backgroundScope).session(f)
 
         val invite = session.host("Me").getOrThrow()
+        runCurrent()
 
         assertEquals("ABCDEF", invite.code)
         assertNotNull(invite.secret)
@@ -96,6 +97,7 @@ class TogetherSessionTest {
         // The secret is not in anything the transport was given.
         assertFalse(f.transport.joined.toString().contains(invite.secret!!))
         session.leave()
+        runCurrent()
     }
 
     @Test
@@ -105,6 +107,7 @@ class TogetherSessionTest {
         val session = TestFixtureScope(backgroundScope).session(f)
 
         assertTrue(session.host("Me").isFailure)
+        runCurrent()
         assertNull(f.transport.joined)
     }
 
@@ -115,9 +118,11 @@ class TogetherSessionTest {
         val session = TestFixtureScope(backgroundScope).session(f)
 
         assertTrue(session.resumeLastRoom("Me"))
+        runCurrent()
         assertEquals("ABCDEF", f.transport.joined?.first)
         assertEquals(EncryptionStrength.CODE_ONLY, session.state.value.room?.encryption)
         session.leave()
+        runCurrent()
     }
 
     @Test
@@ -125,6 +130,7 @@ class TogetherSessionTest {
         val f = Fixture()
         val session = TestFixtureScope(backgroundScope).session(f)
         assertFalse(session.resumeLastRoom("Me"))
+        runCurrent()
     }
 
     @Test
@@ -132,9 +138,11 @@ class TogetherSessionTest {
         val f = Fixture()
         val session = TestFixtureScope(backgroundScope).session(f)
         session.join(invite, "Me")
+        runCurrent()
         f.player.setSpeed(0.98f)
 
         session.leave()
+        runCurrent()
 
         assertTrue(f.transport.left)
         assertTrue(f.store.forgotten)
@@ -148,12 +156,14 @@ class TogetherSessionTest {
         val f = Fixture()
         val session = TestFixtureScope(backgroundScope).session(f)
         session.join(invite, "Me")
+        runCurrent()
 
         advanceTimeBy(1_100)
         val pings = f.transport.sent.count { it is TogetherClientMessage.Ping }
 
         assertTrue("only $pings pings in the first second", pings >= 4)
         session.leave()
+        runCurrent()
     }
 
     @Test
@@ -161,12 +171,14 @@ class TogetherSessionTest {
         val f = Fixture()
         val session = TestFixtureScope(backgroundScope).session(f)
         session.join(invite, "Me")
+        runCurrent()
         session.syncClock(f, offsetMs = 4_000)
 
         val state = session.state.value
         assertTrue(state.clockReady)
         assertEquals(4_000L, state.clockOffsetMs)
         session.leave()
+        runCurrent()
     }
 
     // --- what the room says ---
@@ -176,6 +188,7 @@ class TogetherSessionTest {
         val f = Fixture()
         val session = TestFixtureScope(backgroundScope).session(f)
         session.join(invite, "Me")
+        runCurrent()
         session.welcome()
 
         val room = session.state.value.room!!
@@ -185,6 +198,7 @@ class TogetherSessionTest {
         assertEquals("Priya", room.partner?.name)
         assertEquals("Asia/Kolkata", room.partner?.timeZone)
         session.leave()
+        runCurrent()
     }
 
     @Test
@@ -192,6 +206,7 @@ class TogetherSessionTest {
         val f = Fixture()
         val session = TestFixtureScope(backgroundScope).session(f)
         session.join(invite, "Me")
+        runCurrent()
 
         session.handle(
             TogetherServerMessage.Welcome(
@@ -217,6 +232,7 @@ class TogetherSessionTest {
         assertEquals(listOf(false, true), chat.map { it.isMine })
         assertEquals("Priya", chat.first().senderName)
         session.leave()
+        runCurrent()
     }
 
     @Test
@@ -224,6 +240,7 @@ class TogetherSessionTest {
         val f = Fixture()
         val session = TestFixtureScope(backgroundScope).session(f)
         session.join(invite, "Me")
+        runCurrent()
         session.welcome()
 
         val other = TogetherCrypto.deriveKey("ABCDEF", "MNJKHGFEDCBA98765432")
@@ -231,6 +248,7 @@ class TogetherSessionTest {
 
         assertNull(session.state.value.chat.last().note)
         session.leave()
+        runCurrent()
     }
 
     @Test
@@ -238,13 +256,16 @@ class TogetherSessionTest {
         val f = Fixture()
         val session = TestFixtureScope(backgroundScope).session(f)
         session.join(invite, "Me")
+        runCurrent()
 
         session.sendChat("meet me at nine")
+        runCurrent()
 
         val chat = f.transport.meaningful.filterIsInstance<TogetherClientMessage.Chat>().single()
         assertFalse(chat.ciphertext.contains("meet me at nine"))
         assertEquals(TogetherNote.Text("meet me at nine"), TogetherNotes.open(key, chat.ciphertext))
         session.leave()
+        runCurrent()
     }
 
     @Test
@@ -252,11 +273,14 @@ class TogetherSessionTest {
         val f = Fixture()
         val session = TestFixtureScope(backgroundScope).session(f)
         session.join(invite, "Me")
+        runCurrent()
 
         session.sendChat("   ")
+        runCurrent()
 
         assertTrue(f.transport.meaningful.isEmpty())
         session.leave()
+        runCurrent()
     }
 
     @Test
@@ -264,6 +288,7 @@ class TogetherSessionTest {
         val f = Fixture()
         val session = TestFixtureScope(backgroundScope).session(f)
         session.join(invite, "Me")
+        runCurrent()
         session.welcome()
 
         val seen = mutableListOf<TogetherReaction>()
@@ -277,6 +302,7 @@ class TogetherSessionTest {
         assertEquals(listOf("🌙"), seen.map { it.emoji })
         collector.cancel()
         session.leave()
+        runCurrent()
     }
 
     // --- the things that only make sense between two people ---
@@ -286,6 +312,7 @@ class TogetherSessionTest {
         val f = Fixture()
         val session = TestFixtureScope(backgroundScope).session(f)
         session.join(invite, "Me")
+        runCurrent()
         session.welcome()
 
         val seen = mutableListOf<TogetherKnock>()
@@ -301,6 +328,7 @@ class TogetherSessionTest {
         assertTrue("a knock should not appear as a message", session.state.value.chat.isEmpty())
         collector.cancel()
         session.leave()
+        runCurrent()
     }
 
     @Test
@@ -308,6 +336,7 @@ class TogetherSessionTest {
         val f = Fixture()
         val session = TestFixtureScope(backgroundScope).session(f)
         session.join(invite, "Me")
+        runCurrent()
         session.welcome()
 
         val seen = mutableListOf<TogetherKnock>()
@@ -322,6 +351,7 @@ class TogetherSessionTest {
         assertTrue(seen.isEmpty())
         collector.cancel()
         session.leave()
+        runCurrent()
     }
 
     @Test
@@ -329,8 +359,10 @@ class TogetherSessionTest {
         val f = Fixture()
         val session = TestFixtureScope(backgroundScope).session(f)
         session.join(invite, "Me")
+        runCurrent()
 
         session.dedicate(track(), "this one is yours")
+        runCurrent()
 
         val sent = f.transport.meaningful.filterIsInstance<TogetherClientMessage.Chat>().single()
         assertFalse(sent.ciphertext.contains("audius.co"))
@@ -338,6 +370,7 @@ class TogetherSessionTest {
         assertEquals("this one is yours", note.note)
         assertEquals("", TogetherProtocol.toTrack(note.track).mediaUrl)
         session.leave()
+        runCurrent()
     }
 
     @Test
@@ -345,18 +378,22 @@ class TogetherSessionTest {
         val f = Fixture()
         val session = TestFixtureScope(backgroundScope).session(f)
         session.join(invite, "Me")
+        runCurrent()
 
         session.sendLyricMoment("and the night goes on", 61_000)
+        runCurrent()
         assertTrue(f.transport.meaningful.isEmpty())
 
         f.player.currentTrack = track()
         session.sendLyricMoment("and the night goes on", 61_000)
+        runCurrent()
 
         val sent = f.transport.meaningful.filterIsInstance<TogetherClientMessage.Chat>().single()
         val note = TogetherNotes.open(key, sent.ciphertext) as TogetherNote.LyricMoment
         assertEquals("and the night goes on", note.line)
         assertEquals(61_000L, note.positionMs)
         session.leave()
+        runCurrent()
     }
 
     /** The point of goodnight: the same instant on both phones, not the same countdown. */
@@ -365,11 +402,13 @@ class TogetherSessionTest {
         val f = Fixture()
         val session = TestFixtureScope(backgroundScope).session(f)
         session.join(invite, "Me")
+        runCurrent()
         session.welcome()
         // Their clock is four seconds ahead of ours; the fade must still land together.
         session.syncClock(f, offsetMs = 4_000)
 
         session.goodnightIn(delayMs = 60_000)
+        runCurrent()
 
         val at = session.state.value.goodnightAtServerMs
         assertNotNull(at)
@@ -378,6 +417,7 @@ class TogetherSessionTest {
         // It is a room timestamp, so it is offset from our own clock by exactly the measured skew.
         assertEquals(f.clock.nowMs() + 60_000 + 4_000, at)
         session.leave()
+        runCurrent()
     }
 
     @Test
@@ -385,12 +425,14 @@ class TogetherSessionTest {
         val f = Fixture()
         val session = TestFixtureScope(backgroundScope).session(f)
         session.join(invite, "Me")
+        runCurrent()
         session.welcome()
         session.syncClock(f, offsetMs = 0)
         f.player.currentTrack = track()
         f.player.isPlaying = true
 
         session.goodnightIn(delayMs = 10_000)
+        runCurrent()
         session.tick()
         assertTrue("too early to stop", f.player.isPlaying)
 
@@ -400,6 +442,7 @@ class TogetherSessionTest {
         assertFalse(f.player.isPlaying)
         assertNull(session.state.value.goodnightAtServerMs)
         session.leave()
+        runCurrent()
     }
 
     @Test
@@ -407,6 +450,7 @@ class TogetherSessionTest {
         val f = Fixture()
         val session = TestFixtureScope(backgroundScope).session(f)
         session.join(invite, "Me")
+        runCurrent()
         session.welcome()
         session.syncClock(f, offsetMs = 0)
         f.player.currentTrack = track()
@@ -428,6 +472,7 @@ class TogetherSessionTest {
 
         assertFalse(f.player.isPlaying)
         session.leave()
+        runCurrent()
     }
 
     @Test
@@ -435,18 +480,22 @@ class TogetherSessionTest {
         val f = Fixture()
         val session = TestFixtureScope(backgroundScope).session(f)
         session.join(invite, "Me")
+        runCurrent()
         session.welcome()
         session.syncClock(f, offsetMs = 0)
         f.player.currentTrack = track()
         f.player.isPlaying = true
 
         session.goodnightIn(delayMs = 5_000)
+        runCurrent()
         session.cancelGoodnight()
+        runCurrent()
         f.clock.advance(10_000)
         session.tick()
 
         assertTrue(f.player.isPlaying)
         session.leave()
+        runCurrent()
     }
 
     @Test
@@ -454,13 +503,16 @@ class TogetherSessionTest {
         val f = Fixture()
         val session = TestFixtureScope(backgroundScope).session(f)
         session.join(invite, "Me")
+        runCurrent()
         session.welcome()
 
         session.goodnightIn(delayMs = 5_000)
+        runCurrent()
 
         assertNull(session.state.value.goodnightAtServerMs)
         assertTrue(f.transport.meaningful.isEmpty())
         session.leave()
+        runCurrent()
     }
 
     // --- following what they are playing ---
@@ -470,6 +522,7 @@ class TogetherSessionTest {
         val f = Fixture()
         val session = TestFixtureScope(backgroundScope).session(f)
         session.join(invite, "Me")
+        runCurrent()
         session.welcome()
 
         session.handle(
@@ -480,6 +533,7 @@ class TogetherSessionTest {
         assertEquals("auralis_global_abc", loaded.id)
         assertEquals("", loaded.mediaUrl)
         session.leave()
+        runCurrent()
     }
 
     @Test
@@ -487,12 +541,14 @@ class TogetherSessionTest {
         val f = Fixture()
         val session = TestFixtureScope(backgroundScope).session(f)
         session.join(invite, "Me")
+        runCurrent()
         session.welcome()
 
         session.handle(TogetherServerMessage.Playback("me", 5_000, theirTrack, 30_000, true, 1f))
 
         assertTrue(f.player.loaded.isEmpty())
         session.leave()
+        runCurrent()
     }
 
     @Test
@@ -501,6 +557,7 @@ class TogetherSessionTest {
         f.repository.results = listOf(track(id = "jamendo_77", title = "A Song"))
         val session = TestFixtureScope(backgroundScope).session(f)
         session.join(invite, "Me")
+        runCurrent()
         session.welcome()
 
         // A file on the other phone: no edition can fetch that, both can look for their own copy.
@@ -512,6 +569,7 @@ class TogetherSessionTest {
         assertEquals("jamendo_77", f.player.loaded.single().id)
         assertNull(session.state.value.unplayable)
         session.leave()
+        runCurrent()
     }
 
     @Test
@@ -520,6 +578,7 @@ class TogetherSessionTest {
         f.repository.results = emptyList()
         val session = TestFixtureScope(backgroundScope).session(f)
         session.join(invite, "Me")
+        runCurrent()
         session.welcome()
         f.player.isPlaying = true
 
@@ -530,6 +589,7 @@ class TogetherSessionTest {
         assertEquals(theirs, session.state.value.unplayable)
         assertFalse(f.player.isPlaying)
         session.leave()
+        runCurrent()
     }
 
     @Test
@@ -538,6 +598,7 @@ class TogetherSessionTest {
         f.repository.failWith = java.io.IOException("offline")
         val session = TestFixtureScope(backgroundScope).session(f)
         session.join(invite, "Me")
+        runCurrent()
         session.welcome()
 
         val theirs = theirTrack.copy(provider = "local", providerId = "42")
@@ -546,6 +607,7 @@ class TogetherSessionTest {
 
         assertNotNull(session.state.value.unplayable)
         session.leave()
+        runCurrent()
     }
 
     @Test
@@ -553,6 +615,7 @@ class TogetherSessionTest {
         val f = Fixture()
         val session = TestFixtureScope(backgroundScope).session(f)
         session.join(invite, "Me")
+        runCurrent()
         session.welcome()
 
         session.handle(TogetherServerMessage.Playback("them", 5_000, theirTrack, 0, true, 1f))
@@ -561,6 +624,7 @@ class TogetherSessionTest {
         assertTrue("edition=${BuildConfig.HAS_SCRAPED_SOURCES}", f.repository.queries.isEmpty())
         assertEquals(1, f.player.loaded.size)
         session.leave()
+        runCurrent()
     }
 
     // --- what gets remembered ---
@@ -570,11 +634,13 @@ class TogetherSessionTest {
         val f = Fixture()
         val session = TestFixtureScope(backgroundScope).session(f)
         session.join(invite, "Me")
+        runCurrent()
         session.welcome(listOf(me))
         runCurrent()
 
         assertNull("nothing to remember yet", f.recorder.sessionId)
         session.leave()
+        runCurrent()
     }
 
     @Test
@@ -582,6 +648,7 @@ class TogetherSessionTest {
         val f = Fixture()
         val session = TestFixtureScope(backgroundScope).session(f)
         session.join(invite, "Me")
+        runCurrent()
         session.welcome(listOf(me))
         runCurrent()
 
@@ -590,6 +657,7 @@ class TogetherSessionTest {
 
         assertEquals("session-ABCDEF", f.recorder.sessionId)
         session.leave()
+        runCurrent()
     }
 
     @Test
@@ -598,11 +666,13 @@ class TogetherSessionTest {
         f.player.currentTrack = track()
         val session = TestFixtureScope(backgroundScope).session(f)
         session.join(invite, "Me")
+        runCurrent()
         session.welcome()
         runCurrent()
 
         assertEquals(listOf("session-ABCDEF" to "auralis_global_abc"), f.recorder.sharedPlays)
         session.leave()
+        runCurrent()
     }
 
     /** Our Songs counts sessions, not seconds, so a long track is not a hundred shared plays. */
@@ -611,6 +681,7 @@ class TogetherSessionTest {
         val f = Fixture()
         val session = TestFixtureScope(backgroundScope).session(f)
         session.join(invite, "Me")
+        runCurrent()
         session.welcome()
         session.syncClock(f, offsetMs = 0)
 
@@ -625,6 +696,7 @@ class TogetherSessionTest {
 
         assertEquals(1, f.recorder.sharedPlays.size)
         session.leave()
+        runCurrent()
     }
 
     @Test
@@ -632,6 +704,7 @@ class TogetherSessionTest {
         val f = Fixture()
         val session = TestFixtureScope(backgroundScope).session(f)
         session.join(invite, "Me")
+        runCurrent()
         session.welcome()
         runCurrent()
 
@@ -649,6 +722,7 @@ class TogetherSessionTest {
             f.recorder.events,
         )
         session.leave()
+        runCurrent()
     }
 
     @Test
@@ -656,6 +730,7 @@ class TogetherSessionTest {
         val f = Fixture()
         val session = TestFixtureScope(backgroundScope).session(f)
         session.join(invite, "Me")
+        runCurrent()
         session.welcome()
         session.syncClock(f, offsetMs = 0)
         runCurrent()
@@ -671,6 +746,7 @@ class TogetherSessionTest {
 
         assertTrue(f.recorder.events.isEmpty())
         session.leave()
+        runCurrent()
     }
 
     @Test
@@ -678,6 +754,7 @@ class TogetherSessionTest {
         val f = Fixture()
         val session = TestFixtureScope(backgroundScope).session(f)
         session.join(invite, "Me")
+        runCurrent()
         session.welcome()
         runCurrent()
 
@@ -694,6 +771,7 @@ class TogetherSessionTest {
         val f = Fixture()
         val session = TestFixtureScope(backgroundScope).session(f)
         session.join(invite, "Me")
+        runCurrent()
         session.welcome()
         session.syncClock(f, offsetMs = 0)
 
@@ -712,6 +790,7 @@ class TogetherSessionTest {
         assertEquals(SyncState.CORRECTED, session.state.value.syncState)
         assertEquals(1, f.player.seeks.size)
         session.leave()
+        runCurrent()
     }
 
     @Test
@@ -719,6 +798,7 @@ class TogetherSessionTest {
         val f = Fixture()
         val session = TestFixtureScope(backgroundScope).session(f)
         session.join(invite, "Me")
+        runCurrent()
         session.welcome()
         session.syncClock(f, offsetMs = 0)
 
@@ -736,6 +816,7 @@ class TogetherSessionTest {
         assertEquals(0.98f, f.player.appliedSpeed, 0f)
         assertTrue(f.player.seeks.isEmpty())
         session.leave()
+        runCurrent()
     }
 
     /** The loop that would otherwise exist: correcting ourselves, then announcing the correction. */
@@ -744,6 +825,7 @@ class TogetherSessionTest {
         val f = Fixture()
         val session = TestFixtureScope(backgroundScope).session(f)
         session.join(invite, "Me")
+        runCurrent()
         session.welcome()
         session.syncClock(f, offsetMs = 0)
 
@@ -763,6 +845,7 @@ class TogetherSessionTest {
             f.transport.meaningful.none { it is TogetherClientMessage.Playback },
         )
         session.leave()
+        runCurrent()
     }
 
     @Test
@@ -770,6 +853,7 @@ class TogetherSessionTest {
         val f = Fixture()
         val session = TestFixtureScope(backgroundScope).session(f)
         session.join(invite, "Me")
+        runCurrent()
         session.welcome()
         session.syncClock(f, offsetMs = 0)
 
@@ -791,6 +875,7 @@ class TogetherSessionTest {
         assertEquals(1, announced.size)
         assertFalse(announced.single().isPlaying)
         session.leave()
+        runCurrent()
     }
 
     /** The most infuriating possible bug: you hit pause and the sync loop un-pauses you. */
@@ -799,6 +884,7 @@ class TogetherSessionTest {
         val f = Fixture()
         val session = TestFixtureScope(backgroundScope).session(f)
         session.join(invite, "Me")
+        runCurrent()
         session.welcome()
         session.syncClock(f, offsetMs = 0)
 
@@ -821,6 +907,7 @@ class TogetherSessionTest {
 
         assertFalse("the sync loop overrode the user", f.player.isPlaying)
         session.leave()
+        runCurrent()
     }
 
     @Test
@@ -828,6 +915,7 @@ class TogetherSessionTest {
         val f = Fixture()
         val session = TestFixtureScope(backgroundScope).session(f)
         session.join(invite, "Me")
+        runCurrent()
         session.welcome()
         session.syncClock(f, offsetMs = 0)
 
@@ -852,6 +940,7 @@ class TogetherSessionTest {
             f.transport.meaningful.none { it is TogetherClientMessage.Playback },
         )
         session.leave()
+        runCurrent()
     }
 
     @Test
@@ -859,6 +948,7 @@ class TogetherSessionTest {
         val f = Fixture()
         val session = TestFixtureScope(backgroundScope).session(f)
         session.join(invite, "Me")
+        runCurrent()
         session.welcome()
 
         session.handle(
@@ -872,6 +962,7 @@ class TogetherSessionTest {
 
         assertTrue(f.player.seeks.isEmpty())
         session.leave()
+        runCurrent()
     }
 
     @Test
@@ -879,6 +970,7 @@ class TogetherSessionTest {
         val f = Fixture()
         val session = TestFixtureScope(backgroundScope).session(f)
         session.join(invite, "Me")
+        runCurrent()
         session.welcome(listOf(me, them.copy(buffering = true)))
         session.syncClock(f, offsetMs = 0)
 
@@ -894,6 +986,7 @@ class TogetherSessionTest {
         assertEquals(SyncState.WAITING_FOR_PEER, session.state.value.syncState)
         assertFalse(f.player.isPlaying)
         session.leave()
+        runCurrent()
     }
 
     // --- the ways a nudge used to get stranded ---
@@ -907,6 +1000,7 @@ class TogetherSessionTest {
         val f = Fixture()
         val session = TestFixtureScope(backgroundScope).session(f)
         session.join(invite, "Me")
+        runCurrent()
         session.welcome()
         session.syncClock(f, offsetMs = 0)
 
@@ -925,6 +1019,7 @@ class TogetherSessionTest {
 
         assertEquals(1f, f.player.appliedSpeed, 0f)
         session.leave()
+        runCurrent()
     }
 
     @Test
@@ -932,6 +1027,7 @@ class TogetherSessionTest {
         val f = Fixture()
         val session = TestFixtureScope(backgroundScope).session(f)
         session.join(invite, "Me")
+        runCurrent()
         session.welcome()
         session.syncClock(f, offsetMs = 0)
 
@@ -949,6 +1045,7 @@ class TogetherSessionTest {
 
         assertEquals(1f, f.player.appliedSpeed, 0f)
         session.leave()
+        runCurrent()
     }
 
     @Test
@@ -956,6 +1053,7 @@ class TogetherSessionTest {
         val f = Fixture()
         val session = TestFixtureScope(backgroundScope).session(f)
         session.join(invite, "Me")
+        runCurrent()
         session.welcome()
         session.syncClock(f, offsetMs = 0)
 
@@ -974,6 +1072,7 @@ class TogetherSessionTest {
 
         assertEquals(1f, f.player.appliedSpeed, 0f)
         session.leave()
+        runCurrent()
     }
 
     @Test
@@ -981,6 +1080,7 @@ class TogetherSessionTest {
         val f = Fixture()
         val session = TestFixtureScope(backgroundScope).session(f)
         session.join(invite, "Me")
+        runCurrent()
         session.welcome()
         session.syncClock(f, offsetMs = 0)
 
@@ -994,6 +1094,7 @@ class TogetherSessionTest {
         assertEquals(0.98f, f.player.appliedSpeed, 0f)
 
         session.leave()
+        runCurrent()
 
         assertEquals(1f, f.player.appliedSpeed, 0f)
     }
@@ -1004,6 +1105,7 @@ class TogetherSessionTest {
         val f = Fixture()
         val session = TestFixtureScope(backgroundScope).session(f)
         session.join(invite, "Me")
+        runCurrent()
         session.welcome()
         // Every exchange takes 600ms, so the offset is only good to a few hundred milliseconds.
         repeat(4) {
@@ -1025,6 +1127,7 @@ class TogetherSessionTest {
         assertEquals("a 200ms gap is inside the measurement error", 1f, f.player.appliedSpeed, 0f)
         assertTrue(f.player.seeks.isEmpty())
         session.leave()
+        runCurrent()
     }
 
     @Test
@@ -1032,6 +1135,7 @@ class TogetherSessionTest {
         val f = Fixture()
         val session = TestFixtureScope(backgroundScope).session(f)
         session.join(invite, "Me")
+        runCurrent()
         session.welcome()
         repeat(4) {
             val sent = f.clock.nowMs()
@@ -1052,6 +1156,7 @@ class TogetherSessionTest {
         assertEquals(1, f.player.seeks.size)
         assertEquals(1f, f.player.appliedSpeed, 0f)
         session.leave()
+        runCurrent()
     }
 
     // --- the shared queue ---
@@ -1061,13 +1166,16 @@ class TogetherSessionTest {
         val f = Fixture()
         val session = TestFixtureScope(backgroundScope).session(f)
         session.join(invite, "Me")
+        runCurrent()
 
         session.addToSharedQueue(track())
+        runCurrent()
 
         val add = f.transport.meaningful.filterIsInstance<TogetherClientMessage.QueueAdd>().single()
         assertEquals("audius", add.track.provider)
         assertFalse(TogetherProtocol.encode(add).contains("audius.co/stream.mp3"))
         session.leave()
+        runCurrent()
     }
 
     @Test
@@ -1075,6 +1183,7 @@ class TogetherSessionTest {
         val f = Fixture()
         val session = TestFixtureScope(backgroundScope).session(f)
         session.join(invite, "Me")
+        runCurrent()
 
         session.handle(
             TogetherServerMessage.Queue(1_000, listOf(QueueEntry(theirTrack, addedBy = "them"))),
@@ -1083,6 +1192,7 @@ class TogetherSessionTest {
         assertEquals(1, session.state.value.queue.size)
         assertEquals("them", session.state.value.queue.single().addedBy)
         session.leave()
+        runCurrent()
     }
 
     @Test
@@ -1090,10 +1200,12 @@ class TogetherSessionTest {
         val f = Fixture()
         val session = TestFixtureScope(backgroundScope).session(f)
         session.join(invite, "Me")
+        runCurrent()
 
         session.handle(TogetherServerMessage.Failure("rate_limited", "Slow down"))
 
         assertEquals("Slow down", session.state.value.message)
         session.leave()
+        runCurrent()
     }
 }

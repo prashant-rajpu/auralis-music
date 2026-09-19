@@ -83,8 +83,11 @@ data class TogetherUiState(
  * look like a seek we chose. For [BROADCAST_QUIET_MS] after any correction, changes seen in the
  * player are ours to obey, not ours to announce.
  *
- * Everything runs on one thread. The message stream and the sync loop both touch the same handful
- * of fields, and a race between them would show up as drift nobody could reproduce.
+ * Everything runs on one thread, including every call that arrives from the UI. The message
+ * stream, the sync loop and the buttons all touch the same handful of fields — among them a list
+ * of jobs and a set of track keys, neither of which survives being mutated from two threads at
+ * once. So the public API below does no work of its own: it hands the work to [scope], which is
+ * single-threaded, and which therefore also keeps everything in the order it was asked for.
  */
 @Singleton
 class TogetherSession @Inject constructor(
@@ -140,14 +143,14 @@ class TogetherSession @Inject constructor(
         val credentials = transport.createRoom().getOrElse { return Result.failure(it) }
         val invite = Invite(credentials.code, TogetherCrypto.generateRoomSecret())
         store.rememberRoom(credentials.code, credentials.hostToken, partnerName = "")
-        open(invite, credentials.hostToken, displayName)
+        onSession { open(invite, credentials.hostToken, displayName) }
         return Result.success(invite)
     }
 
     fun join(invite: Invite, displayName: String) {
         val token = store.memberToken()
         store.rememberRoom(invite.code, token, partnerName = "")
-        open(invite, token, displayName)
+        onSession { open(invite, token, displayName) }
     }
 
     /**
@@ -159,23 +162,17 @@ class TogetherSession @Inject constructor(
      */
     fun resumeLastRoom(displayName: String): Boolean {
         val last = store.lastRoom.value ?: return false
-        open(Invite(last.code, secret = null), last.token, displayName)
+        onSession { open(Invite(last.code, secret = null), last.token, displayName) }
         return true
     }
 
-    fun leave() {
-        recordedSessionId?.let { id ->
-            // Closed on its own scope: the session is going away, and the timeline should not.
-            scope.launch { runCatching { recorder.endSession(id) } }
-        }
+    fun leave() = onSession {
+        recordedSessionId?.let { id -> runCatching { recorder.endSession(id) } }
         recordedSessionId = null
         recordedTracks.clear()
         transport.leave()
         stop()
-        if (appliedSpeed != 1f) {
-            player.setSpeed(1f)
-            appliedSpeed = 1f
-        }
+        releaseSpeed()
         store.forgetRoom()
         _state.value = TogetherUiState()
     }
@@ -215,24 +212,35 @@ class TogetherSession @Inject constructor(
         jobs = mutableListOf()
     }
 
+    /**
+     * Runs [block] on the session's own thread.
+     *
+     * Every public entry point goes through here, so the fields below are only ever touched from
+     * one place. A single-threaded dispatcher also preserves submission order, so a leave that
+     * follows a send still happens after it.
+     */
+    private fun onSession(block: suspend () -> Unit) {
+        scope.launch { block() }
+    }
+
     // --- things the user does ---
 
     fun sendChat(text: String) {
         val body = text.trim()
         if (body.isEmpty()) return
-        sendNote(TogetherNote.Text(body))
+        onSession { sendNote(TogetherNote.Text(body)) }
     }
 
     /** A song, with something said about it. It is the note that makes it a dedication. */
-    fun dedicate(track: Track, note: String) {
+    fun dedicate(track: Track, note: String) = onSession {
         sendNote(TogetherNote.Dedication(TogetherProtocol.trackRef(track), note.trim().take(500)))
     }
 
     /** One line of what is playing, sent at the moment it plays. */
-    fun sendLyricMoment(line: String, positionMs: Long) {
-        val track = player.currentTrack ?: return
+    fun sendLyricMoment(line: String, positionMs: Long) = onSession {
+        val track = player.currentTrack ?: return@onSession
         val trimmed = line.trim().take(300)
-        if (trimmed.isEmpty()) return
+        if (trimmed.isEmpty()) return@onSession
         sendNote(
             TogetherNote.LyricMoment(
                 line = trimmed,
@@ -242,20 +250,20 @@ class TogetherSession @Inject constructor(
         )
     }
 
-    fun knock() = sendNote(TogetherNote.Knock)
+    fun knock() = onSession { sendNote(TogetherNote.Knock) }
 
     /**
      * Fade out on both phones at the same moment. Scheduled in room time rather than as a local
      * countdown, so "in twenty minutes" means the same instant on both sides of the world.
      */
-    fun goodnightIn(delayMs: Long) {
-        if (!clockSync.isSynced) return
+    fun goodnightIn(delayMs: Long) = onSession {
+        if (!clockSync.isSynced) return@onSession
         val at = clockSync.serverNow(clock.nowMs()) + delayMs.coerceAtLeast(0L)
         _state.update { it.copy(goodnightAtServerMs = at) }
         sendNote(TogetherNote.Goodnight(at))
     }
 
-    fun cancelGoodnight() {
+    fun cancelGoodnight() = onSession {
         _state.update { it.copy(goodnightAtServerMs = null) }
     }
 
@@ -264,20 +272,27 @@ class TogetherSession @Inject constructor(
         transport.send(TogetherClientMessage.Chat(sealed))
     }
 
-    fun sendReaction(emoji: String) {
+    fun sendReaction(emoji: String) = onSession {
         transport.send(TogetherClientMessage.Reaction(emoji.take(16)))
     }
 
-    fun addToSharedQueue(track: Track) {
+    fun addToSharedQueue(track: Track) = onSession {
         transport.send(TogetherClientMessage.QueueAdd(TogetherProtocol.trackRef(track)))
     }
 
-    fun removeFromSharedQueue(ref: TrackRef) {
+    fun removeFromSharedQueue(ref: TrackRef) = onSession {
         transport.send(TogetherClientMessage.QueueRemove(ref.providerId))
     }
 
-    /** Tells the room where we are. Called when the user acts, and when the tick spots that they did. */
-    fun broadcastLocalPlayback() {
+    /** Tells the room where we are, when something outside the session asks us to. */
+    fun broadcastLocalPlayback() = onSession { broadcastNow() }
+
+    /**
+     * The same thing for callers already on the session thread. Kept separate from the public
+     * entry point on purpose: the tick broadcasts and then immediately makes itself the reference
+     * state, and deferring half of that pair would leave the two disagreeing for a beat.
+     */
+    private fun broadcastNow() {
         val track = player.currentTrack ?: return
         val ref = TogetherProtocol.trackRef(track)
         transport.send(
@@ -531,7 +546,7 @@ class TogetherSession @Inject constructor(
             return false
         }
 
-        broadcastLocalPlayback()
+        broadcastNow()
         fileSharedPlay(track)
         remote = RemotePlayback(
             trackKey = key,

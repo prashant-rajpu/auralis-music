@@ -86,7 +86,12 @@ npm test          # protocol and validation tests
 npm run typecheck
 npx wrangler login
 npm run deploy
+npm run smoke -- <the url it printed>
 ```
+
+`wrangler login` is interactive, so it has to be you: an agent in a headless
+container cannot complete the browser flow, and handing one an API token to
+work around that is a worse trade than typing one command.
 
 `wrangler deploy` prints the worker URL. It looks like
 `https://auralis-relay.<your-subdomain>.workers.dev` — the subdomain is yours,
@@ -106,6 +111,28 @@ socket error, because a plausible-but-wrong default is worse than none.
 
 Local development: `npm run dev` runs the worker and the Durable Object in
 Workers' local runtime at `http://localhost:8787`.
+
+## What is configured, and why
+
+`wrangler.toml` turns on Workers Logs and Traces. Without them a session that
+misbehaves on two real phones leaves nothing behind to look at, which is the
+difference between a bug report and a diagnosis.
+
+Room codes come from `crypto.getRandomValues`, not `Math.random`. The code is
+the only thing keeping a room private, and for a session opened by typing the
+code rather than following a link it is also what the chat key is derived
+from — so it has to be unguessable, which `Math.random` is not built to be.
+
+`Room` extends `DurableObject` from `cloudflare:workers` rather than merely
+implementing the interface, so it inherits the runtime behaviour and `this.ctx`
+that the base class provides, and the namespace is typed by the class.
+
+**Not configurable on a `workers.dev` address:** the managed bot challenge in
+front of it. Requests that score badly — anything from a datacenter IP, for
+instance — get an HTML interstitial that no HTTP client can solve. A phone on
+an ordinary network scores fine, and the app now detects the challenge and says
+so rather than retrying into it forever. Turning it off needs a custom domain
+on a zone you control; a `workers.dev` subdomain has no WAF settings.
 
 ## Cost
 
