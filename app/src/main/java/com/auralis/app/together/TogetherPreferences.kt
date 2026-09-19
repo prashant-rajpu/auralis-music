@@ -24,7 +24,7 @@ data class LastRoom(val code: String, val token: String, val partnerName: String
 @Singleton
 class TogetherPreferences @Inject constructor(
     @ApplicationContext context: Context,
-) : RelayUrlProvider {
+) : RelayUrlProvider, TogetherStore {
 
     private val prefs: SharedPreferences =
         context.getSharedPreferences("auralis_together", Context.MODE_PRIVATE)
@@ -39,7 +39,7 @@ class TogetherPreferences @Inject constructor(
     val displayName: StateFlow<String> = _displayName.asStateFlow()
 
     private val _lastRoom = MutableStateFlow(readLastRoom())
-    val lastRoom: StateFlow<LastRoom?> = _lastRoom.asStateFlow()
+    override val lastRoom: StateFlow<LastRoom?> = _lastRoom.asStateFlow()
 
     override fun baseUrl(): String = _relayUrl.value
 
@@ -58,7 +58,7 @@ class TogetherPreferences @Inject constructor(
         _displayName.value = trimmed
     }
 
-    fun rememberRoom(code: String, token: String, partnerName: String) {
+    override fun rememberRoom(code: String, token: String, partnerName: String) {
         prefs.edit()
             .putString(KEY_LAST_CODE, code)
             .putString(KEY_LAST_TOKEN, token)
@@ -67,7 +67,7 @@ class TogetherPreferences @Inject constructor(
         _lastRoom.value = LastRoom(code, token, partnerName)
     }
 
-    fun forgetRoom() {
+    override fun forgetRoom() {
         prefs.edit()
             .remove(KEY_LAST_CODE)
             .remove(KEY_LAST_TOKEN)
@@ -80,7 +80,7 @@ class TogetherPreferences @Inject constructor(
      * This phone's credential for a room it is joining rather than hosting. Generated once and
      * kept, because the relay treats a returning token as the same person.
      */
-    fun memberToken(): String {
+    override fun memberToken(): String {
         prefs.getString(KEY_MEMBER_TOKEN, null)?.takeIf { it.length >= TOKEN_LENGTH }?.let { return it }
         val minted = newToken()
         prefs.edit().putString(KEY_MEMBER_TOKEN, minted).apply()
