@@ -3,9 +3,15 @@ package com.auralis.app.together
 import android.content.Context
 import android.content.SharedPreferences
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.random.Random
@@ -29,6 +35,8 @@ class TogetherPreferences @Inject constructor(
     private val prefs: SharedPreferences =
         context.getSharedPreferences("auralis_together", Context.MODE_PRIVATE)
 
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+
     private val _relayUrl = MutableStateFlow(
         prefs.getString(KEY_RELAY_URL, null)?.takeIf { it.isNotBlank() }
             ?: RelayEndpoints.DEFAULT_BASE_URL,
@@ -43,9 +51,23 @@ class TogetherPreferences @Inject constructor(
 
     override fun baseUrl(): String = _relayUrl.value
 
-    /** Rejects an address the transport could not use anyway, so the failure lands in Settings. */
+    /** True once this phone knows where to reach a relay at all. */
+    val isConfigured: StateFlow<Boolean> =
+        _relayUrl.map { RelayEndpoints.isConfigured(it) }
+            .stateIn(scope, SharingStarted.Eagerly, RelayEndpoints.isConfigured(_relayUrl.value))
+
+    /**
+     * Rejects an address the transport could not use anyway, so the failure lands in Settings
+     * rather than as a socket error twenty seconds into a session. Clearing it is always allowed:
+     * that is how you get back to whatever the build shipped with.
+     */
     fun setRelayUrl(url: String): Boolean {
-        val candidate = url.trim().ifBlank { RelayEndpoints.DEFAULT_BASE_URL }
+        val candidate = url.trim()
+        if (candidate.isEmpty()) {
+            prefs.edit().remove(KEY_RELAY_URL).apply()
+            _relayUrl.value = RelayEndpoints.DEFAULT_BASE_URL
+            return true
+        }
         if (RelayEndpoints.createRoom(candidate) == null) return false
         prefs.edit().putString(KEY_RELAY_URL, candidate).apply()
         _relayUrl.value = candidate

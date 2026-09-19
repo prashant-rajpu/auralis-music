@@ -96,6 +96,7 @@ private fun StartOrJoin(viewModel: TogetherViewModel) {
     val streak by viewModel.streak.collectAsState()
     val ourSongs by viewModel.ourSongs.collectAsState()
     val memories by viewModel.memories.collectAsState()
+    val relayConfigured by viewModel.relayConfigured.collectAsState()
     val context = LocalContext.current
     val clipboard = LocalClipboardManager.current
 
@@ -118,6 +119,32 @@ private fun StartOrJoin(viewModel: TogetherViewModel) {
                     fontSize = 14.sp,
                     color = TextSecondary,
                 )
+            }
+        }
+
+        if (!relayConfigured) {
+            item {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .surfaceCard(cornerRadius = 20.dp)
+                        .padding(18.dp),
+                ) {
+                    Text(
+                        text = "No relay yet",
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = WarningColor,
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        text = "Together needs a small server to hold the shared clock. Deploy one " +
+                            "with the steps in docs/RELAY.md, then paste its address into " +
+                            "Settings \u203a Together. It is free, and it stays yours.",
+                        fontSize = 13.sp,
+                        color = TextSecondary,
+                    )
+                }
             }
         }
 
@@ -208,14 +235,15 @@ private fun StartOrJoin(viewModel: TogetherViewModel) {
                 )
                 Spacer(Modifier.height(6.dp))
                 Text(
-                    text = "You get a code and a link. Share either one.",
+                    text = if (relayConfigured) "You get a code and a link. Share either one."
+                    else "Set a relay address in Settings first.",
                     fontSize = 13.sp,
                     color = TextSecondary,
                 )
                 Spacer(Modifier.height(16.dp))
                 Button(
                     onClick = viewModel::start,
-                    enabled = !busy,
+                    enabled = !busy && relayConfigured,
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(52.dp),
@@ -283,7 +311,8 @@ private fun StartOrJoin(viewModel: TogetherViewModel) {
                 Spacer(Modifier.height(12.dp))
                 OutlinedButton(
                     onClick = viewModel::joinFromInput,
-                    enabled = viewModel.joinInput.isNotBlank() && !viewModel.joinInputLooksWrong,
+                    enabled = relayConfigured &&
+                        viewModel.joinInput.isNotBlank() && !viewModel.joinInputLooksWrong,
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(48.dp),

@@ -84,6 +84,13 @@ class RelayEndpointsTest {
     }
 
     @Test
+    fun `an unset relay is not configured, and says so rather than guessing a hostname`() {
+        assertFalse(RelayEndpoints.isConfigured(""))
+        assertFalse(RelayEndpoints.isConfigured("   "))
+        assertTrue(RelayEndpoints.isConfigured(base))
+    }
+
+    @Test
     fun `nonsense in the relay setting fails here rather than as a mystery socket error`() {
         for (bad in listOf("", "   ", "not a url", "ftp://relay.example.com", "relay.example.com")) {
             assertNull(bad, RelayEndpoints.createRoom(bad))

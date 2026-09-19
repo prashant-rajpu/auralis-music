@@ -764,7 +764,7 @@ fun SettingsScreen(
                                         text = if (relayRejected) {
                                             "That is not an https address this app can reach"
                                         } else {
-                                            "Your own worker from docs/RELAY.md, or leave it as it is"
+                                            "Your own worker from docs/RELAY.md. Empty means Together has nowhere to connect."
                                         },
                                         fontSize = 11.sp,
                                         color = if (relayRejected) DangerColor else TextTertiary
@@ -787,8 +787,8 @@ fun SettingsScreen(
                                 }
                                 OutlinedButton(
                                     onClick = {
-                                        relayDraft = RelayEndpoints.DEFAULT_BASE_URL
-                                        relayRejected = !viewModel.setRelayUrl(relayDraft)
+                                        relayDraft = ""
+                                        relayRejected = !viewModel.setRelayUrl("")
                                     },
                                     shape = RoundedCornerShape(12.dp)
                                 ) {

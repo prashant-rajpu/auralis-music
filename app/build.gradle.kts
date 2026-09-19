@@ -22,6 +22,12 @@ fun releaseSigning(key: String, envVar: String): String? =
 val jamendoClientId: String = (project.findProperty("auralis.jamendoClientId") as String?)
     ?: System.getenv("AURALIS_JAMENDO_CLIENT_ID") ?: ""
 
+// Where this build's Together relay lives (see docs/RELAY.md). Deployment-specific, so it is
+// supplied rather than guessed: a wrong default is worse than none, because it fails as a socket
+// error rather than as "you have not set this up yet".
+val relayUrl: String = (project.findProperty("auralis.relayUrl") as String?)
+    ?: System.getenv("AURALIS_RELAY_URL") ?: ""
+
 android {
     namespace = "com.auralis.app"
     compileSdk = 37
@@ -38,6 +44,7 @@ android {
             useSupportLibrary = true
         }
         buildConfigField("String", "JAMENDO_CLIENT_ID", "\"$jamendoClientId\"")
+        buildConfigField("String", "RELAY_URL", "\"$relayUrl\"")
     }
 
     // `play` is Play-Store safe: it compiles none of the unofficial-endpoint code, which lives

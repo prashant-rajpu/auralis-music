@@ -1,5 +1,6 @@
 package com.auralis.app.together
 
+import com.auralis.app.BuildConfig
 import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 
@@ -12,7 +13,15 @@ import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
  */
 object RelayEndpoints {
 
-    const val DEFAULT_BASE_URL = "https://auralis-relay.workers.dev"
+    /**
+     * Blank until a build supplies one. There is deliberately no fallback hostname: a plausible
+     * but wrong default fails as a mystery socket error, where an empty one can say "no relay
+     * configured yet" and point at Settings.
+     */
+    val DEFAULT_BASE_URL: String get() = BuildConfig.RELAY_URL
+
+    /** Nothing to talk to yet — neither the build nor the user has named a relay. */
+    fun isConfigured(baseUrl: String): Boolean = createRoom(baseUrl) != null
 
     fun createRoom(baseUrl: String): HttpUrl? =
         base(baseUrl)?.newBuilder()?.addPathSegment("rooms")?.build()
