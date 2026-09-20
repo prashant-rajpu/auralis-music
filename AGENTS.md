@@ -36,6 +36,11 @@ against a local process now rather than needing a deployment.
 
 See [`docs/RELAY.md`](docs/RELAY.md) for what it is and how it deploys.
 
+Working in a Codespace? `.devcontainer/` sets one up with the SDK and Node
+already installed. [`docs/CODESPACES.md`](docs/CODESPACES.md) covers what works
+there, what does not (no emulator), and the port-forwarding trick that lets two
+real phones talk to a relay you are editing.
+
 ## Things that will bite you
 
 1. **AGP 9 has Kotlin built in.** Do not apply `org.jetbrains.kotlin.android`

@@ -1,0 +1,60 @@
+{
+  "name": "Auralis",
+
+  // JDK 17 is what the build targets, and what CI uses. Anything newer changes the bytecode AGP
+  // produces, so it is pinned rather than left to whatever the base image ships.
+  "image": "mcr.microsoft.com/devcontainers/java:17-bookworm",
+
+  "features": {
+    "ghcr.io/devcontainers/features/node:1": { "version": "22" }
+  },
+
+  // Gradle, the Kotlin daemon and KSP together will not fit comfortably in 8 GB, and the failure
+  // looks like a random compiler crash rather than an out-of-memory. Ask for 4 cores; the setup
+  // script tunes the heap down if Codespaces gives you less anyway.
+  "hostRequirements": {
+    "cpus": 4,
+    "memory": "16gb",
+    "storage": "32gb"
+  },
+
+  "containerEnv": {
+    "ANDROID_HOME": "/usr/local/lib/android-sdk",
+    "ANDROID_SDK_ROOT": "/usr/local/lib/android-sdk"
+  },
+
+  "remoteEnv": {
+    "PATH": "${containerEnv:PATH}:/usr/local/lib/android-sdk/platform-tools:/usr/local/lib/android-sdk/cmdline-tools/latest/bin"
+  },
+
+  "onCreateCommand": "bash .devcontainer/setup.sh",
+
+  // The relay. Forward this as **Public** and the URL Codespaces gives you works as a relay
+  // address on a real phone — which is how you run the two-phone test without deploying anything.
+  "forwardPorts": [8787],
+  "portsAttributes": {
+    "8787": {
+      "label": "Together relay",
+      "onAutoForward": "notify"
+    }
+  },
+
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "fwcd.kotlin",
+        "vscjava.vscode-gradle",
+        "redhat.java",
+        "dbaeumer.vscode-eslint"
+      ],
+      "settings": {
+        "java.configuration.updateBuildConfiguration": "disabled",
+        "files.watcherExclude": {
+          "**/build/**": true,
+          "**/.gradle/**": true,
+          "**/node_modules/**": true
+        }
+      }
+    }
+  }
+}

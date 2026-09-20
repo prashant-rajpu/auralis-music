@@ -34,6 +34,9 @@ OkHttp / Gson, Coil, Kotlin coroutines and Flow. Single `app` module.
 
 Requires JDK 17 and the Android SDK (platform 37). The Gradle wrapper is committed.
 
+Or open it in a **GitHub Codespace** — `.devcontainer/` installs both for you.
+Everything but the emulator works there; see [`docs/CODESPACES.md`](docs/CODESPACES.md).
+
 ```bash
 ./gradlew testPlusDebugUnitTest assemblePlusDebug   # sideload edition: tests + debug APK
 ./gradlew assemblePlayRelease                       # Play edition, R8-minified
