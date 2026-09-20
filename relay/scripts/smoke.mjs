@@ -1,31 +1,24 @@
 /**
- * End-to-end smoke test against a *deployed* relay.
+ * End-to-end smoke test against a running relay.
  *
- * The unit tests in test/ cover protocol.ts, which holds the security rules but touches no Workers
- * API. This covers the half they cannot: the Durable Object itself — presence, the injected server
- * clock, host handover, and whether a hostile frame really is refused by a running room rather than
- * only by a pure function.
+ * The unit tests cover the protocol and the room in isolation. This covers what they cannot: a
+ * real process, real sockets, and whether two clients that have never met end up agreeing about
+ * the time — over whatever proxy and TLS terminator the host puts in front of it.
  *
- * Needs a URL, because it talks to a real deployment:
+ *     npm run smoke -- http://localhost:8787
+ *     npm run smoke -- https://your-relay.example.com
  *
- *     npm run smoke -- https://auralis-relay.<subdomain>.workers.dev
- *
- * Not part of CI: CI has no relay to point at. Run it after every deploy.
+ * Run it after every deploy, and against a local `npm start` before you push one.
  */
 import WebSocket from "ws";
 
 const RELAY = (process.argv[2] ?? process.env.AURALIS_RELAY_URL ?? "").replace(/\/+$/, "");
 if (!RELAY) {
-  console.error("usage: npm run smoke -- https://your-relay.workers.dev");
+  console.error("usage: npm run smoke -- http://localhost:8787");
   process.exit(2);
 }
 
-/**
- * A browser-ish User-Agent. A workers.dev route sits behind a managed challenge that scores the
- * caller, and a bare script signature from a datacenter is exactly what it scores badly.
- */
-const UA =
-  "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0 Mobile Safari/537.36";
+const UA = "auralis-relay-smoke/2";
 
 const results = [];
 const check = (name, condition, detail = "") =>
@@ -37,7 +30,7 @@ const of = (socket, type) => socket.inbox.filter((m) => m.type === type);
 function connect(code, token, name, timeZone) {
   return new Promise((resolve, reject) => {
     const url =
-      `${RELAY.replace(/^https/, "wss")}/rooms/${code}/ws` +
+      `${RELAY.replace(/^http/, "ws")}/rooms/${code}/ws` +
       `?token=${encodeURIComponent(token)}&name=${encodeURIComponent(name)}&tz=${encodeURIComponent(timeZone)}`;
     const socket = new WebSocket(url, { headers: { "user-agent": UA } });
     socket.inbox = [];
@@ -126,6 +119,35 @@ guest.send(JSON.stringify({
 await settle();
 check("chat arrives as ciphertext", of(host, "chat").at(-1)?.ciphertext === "AAECAwQFBgc=");
 check("the shared queue updates", of(host, "queue").at(-1)?.items?.length === 1);
+
+// Where a call is told to look for the other phone.
+guest.send(JSON.stringify({ type: "ice" }));
+await settle();
+const ice = of(guest, "ice").at(-1);
+const urls = (ice?.iceServers ?? []).flatMap((server) => server.urls ?? []);
+check("the relay answers with ice servers", urls.length > 0, urls.join(" "));
+check(
+  "every one of them is a stun or turn address",
+  urls.every((url) => /^stuns?:|^turns?:/.test(url)),
+  urls.join(" "),
+);
+// Only meaningful once TURN is configured; says so rather than failing when it is not.
+const relayed = urls.filter((url) => url.startsWith("turn"));
+check(
+  relayed.length > 0
+    ? "TURN is configured, and reachable over TLS on 443"
+    : "TURN is not configured (STUN only — a call will fail on a restrictive network)",
+  relayed.length === 0 || relayed.some((url) => url.startsWith("turns:") && url.includes(":443")),
+  relayed.join(" "),
+);
+
+// A rejoin has to see what was said while it was away.
+const rejoined = await connect(room.code, "rejoin-token-0123456789ab", "Rejoin", "Asia/Dubai");
+await settle();
+const replayed = of(rejoined, "welcome")[0]?.state?.chat ?? [];
+check("a rejoin is handed the recent history", replayed.length === 1, `n=${replayed.length}`);
+rejoined.close();
+await settle(600);
 
 host.close();
 await settle(1500);

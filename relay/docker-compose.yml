@@ -1,0 +1,24 @@
+# Your own server. Put Caddy or nginx in front of it for TLS and point it at :8787.
+#
+#   docker compose up -d
+#
+# Everything the relay needs is in the volume below, so `docker compose down` and back up keeps
+# the room codes.
+
+services:
+  relay:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8787:8787"
+    volumes:
+      - relay_data:/data
+    environment:
+      PORT: "8787"
+      DATA_DIR: /data
+      # Uncomment once a TURN server exists. See docs/RELAY.md.
+      # TURN_URLS: "turn:turn.example.com:3478?transport=udp,turns:turn.example.com:443?transport=tcp"
+      # TURN_SECRET: "the same static-auth-secret coturn is configured with"
+
+volumes:
+  relay_data:

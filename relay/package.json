@@ -1,22 +1,28 @@
 {
   "name": "auralis-relay",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "private": true,
-  "description": "Listen-together relay for Auralis: one Durable Object per room, providing the shared clock two phones cannot agree on by themselves.",
+  "description": "Listen-together relay for Auralis: one room per code, providing the shared clock two phones cannot agree on by themselves. A plain Node WebSocket server, so it runs on any host that can run a container.",
   "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
-    "dev": "wrangler dev",
-    "deploy": "wrangler deploy",
+    "build": "tsc -p tsconfig.build.json",
+    "start": "node dist/server.js",
+    "dev": "node --watch --experimental-strip-types src/server.ts",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "smoke": "node scripts/smoke.mjs"
   },
   "license": "ISC",
-  "devDependencies": {
-    "@cloudflare/workers-types": "^5.20260918.1",
-    "typescript": "^5.9.3",
-    "vitest": "^5.0.1",
-    "wrangler": "^4.135.0",
+  "dependencies": {
     "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "@types/ws": "^8.5.13",
+    "typescript": "^5.9.3",
+    "vitest": "^5.0.1"
   }
 }

@@ -1,0 +1,21 @@
+# Render. The free plan needs no card, and sleeps the service after 15 minutes of no traffic —
+# the first person in then waits through a cold start of roughly a minute. The app reconnects on
+# its own, so it recovers, but it is a poor first impression. Upgrade the plan to stop it sleeping.
+#
+# The free plan also has no persistent disk, which is why DATA_DIR is empty here: rooms live in
+# memory and codes reset on every deploy. On a paid plan, attach a disk at /data and set
+# DATA_DIR=/data.
+
+services:
+  - type: web
+    name: auralis-relay
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: PORT
+        value: "8787"
+      - key: DATA_DIR
+        value: ""

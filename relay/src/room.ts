@@ -1,195 +1,138 @@
-import { DurableObject } from "cloudflare:workers";
-import type { Env } from "./index";
+import type { IceConfig } from "./ice.js";
+import { mintIceServers } from "./ice.js";
 import {
   MAX_CHAT_HISTORY,
   MAX_MEMBERS,
   MAX_QUEUE_ITEMS,
-  PUBLIC_STUN,
+  RateLimiter,
+  ValidationError,
+  parseClientMessage,
+  removeFirstMatch,
   type ClientMessage,
   type IceServer,
   type Member,
   type QueueEntry,
   type RoomSnapshot,
   type ServerMessage,
-  ValidationError,
-  RateLimiter,
-  normaliseIceServers,
-  parseClientMessage,
-  removeFirstMatch,
-} from "./protocol";
+} from "./protocol.js";
+import type { Playback, RoomRecord, RoomStore } from "./store.js";
 
 /** Members may send ten messages a second, bursting to twenty. */
 const RATE_CAPACITY = 20;
 const RATE_PER_SECOND = 10;
 
-/** Long enough that a couple's code stays theirs between sessions. */
-const ROOM_IDLE_TTL_MS = 30 * 24 * 60 * 60 * 1000;
-
-/**
- * How stale the liveness stamp is allowed to get before it is rewritten. Clock sync pings arrive
- * every few seconds; without this, every one of them would cost a storage write and an alarm reset.
- */
-const TOUCH_INTERVAL_MS = 5 * 60 * 1000;
-
-/**
- * How long a minted TURN credential lives, and how much of that is left before it is replaced.
- *
- * Twelve hours is far longer than any call, which is the point: the credential is fetched once and
- * a call that starts hours later still works. The margin means a call never begins with a
- * credential that is about to expire underneath it.
- */
-const ICE_TTL_SECONDS = 12 * 60 * 60;
+/** Re-mint a little before expiry, so a call never starts on a credential about to die. */
 const ICE_REFRESH_MARGIN_MS = 30 * 60 * 1000;
 
-interface CachedIce {
-  iceServers: IceServer[];
-  expiresAtMs: number;
+/**
+ * Just enough of a socket for a room to talk to one.
+ *
+ * The room is the part worth testing — presence, host handover, what a hostile frame does to a
+ * running room — and none of that should need a listening port. `ws` satisfies this as it is.
+ */
+export interface Sink {
+  send(data: string): void;
+  close(code?: number, reason?: string): void;
 }
 
-interface Attachment {
-  memberId: string;
-  name: string;
-  token: string;
-  joinedAtMs: number;
+export interface Connection {
+  readonly socket: Sink;
+  readonly memberId: string;
+  readonly name: string;
+  readonly token: string;
+  readonly joinedAtMs: number;
+  readonly timeZone: string;
   buffering: boolean;
-  timeZone: string;
+  limiter: RateLimiter;
 }
 
-interface Playback {
-  track: QueueEntry["track"];
-  positionMs: number;
-  isPlaying: boolean;
-  speed: number;
-  atServerMs: number;
-}
+export type JoinRefusal = "room_full";
 
 /**
  * One listening session.
  *
  * The reason this exists rather than a public pub/sub topic: it is a trustworthy source of
  * `serverMs`. Two phones cannot agree on a position from their own clocks — phone clocks drift by
- * seconds — so every broadcast carries the room's clock, and each client measures its offset from
- * it. Presence and identity come along for free because the socket is the identity.
+ * seconds — so every broadcast carries the room's clock and each client measures its offset from
+ * it. Presence and identity come along for free, because the socket *is* the identity: the server
+ * stamps `senderId` on everything, and a client cannot claim to be the other person.
  *
- * Uses WebSocket Hibernation: between messages the object is evicted from memory while the sockets
- * stay open, so an idle room costs nothing. All durable state therefore lives in storage or in the
- * socket attachments, never in instance fields that would not survive eviction.
+ * Durable state lives in [RoomStore]; who is connected right now lives here and is deliberately
+ * not persisted, because a member list restored from disk is a list of people who are not there.
  */
-export class Room extends DurableObject<Env> {
-  /**
-   * Deliberately not durable. Eviction only happens when a room has been quiet, and a quiet
-   * member's bucket would have refilled to capacity anyway, so losing it changes nothing.
-   */
-  private readonly limiters = new Map<string, RateLimiter>();
+export class Room {
+  private readonly connections = new Set<Connection>();
+  private cachedIce: { iceServers: IceServer[]; expiresAtMs: number } | null = null;
 
-  constructor(ctx: DurableObjectState, env: Env) {
-    super(ctx, env);
+  constructor(
+    readonly record: RoomRecord,
+    private readonly store: RoomStore,
+    private readonly ice: IceConfig,
+    private readonly now: () => number = Date.now,
+  ) {}
+
+  get isEmpty(): boolean {
+    return this.connections.size === 0;
   }
 
-  async fetch(request: Request): Promise<Response> {
-    const url = new URL(request.url);
-
-    if (url.pathname.endsWith("/create")) return this.create(request);
-    if (url.pathname.endsWith("/ws")) return this.openSession(request, url);
-
-    return new Response("Not found", { status: 404 });
+  get memberCount(): number {
+    return this.connections.size;
   }
 
-  private async create(request: Request): Promise<Response> {
-    const body = (await request.json().catch(() => ({}))) as { hostToken?: string };
-    const hostToken = body.hostToken;
-    if (typeof hostToken !== "string" || hostToken.length < 16) {
-      return Response.json({ error: "bad_request" }, { status: 400 });
-    }
+  join(
+    socket: Sink,
+    options: { name: string; token: string; timeZone: string; memberId: string },
+  ): Connection | JoinRefusal {
+    if (this.connections.size >= MAX_MEMBERS) return "room_full";
 
-    // Room codes are short enough to collide eventually, and a second create must never be able to
-    // overwrite a live room's host token — that would hand an existing couple's room to a stranger.
-    // The caller retries with a fresh code instead.
-    const existing = await this.ctx.storage.get<number>("createdAtMs");
-    if (existing !== undefined) return Response.json({ error: "code_taken" }, { status: 409 });
-
-    await this.ctx.storage.put("hostToken", hostToken);
-    await this.ctx.storage.put("createdAtMs", Date.now());
-    await this.touch();
-    return Response.json({ ok: true });
-  }
-
-  private async openSession(request: Request, url: URL): Promise<Response> {
-    if (request.headers.get("Upgrade") !== "websocket") {
-      return new Response("Expected websocket", { status: 426 });
-    }
-
-    const createdAt = await this.ctx.storage.get<number>("createdAtMs");
-    if (createdAt === undefined) return Response.json({ error: "not_found" }, { status: 404 });
-
-    if (this.ctx.getWebSockets().length >= MAX_MEMBERS) {
-      return Response.json({ error: "room_full" }, { status: 409 });
-    }
-
-    const token = url.searchParams.get("token") ?? "";
-    if (token.length < 16) return Response.json({ error: "unauthorized" }, { status: 401 });
-
-    const name = (url.searchParams.get("name") ?? "Listener").slice(0, 64);
-    const timeZone = (url.searchParams.get("tz") ?? "").slice(0, 64);
-    const memberId = crypto.randomUUID();
-
-    const pair = new WebSocketPair();
-    const [client, server] = [pair[0], pair[1]];
-
-    this.ctx.acceptWebSocket(server);
-    const attachment: Attachment = {
-      memberId,
-      name,
-      token,
-      joinedAtMs: Date.now(),
+    const nowMs = this.now();
+    const connection: Connection = {
+      socket,
+      memberId: options.memberId,
+      name: options.name.slice(0, 64),
+      token: options.token,
+      joinedAtMs: nowMs,
+      timeZone: options.timeZone.slice(0, 64),
       buffering: false,
-      timeZone,
+      limiter: new RateLimiter(RATE_CAPACITY, RATE_PER_SECOND, nowMs),
     };
-    server.serializeAttachment(attachment);
+    this.connections.add(connection);
 
     // First socket in an empty room hosts it; a returning host reclaims by token.
-    const hostToken = await this.ctx.storage.get<string>("hostToken");
-    let hostId = await this.ctx.storage.get<string>("hostId");
-    if (hostId === undefined || this.memberById(hostId) === null) {
-      hostId = memberId;
-      await this.ctx.storage.put("hostId", hostId);
-    } else if (hostToken !== undefined && token === hostToken && hostId !== memberId) {
-      hostId = memberId;
-      await this.ctx.storage.put("hostId", hostId);
+    const hostPresent = [...this.connections].some((c) => c.memberId === this.record.hostId);
+    if (!hostPresent) {
+      this.record.hostId = connection.memberId;
+    } else if (options.token === this.record.hostToken) {
+      this.record.hostId = connection.memberId;
     }
 
-    await this.touch();
-
-    const snapshot = await this.snapshot(hostId);
-    this.send(server, {
+    this.touch(nowMs);
+    this.send(connection, {
       type: "welcome",
-      memberId,
-      hostId,
-      serverMs: Date.now(),
-      state: snapshot,
+      memberId: connection.memberId,
+      hostId: this.record.hostId,
+      serverMs: nowMs,
+      state: this.snapshot(),
     });
-    await this.broadcastPresence(hostId);
-
-    return new Response(null, { status: 101, webSocket: client });
+    this.broadcastPresence();
+    return connection;
   }
 
-  async webSocketMessage(socket: WebSocket, raw: string | ArrayBuffer): Promise<void> {
-    const attachment = socket.deserializeAttachment() as Attachment | null;
-    if (attachment === null) return;
+  /** A raw frame off the wire. Size and shape are checked before anything is done with it. */
+  receive(connection: Connection, raw: string): void {
+    const nowMs = this.now();
 
-    const text = typeof raw === "string" ? raw : new TextDecoder().decode(raw);
-
-    if (!this.allow(attachment.memberId)) {
-      this.send(socket, { type: "error", code: "rate_limited", message: "Slow down" });
+    if (!connection.limiter.tryConsume(nowMs)) {
+      this.send(connection, { type: "error", code: "rate_limited", message: "Slow down" });
       return;
     }
 
     let message: ClientMessage;
     try {
-      message = parseClientMessage(text);
+      message = parseClientMessage(raw);
     } catch (error) {
       const failure = error instanceof ValidationError ? error : null;
-      this.send(socket, {
+      this.send(connection, {
         type: "error",
         code: failure?.code ?? "bad_message",
         message: failure?.message ?? "Could not read that message",
@@ -197,20 +140,29 @@ export class Room extends DurableObject<Env> {
       return;
     }
 
-    await this.handle(socket, attachment, message);
+    this.touch(nowMs);
+    this.handle(connection, message, nowMs);
   }
 
-  private async handle(
-    socket: WebSocket,
-    attachment: Attachment,
-    message: ClientMessage,
-  ): Promise<void> {
-    const serverMs = Date.now();
-    await this.touch();
+  leave(connection: Connection): void {
+    if (!this.connections.delete(connection)) return;
 
+    if (this.record.hostId === connection.memberId) {
+      // Do not strand the room on a host that left. Hand over immediately to whoever is still
+      // here rather than running a grace timer: the original host reclaims with their token the
+      // moment they reconnect, which is the same outcome without a window where nobody can drive.
+      const next = [...this.connections][0];
+      this.record.hostId = next?.memberId ?? "";
+      this.store.touch();
+    }
+
+    this.broadcastPresence();
+  }
+
+  private handle(connection: Connection, message: ClientMessage, serverMs: number): void {
     switch (message.type) {
       case "ping":
-        this.send(socket, { type: "pong", at: message.at, serverMs });
+        this.send(connection, { type: "pong", at: message.at, serverMs });
         return;
 
       case "playback": {
@@ -221,10 +173,11 @@ export class Room extends DurableObject<Env> {
           speed: message.speed,
           atServerMs: serverMs,
         };
-        await this.ctx.storage.put("playback", playback);
+        this.record.playback = playback;
+        this.store.touch();
         this.broadcast({
           type: "playback",
-          senderId: attachment.memberId,
+          senderId: connection.memberId,
           serverMs,
           track: message.track,
           positionMs: message.positionMs,
@@ -235,17 +188,17 @@ export class Room extends DurableObject<Env> {
       }
 
       case "seek": {
-        const playback = await this.ctx.storage.get<Playback>("playback");
-        if (playback !== undefined) {
-          await this.ctx.storage.put("playback", {
-            ...playback,
+        if (this.record.playback !== null) {
+          this.record.playback = {
+            ...this.record.playback,
             positionMs: message.positionMs,
             atServerMs: serverMs,
-          });
+          };
+          this.store.touch();
         }
         this.broadcast({
           type: "seek",
-          senderId: attachment.memberId,
+          senderId: connection.memberId,
           serverMs,
           positionMs: message.positionMs,
         });
@@ -253,39 +206,40 @@ export class Room extends DurableObject<Env> {
       }
 
       case "queueAdd": {
-        const queue = (await this.ctx.storage.get<QueueEntry[]>("queue")) ?? [];
-        if (queue.length >= MAX_QUEUE_ITEMS) {
-          this.send(socket, { type: "error", code: "bad_message", message: "Queue is full" });
+        if (this.record.queue.length >= MAX_QUEUE_ITEMS) {
+          this.send(connection, { type: "error", code: "bad_message", message: "Queue is full" });
           return;
         }
-        queue.push({ track: message.track, addedBy: attachment.memberId });
-        await this.ctx.storage.put("queue", queue);
-        this.broadcast({ type: "queue", serverMs, items: queue });
+        this.record.queue.push({ track: message.track, addedBy: connection.memberId });
+        this.store.touch();
+        this.broadcast({ type: "queue", serverMs, items: this.record.queue });
         return;
       }
 
       case "queueRemove": {
-        const queue = (await this.ctx.storage.get<QueueEntry[]>("queue")) ?? [];
-        const next = removeFirstMatch(queue, message.providerId);
-        await this.ctx.storage.put("queue", next);
-        this.broadcast({ type: "queue", serverMs, items: next });
+        this.record.queue = removeFirstMatch(this.record.queue, message.providerId);
+        this.store.touch();
+        this.broadcast({ type: "queue", serverMs, items: this.record.queue });
         return;
       }
 
       case "buffering": {
-        socket.serializeAttachment({ ...attachment, buffering: message.buffering });
-        await this.broadcastPresence();
+        connection.buffering = message.buffering;
+        this.broadcastPresence();
         return;
       }
 
       case "chat": {
-        const chat = (await this.ctx.storage.get<RoomSnapshot["chat"]>("chat")) ?? [];
-        chat.push({ senderId: attachment.memberId, serverMs, ciphertext: message.ciphertext });
-        while (chat.length > MAX_CHAT_HISTORY) chat.shift();
-        await this.ctx.storage.put("chat", chat);
+        this.record.chat.push({
+          senderId: connection.memberId,
+          serverMs,
+          ciphertext: message.ciphertext,
+        });
+        while (this.record.chat.length > MAX_CHAT_HISTORY) this.record.chat.shift();
+        this.store.touch();
         this.broadcast({
           type: "chat",
-          senderId: attachment.memberId,
+          senderId: connection.memberId,
           serverMs,
           ciphertext: message.ciphertext,
         });
@@ -295,15 +249,15 @@ export class Room extends DurableObject<Env> {
       case "reaction":
         this.broadcast({
           type: "reaction",
-          senderId: attachment.memberId,
+          senderId: connection.memberId,
           serverMs,
           emoji: message.emoji,
         });
         return;
 
       case "ice": {
-        const ice = await this.iceServers();
-        this.send(socket, {
+        const ice = this.iceServers(serverMs);
+        this.send(connection, {
           type: "ice",
           serverMs,
           iceServers: ice.iceServers,
@@ -313,182 +267,77 @@ export class Room extends DurableObject<Env> {
       }
 
       case "bye":
-        socket.close(1000, "bye");
+        connection.socket.close(1000, "bye");
         return;
     }
   }
 
-  async webSocketClose(socket: WebSocket): Promise<void> {
-    await this.afterDeparture(socket);
-  }
-
-  async webSocketError(socket: WebSocket): Promise<void> {
-    await this.afterDeparture(socket);
-  }
-
   /**
-   * Short-lived TURN credentials, minted from the account's TURN key and cached for the room.
-   *
-   * The key itself never leaves the relay. Each phone gets a credential that expires, which is
-   * what stops the relay's URL being usable as free bandwidth by anyone who finds it.
-   *
    * Cached per room rather than per member: both members of a call can share one credential, and
-   * without the cache every rejoin would cost an API round trip on the join path.
-   *
-   * With no TURN key configured this falls back to public STUN, and so does a failed mint. That is
-   * a working call for most networks and a failed one for the rest — better than no call at all,
-   * and the app can see which it got.
+   * without the cache every rejoin would re-derive one on the join path.
    */
-  private async iceServers(): Promise<CachedIce> {
-    const cached = await this.ctx.storage.get<CachedIce>("ice");
-    if (cached !== undefined && cached.expiresAtMs - Date.now() > ICE_REFRESH_MARGIN_MS) {
-      return cached;
+  private iceServers(nowMs: number): { iceServers: IceServer[]; expiresAtMs: number } {
+    const cached = this.cachedIce;
+    if (cached !== null) {
+      const permanent = cached.expiresAtMs === 0;
+      if (permanent || cached.expiresAtMs - nowMs > ICE_REFRESH_MARGIN_MS) return cached;
     }
-
-    const keyId = this.env.TURN_KEY_ID;
-    const apiToken = this.env.TURN_KEY_API_TOKEN;
-    if (!keyId || !apiToken) return { iceServers: [PUBLIC_STUN], expiresAtMs: 0 };
-
-    // Deliberately no customIdentifier: the only identifier this room has is its code, and the
-    // code is what the chat key is derived from. It does not go into anyone's analytics.
-    const minted = await fetch(
-      `https://rtc.live.cloudflare.com/v1/turn/keys/${encodeURIComponent(keyId)}/credentials/generate-ice-servers`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${apiToken}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ ttl: ICE_TTL_SECONDS }),
-      },
-    ).catch(() => null);
-
-    if (minted === null || !minted.ok) {
-      console.warn("turn mint failed", minted?.status ?? "network");
-      return { iceServers: [PUBLIC_STUN], expiresAtMs: 0 };
-    }
-
-    const payload = await minted.json().catch(() => null);
-    const fresh: CachedIce = {
-      iceServers: normaliseIceServers(payload),
-      expiresAtMs: Date.now() + ICE_TTL_SECONDS * 1000,
-    };
-    await this.ctx.storage.put("ice", fresh);
+    const fresh = mintIceServers(this.ice, nowMs);
+    this.cachedIce = fresh;
     return fresh;
   }
 
-  private async afterDeparture(socket: WebSocket): Promise<void> {
-    const attachment = socket.deserializeAttachment() as Attachment | null;
-    const goneId = attachment?.memberId;
-    if (goneId !== undefined) this.limiters.delete(goneId);
-
-    const hostId = await this.ctx.storage.get<string>("hostId");
-    if (hostId !== undefined && goneId === hostId) {
-      // Do not strand the room on a host that left. Hand over immediately to whoever is still here
-      // rather than running a grace timer: the original host reclaims with their token the moment
-      // they reconnect, which is the same outcome without a window where nobody can drive playback.
-      const next = this.members(undefined, goneId)[0];
-      if (next !== undefined) await this.ctx.storage.put("hostId", next.id);
-    }
-
-    await this.broadcastPresence(undefined, goneId);
+  private touch(nowMs: number): void {
+    this.record.lastSeenMs = nowMs;
+    this.store.touch();
   }
 
-  /** Called on every interaction; an untouched room expires so old codes do not accumulate. */
-  private async touch(): Promise<void> {
-    const now = Date.now();
-    const lastSeen = (await this.ctx.storage.get<number>("lastSeenMs")) ?? 0;
-    if (now - lastSeen < TOUCH_INTERVAL_MS) return;
-    await this.ctx.storage.put("lastSeenMs", now);
-    await this.ctx.storage.setAlarm(now + ROOM_IDLE_TTL_MS);
+  private members(excludeId?: string): Member[] {
+    return [...this.connections]
+      .filter((connection) => connection.memberId !== excludeId)
+      .map((connection) => ({
+        id: connection.memberId,
+        name: connection.name,
+        isHost: connection.memberId === this.record.hostId,
+        buffering: connection.buffering,
+        joinedAtMs: connection.joinedAtMs,
+        timeZone: connection.timeZone,
+      }));
   }
 
-  async alarm(): Promise<void> {
-    const lastSeen = (await this.ctx.storage.get<number>("lastSeenMs")) ?? 0;
-    if (Date.now() - lastSeen >= ROOM_IDLE_TTL_MS) {
-      await this.ctx.storage.deleteAll();
-      return;
-    }
-    // Touched since this alarm was set: re-arm for the remaining life rather than expiring early.
-    await this.ctx.storage.setAlarm(lastSeen + ROOM_IDLE_TTL_MS);
-  }
-
-  private allow(memberId: string): boolean {
-    const now = Date.now();
-    let limiter = this.limiters.get(memberId);
-    if (limiter === undefined) {
-      limiter = new RateLimiter(RATE_CAPACITY, RATE_PER_SECOND, now);
-      this.limiters.set(memberId, limiter);
-    }
-    return limiter.tryConsume(now);
-  }
-
-  private attachments(excludeId?: string): Attachment[] {
-    return this.ctx
-      .getWebSockets()
-      .map((socket) => socket.deserializeAttachment() as Attachment | null)
-      .filter((a): a is Attachment => a !== null && a.memberId !== excludeId);
-  }
-
-  /**
-   * `excludeId` drops a member who is on their way out. A socket may still be listed while its
-   * close handler runs, and a presence update that includes someone who has just left is worse
-   * than one that is a moment early.
-   */
-  private members(hostId?: string, excludeId?: string): Member[] {
-    return this.attachments(excludeId).map((attachment) => ({
-      id: attachment.memberId,
-      name: attachment.name,
-      isHost: attachment.memberId === hostId,
-      buffering: attachment.buffering,
-      joinedAtMs: attachment.joinedAtMs,
-      timeZone: attachment.timeZone,
-    }));
-  }
-
-  private memberById(memberId: string): Attachment | null {
-    return this.attachments().find((a) => a.memberId === memberId) ?? null;
-  }
-
-  private async snapshot(hostId: string): Promise<RoomSnapshot> {
-    const [playback, queue, chat] = await Promise.all([
-      this.ctx.storage.get<Playback>("playback"),
-      this.ctx.storage.get<QueueEntry[]>("queue"),
-      this.ctx.storage.get<RoomSnapshot["chat"]>("chat"),
-    ]);
+  private snapshot(): RoomSnapshot {
     return {
-      members: this.members(hostId),
-      hostId,
-      playback: playback ?? null,
-      queue: queue ?? [],
-      chat: chat ?? [],
+      members: this.members(),
+      hostId: this.record.hostId,
+      playback: this.record.playback,
+      queue: this.record.queue,
+      chat: this.record.chat,
     };
   }
 
-  private async broadcastPresence(knownHostId?: string, excludeId?: string): Promise<void> {
-    const hostId = knownHostId ?? (await this.ctx.storage.get<string>("hostId")) ?? "";
+  private broadcastPresence(): void {
     this.broadcast({
       type: "presence",
-      members: this.members(hostId, excludeId),
-      hostId,
-      serverMs: Date.now(),
+      members: this.members(),
+      hostId: this.record.hostId,
+      serverMs: this.now(),
     });
   }
 
   private broadcast(message: ServerMessage): void {
     const payload = JSON.stringify(message);
-    for (const socket of this.ctx.getWebSockets()) {
+    for (const connection of this.connections) {
       try {
-        socket.send(payload);
+        connection.socket.send(payload);
       } catch {
-        // A socket that died between listing and sending is handled by webSocketClose.
+        // A socket that died between listing and sending is handled by its close event.
       }
     }
   }
 
-  private send(socket: WebSocket, message: ServerMessage): void {
+  private send(connection: Connection, message: ServerMessage): void {
     try {
-      socket.send(JSON.stringify(message));
+      connection.socket.send(JSON.stringify(message));
     } catch {
       // Same as broadcast: the close handler cleans up.
     }

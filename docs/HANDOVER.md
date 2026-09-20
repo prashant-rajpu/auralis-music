@@ -152,7 +152,7 @@ there is no server clock so drift correction is guesswork (the current
 
 | Part | Contents |
 |---|---|
-| **A. Relay** | **Done** — `relay/`, documented in [`docs/RELAY.md`](RELAY.md). Cloudflare Worker + one Durable Object per room with WebSocket Hibernation. `POST /rooms` → `{code, hostToken}`; `GET /rooms/{code}/ws`. Server injects `senderId` and `serverMs`. Allowlist validation (no stream URL can reach the wire), 4 KB cap, 16 members, 10 msg/s, per-IP join limits, 30-day idle TTL, immediate host handover with token reclaim. Not yet deployed, and not yet spoken to by the app. |
+| **A. Relay** | **Done** — `relay/`, documented in [`docs/RELAY.md`](RELAY.md). A plain Node WebSocket server in a container, one room per code, rooms kept in memory and snapshotted to one JSON file. `POST /rooms` → `{code, hostToken}`; `GET /rooms/{code}/ws`. Server injects `senderId` and `serverMs`. Allowlist validation (no stream URL can reach the wire), 16 KB cap, 16 members, 10 msg/s, per-IP join limits, 30-day idle TTL, immediate host handover with token reclaim. Ships a `Dockerfile`, `fly.toml`, `render.yaml` and `docker-compose.yml`; 52 unit tests and 21 end-to-end checks, both in CI. Not yet deployed, and not yet spoken to by the app. |
 | **B. Protocol + sync** | **Done** — `app/src/main/java/com/auralis/app/together/`. `TogetherProtocol` (kotlinx.serialization, mirroring the relay's wire format); **`TrackRef` never carries a stream URL**, and `toTrack` always produces an empty `mediaUrl`, so the Phase-0 fix holds by construction rather than by allowlist. `ClockSync` (min-RTT-gated EMA offset). `SyncController` drift table: >400 ms hard seek, 120–400 ms speed nudge to 0.98×/1.02× for ≤3 s, <120 ms leave alone, hold while the peer buffers. `RelayWebSocketTransport` behind a `TogetherTransport` interface with jittered reconnect and token rejoin. **Not yet wired to the player or the UI** — that is what remains of v4.1. |
 | **C. Social** | **Done bar skip voting** — shared queue, live presence, encrypted chat, reactions, rejoin from a stored token, and invites as a code, a link, a share-sheet message and a QR code. `auralis://join/CODE` opens the app straight into the session. Either partner can drive: a local play/pause/skip takes control of the room rather than being corrected away. |
 | **D. Couple layer** | **Mostly done.** Our Songs (ranked by shared plays), the listening streak, their local time, dedicate-a-song, lyric moments, goodnight mode (both phones fade out on the same room timestamp), knock, and session memories — all of it fed by `CoupleRepository` writing `jam_sessions` / `jam_events` / `shared_plays` as a session runs. Dedications, lyric moments and knocks ride inside the one encrypted channel, so the relay cannot even tell them apart. **Still to build:** scheduled sessions, a dedications inbox screen, the couple profile, and editable name/reaction packs. |
@@ -279,8 +279,8 @@ result now; the rewrite can happen later as an isolated change, tested on a
 real phone.
 
 **For v4.1 specifically:** the relay and the sync logic can be machine-tested
-without any phone — the relay runs locally under `wrangler dev` with
-simulated clients, and `ClockSync`/`SyncController` are pure functions over
+without any phone — the relay is an ordinary Node process that starts locally
+and answers simulated clients, and `ClockSync`/`SyncController` are pure functions over
 timestamps. What cannot be simulated is whether two phones *sound* together:
 decode latency, audio buffer depth and especially Bluetooth output delay
 (150–300 ms, and device-specific) need real hardware on real networks.
@@ -296,9 +296,10 @@ with a partner. That turns the sync thresholds from guesses into numbers.
 
 **Deploy the relay and run the two-phone test.** Everything in v4.1 is written
 and machine-checked; none of it has spoken to a real relay or a second device.
-`cd relay && npx wrangler login && npm run deploy`, then put the printed URL
-in `auralis.relayUrl` (or Settings → Together). Until that happens, the
-Together tab correctly reports that it has nowhere to connect.
+The relay is a container now, not a Worker: `cd relay && fly deploy` (or
+Render, or your own server — `docs/RELAY.md` covers each), then put the
+resulting URL in `auralis.relayUrl` or Settings → Together. Until that happens,
+the Together tab correctly reports that it has nowhere to connect.
 
 After that, v4.2 — the showpiece player: artwork-driven colour with a contrast
 guard, the waveform scrubber, swipe-between-tracks and drag-to-reorder.

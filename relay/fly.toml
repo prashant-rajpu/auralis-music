@@ -1,0 +1,45 @@
+# Fly.io. One machine, close to both of you.
+#
+#   fly launch --no-deploy --copy-config --name auralis-relay
+#   fly volumes create relay_data --region bom --size 1
+#   fly secrets set TURN_URLS=... TURN_SECRET=...     # optional, see docs/RELAY.md
+#   fly deploy
+#
+# `bom` is Mumbai. Pick the region nearer the two phones; it is the shared clock, so the latency
+# to it is what the sync has to correct for.
+
+app = "auralis-relay"
+primary_region = "bom"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  PORT = "8787"
+  DATA_DIR = "/data"
+
+# Rooms outlive a redeploy only with this. Without the volume the relay still runs; codes reset.
+[mounts]
+  source = "relay_data"
+  destination = "/data"
+
+[http_service]
+  internal_port = 8787
+  force_https = true
+  # A relay that is asleep when she opens the app is a relay that is not there. Two people cost
+  # almost nothing to keep warm, and a cold start on the one path that has to feel instant is
+  # the wrong trade.
+  auto_stop_machines = false
+  auto_start_machines = true
+  min_machines_running = 1
+
+  [[http_service.checks]]
+    interval = "30s"
+    timeout = "5s"
+    grace_period = "10s"
+    method = "GET"
+    path = "/health"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "256mb"

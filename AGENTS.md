@@ -22,12 +22,17 @@ The last script is the one that matters for Play compliance: it inspects the
 built `play` APK for scraped-source packages rather than trusting the source
 layout.
 
-`relay/` is a separate Cloudflare Worker with its own toolchain, and the
-Gradle build does not touch it. If you changed anything under `relay/`:
+`relay/` is a separate Node service with its own toolchain, and the Gradle
+build does not touch it. If you changed anything under `relay/`:
 
 ```bash
-cd relay && npm test && npm run typecheck
+cd relay && npm test && npm run typecheck && npm run build
+DATA_DIR="" npm start &                   # then, in the same shell
+npm run smoke -- http://localhost:8787
 ```
+
+The smoke test is the one that catches what the unit tests cannot, and it runs
+against a local process now rather than needing a deployment.
 
 See [`docs/RELAY.md`](docs/RELAY.md) for what it is and how it deploys.
 

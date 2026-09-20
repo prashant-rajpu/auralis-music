@@ -120,6 +120,13 @@ export interface QueueEntry {
   addedBy: string;
 }
 
+/** One message as the relay holds it: opaque bytes, whose sender and time the server assigned. */
+export interface ChatEntry {
+  senderId: string;
+  serverMs: number;
+  ciphertext: string;
+}
+
 export interface RoomSnapshot {
   members: Member[];
   hostId: string;
@@ -132,7 +139,7 @@ export interface RoomSnapshot {
     atServerMs: number;
   } | null;
   queue: QueueEntry[];
-  chat: { senderId: string; serverMs: number; ciphertext: string }[];
+  chat: ChatEntry[];
 }
 
 /**
@@ -156,8 +163,8 @@ export interface IceServer {
 
 const ICE_SCHEMES = ["stun:", "stuns:", "turn:", "turns:"];
 
-/** Free, unlimited, and the right answer when no TURN key is configured. */
-export const PUBLIC_STUN: IceServer = { urls: ["stun:stun.cloudflare.com:3478"] };
+/** Public, free, and not tied to whoever happens to be hosting this relay. */
+export const PUBLIC_STUN: IceServer = { urls: ["stun:stun.l.google.com:19302"] };
 
 /**
  * Cleans up what the TURN credential API returned before it is handed to a phone.

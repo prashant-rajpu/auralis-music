@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  # The relay is a separate Cloudflare Worker with its own toolchain, and it holds the rule that a
+  # The relay is a separate Node service with its own toolchain, and it holds the rule that a
   # Together message can never carry a stream URL. Run its tests even on a commit that only touches
   # Kotlin: the two sides of the protocol have to keep agreeing.
   relay:
@@ -28,11 +28,27 @@ jobs:
       working-directory: relay
       run: npm ci
 
-    - name: Protocol tests and typecheck
+    - name: Tests and typecheck
       working-directory: relay
       run: |
         npm test
         npm run typecheck
+
+    - name: Build
+      working-directory: relay
+      run: npm run build
+
+    # End to end, against a real process over real sockets. This used to need a deployment, so it
+    # only ever ran by hand after one; a plain Node server can be started here instead.
+    - name: Smoke test a running relay
+      working-directory: relay
+      run: |
+        DATA_DIR="" PORT=8787 node dist/server.js &
+        for _ in $(seq 1 30); do
+          curl -sf http://127.0.0.1:8787/health >/dev/null && break
+          sleep 1
+        done
+        npm run smoke -- http://127.0.0.1:8787
 
   build:
     runs-on: ubuntu-latest

@@ -12,7 +12,7 @@ import {
   parseClientMessage,
   removeFirstMatch,
   validateTrackRef,
-} from "../src/protocol";
+} from "../src/protocol.js";
 
 const validTrack = {
   provider: "audius",
@@ -261,7 +261,7 @@ describe("ice servers", () => {
 
   it("keeps TURN over TLS on 443, which is the one that survives a hostile network", () => {
     const servers = normaliseIceServers(minted);
-    const urls = servers.flatMap((server) => server.urls);
+    const urls = servers.flatMap((server: { urls: string[] }) => server.urls);
     expect(urls).toContain("turns:turn.cloudflare.com:443?transport=tcp");
     expect(servers[1]?.username).toBe("a".repeat(96));
     expect(servers[1]?.credential).toBe("b".repeat(96));

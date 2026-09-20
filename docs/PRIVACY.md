@@ -33,8 +33,8 @@ checked on the built APK, not just the source tree, by
 
 ## Together sessions
 
-A Together session goes through a relay — a small Cloudflare Worker, documented
-in [`RELAY.md`](RELAY.md). It exists for one reason: two phones cannot agree on
+A Together session goes through a relay — a small server, documented in
+[`RELAY.md`](RELAY.md), which you host yourself or run wherever you like. It exists for one reason: two phones cannot agree on
 a playback position from their own clocks, so something has to hold the shared
 one.
 
@@ -106,12 +106,13 @@ reached at, which is the one genuinely sensitive thing a call produces, and it
 is not sent in the clear.
 
 **When the two networks will not allow a direct connection**, the media is
-relayed through Cloudflare's TURN service instead. A TURN server forwards
-encrypted packets; it does not hold the keys and cannot decrypt the call. It
-does see that two endpoints are talking, and how much.
+relayed through a TURN server instead. A TURN server forwards encrypted packets;
+it does not hold the keys and cannot decrypt the call. It does see that two
+endpoints are talking, and how much.
 
-The credentials for it are minted by the relay and expire, so the app never
-carries a long-lived key. See [`RELAY.md`](RELAY.md).
+Which TURN server that is, is a setting — run your own and nobody else is in
+the path at all. The credentials come from the relay and expire, so the app
+never carries a long-lived key. See [`RELAY.md`](RELAY.md).
 
 **The camera and microphone are asked for when you answer a call**, not at
 install, and only for what that call needs — an audio call never asks for the
@@ -122,9 +123,10 @@ Nothing about a call is recorded. There is no code to record one.
 
 ### Running your own
 
-The relay address is a setting. `wrangler deploy` from the `relay/` folder
-gives you your own, and the app will talk to it instead. That is also what
-keeps Together working in an F-Droid build.
+The relay address is a setting, and the relay is one container with no
+proprietary dependencies — `docker compose up` in `relay/` gives you your own,
+and the app will talk to it instead. That is also what keeps Together working
+in an F-Droid build.
 
 ## What Auralis does not do
 

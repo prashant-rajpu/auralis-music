@@ -35,7 +35,7 @@ import kotlin.coroutines.resume
 private data class CreateRoomResponse(val code: String = "", val hostToken: String = "")
 
 /**
- * The relay transport: one WebSocket to one Durable Object, kept alive.
+ * The relay transport: one WebSocket to one room on the relay, kept alive.
  *
  * Reconnection is the interesting part. A phone changing networks, or a screen that went off long
  * enough for the radio to drop, must come back into the *same* room rather than ending the session
@@ -250,7 +250,7 @@ class RelayWebSocketTransport @Inject constructor(
         /** Named rather than OkHttp's default, so we are not mistaken for a scraper. */
         val USER_AGENT = "Auralis/${BuildConfig.VERSION_NAME} (Android ${Build.VERSION.RELEASE})"
 
-        /** Cloudflare and friends mark an interstitial with this; the body is a page, not our JSON. */
+        /** A CDN or WAF marks an interstitial with this; the body is a page, not our JSON. */
         fun isChallenge(response: Response?): Boolean =
             response != null &&
                 (response.code == 403 || response.code == 503) &&

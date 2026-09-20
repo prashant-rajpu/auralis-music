@@ -57,7 +57,7 @@ object RelayEndpoints {
         val trimmed = baseUrl.trim().trimEnd('/')
         if (trimmed.isEmpty()) return null
         val url = trimmed.toHttpUrlOrNull() ?: return null
-        // An http relay is only ever a local wrangler dev; anything public must be https.
+        // An http relay is only ever one running on this machine; anything public must be https.
         if (url.scheme != "https" && url.host != "localhost" && url.host != "127.0.0.1") return null
         return url
     }

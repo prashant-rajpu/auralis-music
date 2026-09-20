@@ -1,8 +1,13 @@
 # The Together relay
 
-`relay/` is the only server component Auralis has. It is a Cloudflare Worker
-with one Durable Object per listening room, around 700 lines of TypeScript.
-It is deployed separately from the app and is not part of the Gradle build.
+`relay/` is the only server component Auralis has: a plain Node WebSocket
+server, around 800 lines of TypeScript, deployed separately from the app and
+not part of the Gradle build.
+
+It ran on Cloudflare Workers and Durable Objects first. That was elegant and it
+tied the whole feature to one company's account, so it now runs anywhere that
+can run a container — Fly, Render, a VPS, a Raspberry Pi. The wire format did
+not change when it moved, and neither did a line of the app.
 
 ## Why it exists
 
@@ -81,27 +86,81 @@ A host that disconnects hands the room over immediately to whoever is still
 connected, so playback never freezes. The original host reclaims it by
 presenting their `hostToken` when they reconnect.
 
-## Deploying
+## Running it
 
 ```bash
 cd relay
 npm install
-npm test          # protocol and validation tests
+npm test            # protocol, room, store and ICE — 52 tests, no server needed
 npm run typecheck
-npx wrangler login
-npm run deploy
-npm run smoke -- <the url it printed>
+npm run build
+DATA_DIR=./data npm start
+npm run smoke -- http://localhost:8787   # 21 end-to-end checks against that process
 ```
 
-`wrangler login` is interactive, so it has to be you: an agent in a headless
-container cannot complete the browser flow, and handing one an API token to
-work around that is a worse trade than typing one command.
+Do that before every deploy. The smoke test talks to a real process over real
+sockets and catches what unit tests cannot — including whatever proxy and TLS
+terminator your host puts in front of it, once you point it at the deployed
+address instead.
 
-`wrangler deploy` prints the worker URL. It looks like
-`https://auralis-relay.<your-subdomain>.workers.dev` — the subdomain is yours,
-so there is no address this repo could have guessed.
+## Deploying
 
-Give it to the app in either of two ways:
+The relay is one container with one port and one optional volume. Every option
+below is the same image; pick on cost and whether it is allowed to fall asleep.
+
+### Fly.io — the recommendation
+
+Closest thing to "it just works", and it can sit in Mumbai, which is the
+nearest region to both of you. `fly.toml` is committed.
+
+```bash
+cd relay
+fly launch --no-deploy --copy-config --name auralis-relay
+fly volumes create relay_data --region bom --size 1   # keeps room codes across deploys
+fly deploy
+```
+
+Roughly $2–3 a month for a machine that never sleeps. `auto_stop_machines` is
+deliberately off: a relay that is asleep when she opens the app is a relay that
+is not there, and a cold start on the one path that has to feel instant is the
+wrong trade.
+
+### Render — free, but it sleeps
+
+`render.yaml` is committed. Point Render at the repo and it builds the
+Dockerfile. The free plan needs no card and **sleeps the service after 15
+minutes of no traffic**, so the first person in waits through a cold start of
+around a minute. The app reconnects by itself, so it recovers rather than
+breaking — it is just a poor first impression. The free plan also has no
+persistent disk, which is why `DATA_DIR` is empty there: room codes reset on
+every deploy.
+
+### Your own server
+
+Any VPS, or a machine at home. `docker-compose.yml` is committed; put Caddy or
+nginx in front for TLS.
+
+```bash
+cd relay
+docker compose up -d
+```
+
+Oracle Cloud's Always Free tier gives an ARM VM permanently at no cost, which
+is the only genuinely free option here that never sleeps. It costs you an
+afternoon of setup and a domain name.
+
+### Anything else
+
+`docker build -t auralis-relay .` and run it. Railway, Koyeb, Hetzner, Google
+Cloud Run, AWS App Runner, Azure Container Apps — the relay needs a container,
+one TCP port, and a host that does not kill idle WebSockets. Cloud Run is
+serverless and will scale to zero, so it has the same cold-start caveat as
+Render's free plan.
+
+## Telling the app where it is
+
+Whatever you deploy to prints or shows a URL. Give it to the app in either of
+two ways:
 
 - **Per build**, so an APK ships ready to use: put
   `auralis.relayUrl=https://…` in `~/.gradle/gradle.properties`, or set the
@@ -113,30 +172,27 @@ Give it to the app in either of two ways:
 With neither set, the Together tab says so plainly instead of failing as a
 socket error, because a plausible-but-wrong default is worse than none.
 
-Local development: `npm run dev` runs the worker and the Durable Object in
-Workers' local runtime at `http://localhost:8787`.
-
 ## What is configured, and why
-
-`wrangler.toml` turns on Workers Logs and Traces. Without them a session that
-misbehaves on two real phones leaves nothing behind to look at, which is the
-difference between a bug report and a diagnosis.
 
 Room codes come from `crypto.getRandomValues`, not `Math.random`. The code is
 the only thing keeping a room private, and for a session opened by typing the
 code rather than following a link it is also what the chat key is derived
 from — so it has to be unguessable, which `Math.random` is not built to be.
 
-`Room` extends `DurableObject` from `cloudflare:workers` rather than merely
-implementing the interface, so it inherits the runtime behaviour and `this.ctx`
-that the base class provides, and the namespace is typed by the class.
+`Room` is a plain object over a `Sink` — anything with `send` and `close` —
+rather than being tied to a particular socket library. That is the reason the
+room's own behaviour is unit-tested at all: presence, host handover and what a
+hostile frame does to a *running* room used to need a deployment to exercise.
 
-**Not configurable on a `workers.dev` address:** the managed bot challenge in
-front of it. Requests that score badly — anything from a datacenter IP, for
-instance — get an HTML interstitial that no HTTP client can solve. A phone on
-an ordinary network scores fine, and the app now detects the challenge and says
-so rather than retrying into it forever. Turning it off needs a custom domain
-on a zone you control; a `workers.dev` subdomain has no WAF settings.
+Rooms are kept in memory and written to one JSON file, debounced and atomically
+(a temporary file renamed over the real one, so a process killed mid-write
+leaves the previous version rather than half of the new one). A database would
+be the obvious reach and the wrong one: the entire state is a handful of rooms
+holding at most fifty short messages each.
+
+Set `DATA_DIR` to an empty string to keep everything in memory. That is the
+right setting on a host with no persistent disk, where a file would only give
+the false impression of durability.
 
 ## TURN, and why the call needs it
 
@@ -146,72 +202,106 @@ peer-to-peer traffic outright — the audio and video have to be relayed through
 a TURN server, and *which* TURN address is on offer decides whether the call
 connects at all.
 
-The one that matters is `turns:turn.cloudflare.com:443`. That is TURN inside
-TLS on the port every HTTPS request already uses, so a network filter cannot
-pick it out from ordinary web traffic without breaking the web. Plain
-`turn:…:3478/udp` is faster and is tried first; 443 is the fallback that still
-works when the network is hostile to VoIP. **This is not a theoretical
-concern** — the UAE restricts consumer VoIP, and one half of this app's
-intended pair is there.
+The one that matters is `turns:<host>:443`. That is TURN inside TLS on the port
+every HTTPS request already uses, so a network filter cannot pick it out from
+ordinary web traffic without breaking the web. Plain `turn:…:3478/udp` is
+faster and is tried first; 443 is the fallback that still works when the
+network is hostile to calls. **This is not a theoretical concern** — the UAE
+restricts consumer VoIP, and one half of this app's intended pair is there.
 
-The relay mints the credentials rather than the app carrying them, so the
-long-lived key never ships inside an APK:
+The relay hands the credentials out rather than the app carrying them, so
+nothing long-lived ever ships inside an APK. A member sends `ice`; the room
+answers with the server list, cached for the room and re-derived before it
+expires. With nothing configured it returns public STUN alone — a working call
+on most home networks and a failed one on the awkward ones. The app can see
+which it got.
+
+### Running your own (coturn)
+
+The best option if you already have a server: no account, no quota, no third
+party in the media path.
 
 ```bash
-# Create a TURN key at dash.cloudflare.com -> Realtime -> TURN, then:
-cd relay
-npx wrangler secret put TURN_KEY_ID
-npx wrangler secret put TURN_KEY_API_TOKEN
+# /etc/turnserver.conf
+listening-port=3478
+tls-listening-port=443
+fingerprint
+use-auth-secret
+static-auth-secret=<a long random string>
+realm=turn.example.com
+cert=/etc/letsencrypt/live/turn.example.com/fullchain.pem
+pkey=/etc/letsencrypt/live/turn.example.com/privkey.pem
+no-multicast-peers
 ```
 
-A member asks for `ice`; the room mints a credential with a 12-hour TTL, caches
-it, and sends back the `iceServers` list. With no key configured it returns
-public STUN alone — `stun.cloudflare.com` is free and unlimited — which is a
-working call on most home networks and a failed one on the awkward ones. The
-app can see which it got and say so rather than just failing.
+Then give the relay the same secret:
 
-Cloudflare Realtime TURN is $0.05/GB after a free 1,000 GB a month. A relayed
-video call runs around 0.5 GB an hour, and only a call that could not connect
-directly is relayed at all, so two people will not reach the free tier.
+```bash
+TURN_URLS=turn:turn.example.com:3478?transport=udp,turn:turn.example.com:80?transport=tcp,turns:turn.example.com:443?transport=tcp
+TURN_SECRET=<the same static-auth-secret>
+```
+
+`use-auth-secret` is coturn's REST scheme: the relay derives a username that
+carries its own expiry and a password that is an HMAC of it. Nothing is stored
+and nothing has to be revoked — a credential simply stops working.
+
+Note that TLS on 443 wants a port to itself. If the relay is on the same
+machine, put them on different addresses, or give coturn the box and host the
+relay elsewhere.
+
+### A hosted TURN provider
+
+Any of them work; the relay only needs a URL and a credential.
+
+```bash
+TURN_URLS=turns:turn.provider.example:443?transport=tcp
+TURN_USERNAME=<from the provider>
+TURN_CREDENTIAL=<from the provider>
+```
+
+Metered's Open Relay is free and needs no account, which makes it the fastest
+way to find out whether TURN fixes a call that will not connect. Twilio's
+Network Traversal Service is the paid, reliable end. Both offer `turns:` on
+443, which is the only property that matters here.
+
+Whichever you use, check the smoke test's TURN line: it fails if the list comes
+back without a TLS address on 443.
 
 ## Cost
 
-Workers' free tier is 100,000 requests a day. A WebSocket connection counts as
-one request; the messages over it do not. Durable Objects on the free tier
-include 1 GB of SQLite storage and enough request volume that a handful of
-couples will not approach it.
+The relay itself is one small container: a couple of dollars a month on Fly,
+nothing on a Render free plan that sleeps, nothing on a server you already own.
+Two people generate a few kilobytes a second while a session is open and
+nothing at all the rest of the time.
 
-WebSocket Hibernation is why an idle room costs nothing: between messages the
-Durable Object is evicted from memory while the sockets stay open. All durable
-state therefore lives in storage or in the socket attachments, never in
-instance fields that would not survive eviction. Duration billing stops during
-hibernation, so a session left open overnight is charged for the moments
-someone actually did something.
+TURN is the part with real bandwidth attached, and only for calls that could
+not connect directly. A relayed video call is around 0.5 GB an hour. Self-hosted
+that is just your server's egress; on a hosted provider it is whatever they
+charge per gigabyte.
 
 ## Testing
 
-Two suites, and they cover different halves.
+Three layers, and they cover different things.
 
 ```bash
 cd relay
-npm test                                      # the protocol, no runtime needed
-npm run smoke -- https://your-relay.workers.dev   # a real deployment
+npm test                                  # 52 unit tests, no server needed
+npm run build && DATA_DIR="" npm start    # in one terminal
+npm run smoke -- http://localhost:8787    # 21 end-to-end checks, in another
 ```
 
-`src/protocol.ts` is deliberately pure — no Workers APIs, no I/O — because it
-holds the entire security boundary and is worth testing without a runtime.
-`npm test` covers it.
+`src/protocol.ts` is deliberately pure — no I/O, no framework — because it
+holds the entire security boundary. `src/room.ts` talks to a `Sink` rather than
+a socket, so presence, host handover, rate limiting and the chat history cap
+are unit-tested too; that half used to need a deployment to exercise at all.
 
-`npm run smoke` covers what a pure test cannot: it creates a room on a live
-relay, connects two clients, and checks presence, the injected server clock,
-the shared queue, opaque chat, and host handover when the host drops. It also
-re-checks the rule that matters against a *running* room rather than a
-function — a frame carrying `mediaUrl` is refused, and never reaches the peer.
+`npm run smoke` covers what a unit test cannot: a real process, real sockets,
+and whatever proxy sits in front of it. It creates a room, connects two
+clients, and checks presence, the injected server clock, the shared queue,
+opaque chat, the ICE list, history on rejoin, and host handover when the host
+drops. It also re-checks the rule that matters against a *running* room — a
+frame carrying `mediaUrl` is refused, and never reaches the peer.
 
-It needs a URL because it talks to a real deployment, so it is not part of CI.
-**Run it after every deploy.**
-
-Still uncovered: hibernation and the alarm-driven 30-day TTL, both of which
-take real time to observe. `@cloudflare/vitest-pool-workers` would let those be
-tested in `workerd`, but it cannot be installed here — npm fails resolving its
-vitest 4 peer with an internal `edgesOut` error.
+CI runs all three: it builds the relay, starts it, and points the smoke test at
+it. Run the same smoke test against the deployed address after every deploy —
+that is the only way to catch a host that mangles WebSockets.

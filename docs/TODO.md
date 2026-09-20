@@ -13,14 +13,23 @@ what the app knows about you.
 
 Small, but nothing else about Together can be trusted until they are done.
 
-- [ ] **Settle on one relay.** Two are live. `auralis-relay.wood-repair.workers.dev`
-      is the claimed preview account running the *old* code, and is what the last
-      APK points at. A second `auralis-relay`, created 2026-09-20 09:02 in your
-      main account, has the current code — CSPRNG room codes, logs, traces — and
-      its URL is not recorded anywhere. Get it from the `wrangler deploy` output,
-      then either rebuild with `-Pauralis.relayUrl=<url>` or set it in
-      Settings → Together.
-- [ ] **Delete whichever relay loses**, and the empty `auralis-music` Pages
+- [ ] **Deploy the relay somewhere.** It is no longer a Cloudflare Worker — it
+      is a plain Node server in a container, and `relay/` carries a
+      `Dockerfile`, a `fly.toml`, a `render.yaml` and a `docker-compose.yml`.
+      Fly.io in Mumbai is the recommendation: closest region to both of you,
+      never sleeps, a couple of dollars a month.
+
+      ```bash
+      cd relay
+      fly launch --no-deploy --copy-config --name auralis-relay
+      fly volumes create relay_data --region bom --size 1
+      fly deploy
+      npm run smoke -- https://<what it printed>
+      ```
+
+      `docs/RELAY.md` has the Render and self-hosted paths, and what each one
+      costs you.
+- [ ] **Delete the two Cloudflare relays** and the empty `auralis-music` Pages
       project, so there is one address and no confusion later.
 - [ ] **Put the URL somewhere permanent** — `auralis.relayUrl` in
       `~/.gradle/gradle.properties` for local builds, and an `AURALIS_RELAY_URL`
@@ -28,21 +37,15 @@ Small, but nothing else about Together can be trusted until they are done.
 - [ ] **Run the two-phone test** and keep the numbers: the Together tab shows
       live drift in ms and the round trip. Those two are what turn the sync
       thresholds from reasoned guesses into measurements.
-- [ ] **Create a TURN key and give it to the relay.** Without it a call has STUN
-      only, which works on most home networks and fails on the awkward ones —
-      and one of the two phones this is for is on a network that restricts
-      consumer VoIP, which is the awkward case. Cloudflare dashboard →
-      Realtime → TURN, then:
+- [ ] **Set up TURN.** Without it a call has STUN only, which works on most home
+      networks and fails on the awkward ones — and one of the two phones this is
+      for is on a network that restricts consumer VoIP, which is the awkward
+      case. Either point `TURN_URLS` + `TURN_USERNAME`/`TURN_CREDENTIAL` at a
+      hosted provider, or run coturn with `use-auth-secret` and give the relay
+      the same `TURN_SECRET`. `docs/RELAY.md` has a working coturn config.
 
-      ```bash
-      cd relay
-      npx wrangler secret put TURN_KEY_ID
-      npx wrangler secret put TURN_KEY_API_TOKEN
-      npm run deploy
-      ```
-
-      1,000 GB a month is free; a relayed video call is around 0.5 GB an hour,
-      and only a call that could not connect directly is relayed at all.
+      The smoke test tells you which you have: its TURN line names the
+      addresses, and fails if the list comes back without TLS on 443.
 
 ---
 
@@ -50,9 +53,10 @@ Small, but nothing else about Together can be trusted until they are done.
 
 Worth stating plainly before anything below gets planned on top of it.
 
-Machine-checked: compilation, 341 unit tests on `play`, 34 relay protocol tests,
-17 end-to-end checks against a live relay, lint, R8, and APK-level proof that
-`play` contains no scraped-source code.
+Machine-checked: compilation, 341 unit tests on `play`, 52 relay unit tests, 21
+end-to-end checks against a running relay, lint, R8, and APK-level proof that
+`play` contains no scraped-source code. The relay's end-to-end checks now run in
+CI, because the relay is an ordinary process that CI can start.
 
 **Not checked by anyone but you:** whether it feels right, whether contrast holds
 on real album art, whether playback resumes correctly after a force-stop, and
@@ -67,9 +71,9 @@ no test here can tell you is whether a real peer connection forms between a
 phone in the UAE and a phone in India, which is the only question that matters
 about it. Test that before the birthday, not on it.
 
-Also untested anywhere: Durable Object hibernation and the 30-day room TTL, both
-of which take real time to observe. `@cloudflare/vitest-pool-workers` would cover
-them; it will not install here (npm fails resolving its vitest 4 peer).
+The relay's own gaps closed with the move off Durable Objects: the room, the
+30-day TTL sweep and the on-disk store are all unit-tested now, because none of
+them needs a runtime to exercise any more.
 
 ---
 
@@ -256,18 +260,15 @@ All local; nothing leaves the device.
 
 ## 8. Quality and infrastructure
 
-- [ ] **Durable Object tests.** Retry `@cloudflare/vitest-pool-workers` — the npm
-      resolver bug may be fixed by now. It is the only way to cover hibernation
-      and the alarm-driven TTL. `npm run smoke` covers everything else, but needs
-      a deployment.
 - [ ] **A drift soak test on real hardware.** `SyncControllerTest` runs an hour of
       simulated ticks; nothing has run an hour of real ones. Log RTT, offset,
       drift samples and corrections, and compare against the table in
       `SyncConfig`.
 - [ ] **Macrobenchmark** for the player once v4.2 lands.
-- [ ] Consider a custom domain for the relay. A `workers.dev` address has no WAF
-      settings, so the managed bot challenge in front of it cannot be turned off —
-      the app detects it and says so, but cannot pass it.
+- [ ] **A second relay instance, once there is a reason for one.** The rooms are
+      held in a single process, so scaling out would need them shared — sticky
+      routing by room code is the cheap answer, a shared store the thorough one.
+      Two people do not need either; write it down rather than build it.
 
 ---
 
