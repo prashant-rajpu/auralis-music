@@ -70,6 +70,8 @@ export type ClientMessage =
   /** Body is ciphertext. The relay cannot read chat, and does not try. */
   | { type: "chat"; ciphertext: string }
   | { type: "reaction"; emoji: string }
+  /** Asks for the STUN/TURN servers a call should use. See `IceServer`. */
+  | { type: "ice" }
   | { type: "bye" };
 
 export type ServerMessage =
@@ -89,6 +91,7 @@ export type ServerMessage =
   | { type: "queue"; serverMs: number; items: QueueEntry[] }
   | { type: "chat"; senderId: string; serverMs: number; ciphertext: string }
   | { type: "reaction"; senderId: string; serverMs: number; emoji: string }
+  | { type: "ice"; serverMs: number; iceServers: IceServer[]; expiresAtMs: number }
   | { type: "error"; code: ErrorCode; message: string };
 
 export type ErrorCode =
@@ -130,6 +133,66 @@ export interface RoomSnapshot {
   } | null;
   queue: QueueEntry[];
   chat: { senderId: string; serverMs: number; ciphertext: string }[];
+}
+
+/**
+ * Where a call looks for a path between two phones.
+ *
+ * STUN is enough whenever the two networks will let them talk directly. When they will not — a
+ * carrier behind CGNAT on one side, a network that blocks WebRTC on the other — the audio and
+ * video have to be relayed through a TURN server instead, and which TURN address is offered
+ * decides whether the call connects at all. `turns:` on port 443 is the one that survives a
+ * hostile network: it is a TLS connection to the port every HTTPS request already uses, so a
+ * filter cannot tell it apart from ordinary web traffic without breaking the web.
+ *
+ * The relay hands these out rather than the app carrying them, so the long-lived TURN key stays
+ * on the server and each phone only ever holds a credential that expires.
+ */
+export interface IceServer {
+  urls: string[];
+  username?: string;
+  credential?: string;
+}
+
+const ICE_SCHEMES = ["stun:", "stuns:", "turn:", "turns:"];
+
+/** Free, unlimited, and the right answer when no TURN key is configured. */
+export const PUBLIC_STUN: IceServer = { urls: ["stun:stun.cloudflare.com:3478"] };
+
+/**
+ * Cleans up what the TURN credential API returned before it is handed to a phone.
+ *
+ * Pure and separate from the fetch because this is the part worth testing: whatever comes out of
+ * here is configured directly on a peer connection, so only STUN and TURN addresses may get
+ * through. Port 53 is dropped — it is blocked often enough that offering it buys a timeout rather
+ * than a connection.
+ *
+ * Returns STUN alone rather than throwing if the payload is not what was expected. A call with
+ * only STUN might not connect; a call with no ICE servers at all definitely will not.
+ */
+export function normaliseIceServers(payload: unknown): IceServer[] {
+  if (!isPlainObject(payload) || !Array.isArray(payload.iceServers)) return [PUBLIC_STUN];
+
+  const servers: IceServer[] = [];
+  for (const entry of payload.iceServers.slice(0, 8)) {
+    if (!isPlainObject(entry)) continue;
+
+    const raw = Array.isArray(entry.urls) ? entry.urls : [entry.urls];
+    const urls = raw
+      .filter((url): url is string => typeof url === "string" && url.length <= 256)
+      .filter((url) => ICE_SCHEMES.some((scheme) => url.startsWith(scheme)))
+      .filter((url) => !url.includes(":53?") && !url.endsWith(":53"))
+      .slice(0, 12);
+    if (urls.length === 0) continue;
+
+    const username = typeof entry.username === "string" ? entry.username : undefined;
+    const credential = typeof entry.credential === "string" ? entry.credential : undefined;
+    servers.push(
+      username !== undefined && credential !== undefined ? { urls, username, credential } : { urls },
+    );
+  }
+
+  return servers.length === 0 ? [PUBLIC_STUN] : servers;
 }
 
 export class ValidationError extends Error {
@@ -271,6 +334,10 @@ export function validateClientMessage(value: unknown): ClientMessage {
     case "reaction":
       allowOnly(value, ["type", "emoji"], "reaction");
       return { type: "reaction", emoji: str(value.emoji, "emoji", 16) };
+
+    case "ice":
+      allowOnly(value, ["type"], "ice");
+      return { type: "ice" };
 
     case "bye":
       allowOnly(value, ["type"], "bye");

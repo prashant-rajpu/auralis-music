@@ -52,14 +52,18 @@ code. A room is private to whoever was told the code.
 ### Client messages
 
 `ping`, `playback`, `seek`, `queueAdd`, `queueRemove`, `buffering`, `chat`,
-`reaction`, `bye`. The server injects `senderId` and `serverMs` on every
+`reaction`, `ice`, `bye`. The server injects `senderId` and `serverMs` on every
 broadcast; a client cannot claim to be someone else or claim a different time.
 
 ### Server messages
 
 `welcome` (with a full room snapshot so a late joiner catches up in one round
 trip), `pong`, `presence`, `playback`, `seek`, `queue`, `chat`, `reaction`,
-`error`.
+`ice`, `error`.
+
+Call signalling is not in this list on purpose. An offer, an answer and every
+ICE candidate ride the encrypted `chat` channel, so the relay never learns that
+a call is happening, let alone the addresses inside it.
 
 ## Limits
 
@@ -133,6 +137,42 @@ instance — get an HTML interstitial that no HTTP client can solve. A phone on
 an ordinary network scores fine, and the app now detects the challenge and says
 so rather than retrying into it forever. Turning it off needs a custom domain
 on a zone you control; a `workers.dev` subdomain has no WAF settings.
+
+## TURN, and why the call needs it
+
+A video call tries to connect the two phones directly. Often it can. When it
+cannot — one side behind carrier-grade NAT, or on a network that blocks
+peer-to-peer traffic outright — the audio and video have to be relayed through
+a TURN server, and *which* TURN address is on offer decides whether the call
+connects at all.
+
+The one that matters is `turns:turn.cloudflare.com:443`. That is TURN inside
+TLS on the port every HTTPS request already uses, so a network filter cannot
+pick it out from ordinary web traffic without breaking the web. Plain
+`turn:…:3478/udp` is faster and is tried first; 443 is the fallback that still
+works when the network is hostile to VoIP. **This is not a theoretical
+concern** — the UAE restricts consumer VoIP, and one half of this app's
+intended pair is there.
+
+The relay mints the credentials rather than the app carrying them, so the
+long-lived key never ships inside an APK:
+
+```bash
+# Create a TURN key at dash.cloudflare.com -> Realtime -> TURN, then:
+cd relay
+npx wrangler secret put TURN_KEY_ID
+npx wrangler secret put TURN_KEY_API_TOKEN
+```
+
+A member asks for `ice`; the room mints a credential with a 12-hour TTL, caches
+it, and sends back the `iceServers` list. With no key configured it returns
+public STUN alone — `stun.cloudflare.com` is free and unlimited — which is a
+working call on most home networks and a failed one on the awkward ones. The
+app can see which it got and say so rather than just failing.
+
+Cloudflare Realtime TURN is $0.05/GB after a free 1,000 GB a month. A relayed
+video call runs around 0.5 GB an hour, and only a call that could not connect
+directly is relayed at all, so two people will not reach the free tier.
 
 ## Cost
 

@@ -6,7 +6,9 @@ import {
   RateLimiter,
   ValidationError,
   generateRoomCode,
+  PUBLIC_STUN,
   isValidRoomCode,
+  normaliseIceServers,
   parseClientMessage,
   removeFirstMatch,
   validateTrackRef,
@@ -235,5 +237,67 @@ describe("queue removal", () => {
     const queue = [entry("a"), entry("b")];
     removeFirstMatch(queue, "a");
     expect(queue).toHaveLength(2);
+  });
+});
+
+describe("ice servers", () => {
+  /** Shaped like a real response from the TURN credential API. */
+  const minted = {
+    iceServers: [
+      { urls: ["stun:stun.cloudflare.com:3478"] },
+      {
+        urls: [
+          "turn:turn.cloudflare.com:3478?transport=udp",
+          "turn:turn.cloudflare.com:3478?transport=tcp",
+          "turn:turn.cloudflare.com:80?transport=tcp",
+          "turns:turn.cloudflare.com:5349?transport=tcp",
+          "turns:turn.cloudflare.com:443?transport=tcp",
+        ],
+        username: "a".repeat(96),
+        credential: "b".repeat(96),
+      },
+    ],
+  };
+
+  it("keeps TURN over TLS on 443, which is the one that survives a hostile network", () => {
+    const servers = normaliseIceServers(minted);
+    const urls = servers.flatMap((server) => server.urls);
+    expect(urls).toContain("turns:turn.cloudflare.com:443?transport=tcp");
+    expect(servers[1]?.username).toBe("a".repeat(96));
+    expect(servers[1]?.credential).toBe("b".repeat(96));
+  });
+
+  it("drops port 53, which is blocked often enough to only cost a timeout", () => {
+    const servers = normaliseIceServers({
+      iceServers: [{ urls: ["turn:turn.cloudflare.com:53?transport=udp", "turn:turn.cloudflare.com:3478"] }],
+    });
+    expect(servers[0]?.urls).toEqual(["turn:turn.cloudflare.com:3478"]);
+  });
+
+  it("refuses a URL that is not a STUN or TURN address", () => {
+    // Whatever comes out of here is configured straight onto a peer connection.
+    const servers = normaliseIceServers({
+      iceServers: [{ urls: ["https://example.invalid/steal", "javascript:alert(1)"] }],
+    });
+    expect(servers).toEqual([PUBLIC_STUN]);
+  });
+
+  it("falls back to public STUN rather than handing back nothing", () => {
+    expect(normaliseIceServers(null)).toEqual([PUBLIC_STUN]);
+    expect(normaliseIceServers({})).toEqual([PUBLIC_STUN]);
+    expect(normaliseIceServers({ iceServers: "no" })).toEqual([PUBLIC_STUN]);
+    expect(normaliseIceServers({ iceServers: [] })).toEqual([PUBLIC_STUN]);
+  });
+
+  it("accepts a single url string as well as a list", () => {
+    const servers = normaliseIceServers({ iceServers: [{ urls: "stun:stun.cloudflare.com:3478" }] });
+    expect(servers[0]?.urls).toEqual(["stun:stun.cloudflare.com:3478"]);
+  });
+
+  it("asking for ice servers is a message with nothing else in it", () => {
+    expect(parseClientMessage(JSON.stringify({ type: "ice" }))).toEqual({ type: "ice" });
+    expect(() => parseClientMessage(JSON.stringify({ type: "ice", urls: ["turn:evil"] }))).toThrow(
+      ValidationError,
+    );
   });
 });

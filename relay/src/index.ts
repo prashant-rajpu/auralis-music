@@ -5,6 +5,13 @@ export { Room };
 
 export interface Env {
   ROOMS: DurableObjectNamespace<Room>;
+  /**
+   * Cloudflare Realtime TURN key, for relaying a call when the two networks will not let the
+   * phones talk directly. Both optional: without them calls fall back to STUN alone, which works
+   * on most home networks and fails on the awkward ones. See docs/RELAY.md.
+   */
+  TURN_KEY_ID?: string;
+  TURN_KEY_API_TOKEN?: string;
 }
 
 /** Per-IP join budget, so one host cannot mint rooms or hammer join in a loop. */

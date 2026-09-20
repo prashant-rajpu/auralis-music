@@ -4,13 +4,16 @@ import {
   MAX_CHAT_HISTORY,
   MAX_MEMBERS,
   MAX_QUEUE_ITEMS,
+  PUBLIC_STUN,
   type ClientMessage,
+  type IceServer,
   type Member,
   type QueueEntry,
   type RoomSnapshot,
   type ServerMessage,
   ValidationError,
   RateLimiter,
+  normaliseIceServers,
   parseClientMessage,
   removeFirstMatch,
 } from "./protocol";
@@ -27,6 +30,21 @@ const ROOM_IDLE_TTL_MS = 30 * 24 * 60 * 60 * 1000;
  * every few seconds; without this, every one of them would cost a storage write and an alarm reset.
  */
 const TOUCH_INTERVAL_MS = 5 * 60 * 1000;
+
+/**
+ * How long a minted TURN credential lives, and how much of that is left before it is replaced.
+ *
+ * Twelve hours is far longer than any call, which is the point: the credential is fetched once and
+ * a call that starts hours later still works. The margin means a call never begins with a
+ * credential that is about to expire underneath it.
+ */
+const ICE_TTL_SECONDS = 12 * 60 * 60;
+const ICE_REFRESH_MARGIN_MS = 30 * 60 * 1000;
+
+interface CachedIce {
+  iceServers: IceServer[];
+  expiresAtMs: number;
+}
 
 interface Attachment {
   memberId: string;
@@ -283,6 +301,17 @@ export class Room extends DurableObject<Env> {
         });
         return;
 
+      case "ice": {
+        const ice = await this.iceServers();
+        this.send(socket, {
+          type: "ice",
+          serverMs,
+          iceServers: ice.iceServers,
+          expiresAtMs: ice.expiresAtMs,
+        });
+        return;
+      }
+
       case "bye":
         socket.close(1000, "bye");
         return;
@@ -295,6 +324,57 @@ export class Room extends DurableObject<Env> {
 
   async webSocketError(socket: WebSocket): Promise<void> {
     await this.afterDeparture(socket);
+  }
+
+  /**
+   * Short-lived TURN credentials, minted from the account's TURN key and cached for the room.
+   *
+   * The key itself never leaves the relay. Each phone gets a credential that expires, which is
+   * what stops the relay's URL being usable as free bandwidth by anyone who finds it.
+   *
+   * Cached per room rather than per member: both members of a call can share one credential, and
+   * without the cache every rejoin would cost an API round trip on the join path.
+   *
+   * With no TURN key configured this falls back to public STUN, and so does a failed mint. That is
+   * a working call for most networks and a failed one for the rest — better than no call at all,
+   * and the app can see which it got.
+   */
+  private async iceServers(): Promise<CachedIce> {
+    const cached = await this.ctx.storage.get<CachedIce>("ice");
+    if (cached !== undefined && cached.expiresAtMs - Date.now() > ICE_REFRESH_MARGIN_MS) {
+      return cached;
+    }
+
+    const keyId = this.env.TURN_KEY_ID;
+    const apiToken = this.env.TURN_KEY_API_TOKEN;
+    if (!keyId || !apiToken) return { iceServers: [PUBLIC_STUN], expiresAtMs: 0 };
+
+    // Deliberately no customIdentifier: the only identifier this room has is its code, and the
+    // code is what the chat key is derived from. It does not go into anyone's analytics.
+    const minted = await fetch(
+      `https://rtc.live.cloudflare.com/v1/turn/keys/${encodeURIComponent(keyId)}/credentials/generate-ice-servers`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ ttl: ICE_TTL_SECONDS }),
+      },
+    ).catch(() => null);
+
+    if (minted === null || !minted.ok) {
+      console.warn("turn mint failed", minted?.status ?? "network");
+      return { iceServers: [PUBLIC_STUN], expiresAtMs: 0 };
+    }
+
+    const payload = await minted.json().catch(() => null);
+    const fresh: CachedIce = {
+      iceServers: normaliseIceServers(payload),
+      expiresAtMs: Date.now() + ICE_TTL_SECONDS * 1000,
+    };
+    await this.ctx.storage.put("ice", fresh);
+    return fresh;
   }
 
   private async afterDeparture(socket: WebSocket): Promise<void> {
