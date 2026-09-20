@@ -61,6 +61,16 @@ sealed interface TogetherNote {
     @SerialName("callInvite")
     data class CallInvite(val withVideo: Boolean) : TogetherNote
 
+    /**
+     * "Picking up." Sent by whoever answered when they are not the one who makes the offer.
+     *
+     * Without it the room's host — which is who offers — would never learn that the other side
+     * had said yes, and both phones would sit ringing at each other forever.
+     */
+    @Serializable
+    @SerialName("callAccept")
+    data object CallAccept : TogetherNote
+
     @Serializable
     @SerialName("callDecline")
     data object CallDecline : TogetherNote
@@ -100,6 +110,7 @@ sealed interface TogetherNote {
 /** True for the notes that are call plumbing rather than something a person said. */
 val TogetherNote.isCallSignalling: Boolean
     get() = this is TogetherNote.CallInvite ||
+        this is TogetherNote.CallAccept ||
         this is TogetherNote.CallDecline ||
         this is TogetherNote.CallOffer ||
         this is TogetherNote.CallAnswer ||

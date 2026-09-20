@@ -125,6 +125,16 @@ class TogetherSession @Inject constructor(
     private val _callSignals = MutableSharedFlow<CallSignal>(extraBufferCapacity = 64)
     val callSignals = _callSignals.asSharedFlow()
 
+    /**
+     * Where a call should look for a path between the two phones.
+     *
+     * Asked for on every welcome rather than when a call starts: the relay caches them for hours,
+     * so it costs one frame per join and saves a round trip on the one path where a round trip is
+     * felt — the seconds between "calling" and hearing her.
+     */
+    private val _iceServers = MutableStateFlow<List<IceServer>>(emptyList())
+    val iceServers = _iceServers.asStateFlow()
+
     private var key: RoomKey? = null
 
     /** The row every play and note in this session is filed under, once there is a partner. */
@@ -408,6 +418,7 @@ class TogetherSession @Inject constructor(
                     fileIncoming(entry, message.state.members)
                 }
                 _state.value.room?.code?.let { flushOutbox(it) }
+                transport.send(TogetherClientMessage.Ice)
                 message.state.playback?.let { playback ->
                     remote = RemotePlayback(
                         trackKey = playback.track.key,
@@ -496,6 +507,11 @@ class TogetherSession @Inject constructor(
                 _reactions.tryEmit(
                     TogetherReaction(message.senderId, nameOf(message.senderId), message.emoji),
                 )
+            }
+
+            is TogetherServerMessage.Ice -> {
+                // An empty list would mean a call with nowhere to look, so the old one is kept.
+                if (message.iceServers.isNotEmpty()) _iceServers.value = message.iceServers
             }
 
             is TogetherServerMessage.Failure ->

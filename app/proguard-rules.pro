@@ -19,3 +19,10 @@
 -dontwarn org.conscrypt.**
 -dontwarn org.bouncycastle.**
 -dontwarn org.openjsse.**
+
+# WebRTC calls into Java from native code by name, so nothing in org.webrtc may be renamed or
+# stripped. R8 cannot see those references, and the failure mode is a call that builds fine and
+# then crashes on the first frame.
+-keep class org.webrtc.** { *; }
+-keepclassmembers class org.webrtc.** { *; }
+-dontwarn org.webrtc.**

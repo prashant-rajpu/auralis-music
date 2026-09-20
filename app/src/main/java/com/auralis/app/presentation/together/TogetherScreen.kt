@@ -34,7 +34,12 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import com.auralis.app.data.repository.SessionMemory
+import com.auralis.app.presentation.call.CallViewModel
+import com.auralis.app.presentation.call.granted
+import com.auralis.app.presentation.call.needed
 import com.auralis.app.together.EncryptionStrength
 import com.auralis.app.together.ListeningStreak
 import com.auralis.app.together.Invite
@@ -654,14 +659,31 @@ private fun LiveSession(state: TogetherUiState, viewModel: TogetherViewModel) {
 }
 
 /**
- * The three things that only make sense between two people: a knock, a song dedicated with
- * something said about it, and a sleep timer that stops both phones on the same beat.
+ * The things that only make sense between two people: calling them, a knock, a song dedicated
+ * with something said about it, and a sleep timer that stops both phones on the same beat.
  */
 @Composable
-private fun CoupleActions(state: TogetherUiState, viewModel: TogetherViewModel) {
+private fun CoupleActions(
+    state: TogetherUiState,
+    viewModel: TogetherViewModel,
+    call: CallViewModel = hiltViewModel(),
+) {
     var dedicating by remember { mutableStateOf(false) }
     var choosingGoodnight by remember { mutableStateOf(false) }
     val playing = viewModel.nowPlaying()
+    val context = LocalContext.current
+
+    // Asked for here rather than at install, and only for what the call actually needs.
+    var wantedVideo by remember { mutableStateOf(true) }
+    val permissions = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions(),
+    ) { results -> if (results.values.all { it }) call.call(wantedVideo) }
+
+    fun place(withVideo: Boolean) {
+        wantedVideo = withVideo
+        val wanted = needed(withVideo)
+        if (wanted.all { granted(context, it) }) call.call(withVideo) else permissions.launch(wanted)
+    }
 
     Column(
         modifier = Modifier
@@ -670,6 +692,31 @@ private fun CoupleActions(state: TogetherUiState, viewModel: TogetherViewModel) 
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            ActionChip(
+                label = "📹  Video call",
+                enabled = state.room?.partner != null,
+                onClick = { place(withVideo = true) },
+                modifier = Modifier.weight(1f),
+            )
+            ActionChip(
+                label = "📞  Voice",
+                enabled = state.room?.partner != null,
+                onClick = { place(withVideo = false) },
+                modifier = Modifier.weight(1f),
+            )
+        }
+
+        // Only a headset keeps the music out of the microphone. Said once, where it is useful,
+        // rather than discovered by the other person hearing the song back with a delay.
+        if (playing != null) {
+            Text(
+                text = "On a call while music is playing, headphones keep the song out of your microphone.",
+                fontSize = 11.sp,
+                color = TextTertiary,
+            )
+        }
+
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             ActionChip(label = "👋  Knock", onClick = viewModel::knock, modifier = Modifier.weight(1f))
             ActionChip(

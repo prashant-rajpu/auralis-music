@@ -66,6 +66,54 @@ class CallControllerTest {
         assertTrue("a guest must not offer", actions.none { it is CallAction.CreateOffer })
     }
 
+    @Test
+    fun `a guest that picks up says so, because nothing else would tell the host`() {
+        val guest = controller(isHost = false)
+        guest.onSignal(signal(TogetherNote.CallInvite(withVideo = true)))
+
+        val actions = guest.accept()
+
+        assertEquals(listOf(TogetherNote.CallAccept), actions.sent())
+    }
+
+    /**
+     * The whole round trip between two controllers. Without the accept note the host sits on a
+     * ringing invite forever and the guest waits for an offer that is never made — both phones
+     * showing a call that will not start.
+     */
+    @Test
+    fun `a host that is answered by a guest gets as far as making the offer`() {
+        val host = controller(isHost = true)
+        val guest = controller(isHost = false)
+
+        host.start(withVideo = true, peerName = "Priya")
+        guest.onSignal(signal(TogetherNote.CallInvite(withVideo = true)))
+        val fromGuest = guest.accept().sent()
+
+        val hostActions = fromGuest.flatMap { host.onSignal(signal(it)) }
+
+        assertEquals(CallState.CONNECTING, host.state.state)
+        assertEquals(CallState.CONNECTING, guest.state.state)
+        assertEquals(true, hostActions.only<CallAction.CreateOffer>().withVideo)
+    }
+
+    @Test
+    fun `an accept that arrives when nobody is ringing out changes nothing`() {
+        val c = controller(isHost = true)
+        assertTrue(c.onSignal(signal(TogetherNote.CallAccept)).isEmpty())
+        assertEquals(CallState.IDLE, c.state.state)
+    }
+
+    @Test
+    fun `whoever pressed call first is still the caller, whichever way the offer travels`() {
+        val guest = controller(isHost = false)
+        guest.start(withVideo = false, peerName = "Priya")
+        // The host accepted and, being the host, offered straight away.
+        guest.onSignal(signal(TogetherNote.CallOffer("v=0", withVideo = false)))
+
+        assertEquals(CallRole.CALLER, guest.state.role)
+    }
+
     /** Both press call at the same moment. Two offers deadlock, so the host's wins. */
     @Test
     fun `a simultaneous call does not deadlock`() {

@@ -125,9 +125,37 @@ sealed interface TogetherClientMessage {
     @SerialName("reaction")
     data class Reaction(val emoji: String) : TogetherClientMessage
 
+    /**
+     * Asks the relay for the STUN and TURN servers a call should use.
+     *
+     * The relay mints them rather than the app carrying them, so the long-lived TURN key never
+     * ships inside an APK and every phone holds only a credential that expires.
+     */
+    @Serializable
+    @SerialName("ice")
+    data object Ice : TogetherClientMessage
+
     @Serializable
     @SerialName("bye")
     data object Bye : TogetherClientMessage
+}
+
+/**
+ * One address a call can try, as the relay hands it over.
+ *
+ * The `turns:` entry on port 443 is the one that matters when a network is hostile to calls: it is
+ * TURN inside TLS on the port every HTTPS request already uses, so a filter cannot separate it
+ * from ordinary web traffic. The others are faster and are tried first.
+ */
+@Serializable
+data class IceServer(
+    val urls: List<String> = emptyList(),
+    val username: String? = null,
+    val credential: String? = null,
+) {
+    /** True when this entry relays media rather than just reporting an address. */
+    val isRelay: Boolean
+        get() = urls.any { it.startsWith("turn:") || it.startsWith("turns:") }
 }
 
 @Serializable
@@ -191,6 +219,14 @@ sealed interface TogetherServerMessage {
         val senderId: String,
         val serverMs: Long,
         val emoji: String,
+    ) : TogetherServerMessage
+
+    @Serializable
+    @SerialName("ice")
+    data class Ice(
+        val serverMs: Long,
+        val iceServers: List<IceServer> = emptyList(),
+        val expiresAtMs: Long = 0,
     ) : TogetherServerMessage
 
     @Serializable

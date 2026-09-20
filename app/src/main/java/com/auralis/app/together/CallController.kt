@@ -113,9 +113,11 @@ class CallController(private val isHost: () -> Boolean) {
     fun accept(): List<CallAction> {
         if (state.state != CallState.RINGING_IN) return emptyList()
         state = state.copy(state = CallState.CONNECTING)
-        // The host offers, so an accepting host still has to be the one to create it.
+        // The host offers, so an accepting host still has to be the one to create it. A guest
+        // instead has to say it picked up: the host is sitting on a ringing invite and has no
+        // other way to find out, and without this both phones ring at each other indefinitely.
         return if (isHost()) listOf(CallAction.CreateOffer(state.withVideo))
-        else emptyList() // Wait for their offer; nothing to do until it lands.
+        else listOf(CallAction.Send(TogetherNote.CallAccept))
     }
 
     fun decline(): List<CallAction> {
@@ -205,6 +207,15 @@ class CallController(private val isHost: () -> Boolean) {
             }
         }
 
+        is TogetherNote.CallAccept -> {
+            if (state.state == CallState.RINGING_OUT) {
+                state = state.copy(state = CallState.CONNECTING)
+                if (isHost()) listOf(CallAction.CreateOffer(state.withVideo)) else emptyList()
+            } else {
+                emptyList()
+            }
+        }
+
         is TogetherNote.CallDecline -> {
             if (state.state == CallState.RINGING_OUT) {
                 endLocally("declined")
@@ -217,9 +228,10 @@ class CallController(private val isHost: () -> Boolean) {
         is TogetherNote.CallOffer -> {
             // An offer while we were ringing out means they accepted and got there first.
             if (state.isRinging || state.state == CallState.CONNECTING) {
+                // Role is not touched: whoever pressed call first is still the caller, even
+                // though the offer happens to be arriving from the other direction.
                 state = state.copy(
                     state = CallState.CONNECTING,
-                    role = CallRole.CALLEE,
                     withVideo = note.withVideo,
                     peerName = signal.senderName.ifEmpty { state.peerName },
                 )

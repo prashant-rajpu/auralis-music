@@ -20,8 +20,11 @@ class FakeTransport : TogetherTransport {
         Result.success(RoomCredentials("ABCDEF", "host-token-0123456789"))
 
     /** Everything except the clock-sync chatter, which is almost always noise in an assertion. */
+    /** Everything the session chose to say, minus the housekeeping it always says. */
     val meaningful: List<TogetherClientMessage>
-        get() = sent.filterNot { it is TogetherClientMessage.Ping }
+        get() = sent.filterNot {
+            it is TogetherClientMessage.Ping || it is TogetherClientMessage.Ice
+        }
 
     override suspend fun createRoom(): Result<RoomCredentials> = createResult
 

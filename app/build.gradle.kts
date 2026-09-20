@@ -173,6 +173,12 @@ dependencies {
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.zxing.core)
 
+    // The call. A prebuilt WebRTC for Android — the same engine a browser uses, which is why a
+    // call between these two phones can go direct when the networks allow it and fall back to a
+    // TURN relay when they do not. It carries native libraries for every ABI, so it is the
+    // largest single thing in the APK.
+    implementation(libs.webrtc)
+
     implementation(libs.coil.compose)
     implementation(libs.guava)
 

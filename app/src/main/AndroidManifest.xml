@@ -7,6 +7,20 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
+    <!--
+        Calling. The camera and microphone are asked for at the moment someone answers, never at
+        install: "why does my music player want the camera" is a fair question, and the only place
+        the answer makes sense is on a ringing call. Both are declared optional as features so a
+        device without a camera can still install and take an audio call.
+    -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+    <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />
+    <uses-feature android:name="android.hardware.microphone" android:required="false" />
+
     <!-- Reading music already on the device -->
     <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
     <uses-permission
