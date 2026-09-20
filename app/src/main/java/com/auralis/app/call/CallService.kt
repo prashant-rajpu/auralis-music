@@ -7,6 +7,7 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
@@ -59,7 +60,12 @@ class CallService : Service() {
 
         // Posted immediately: a foreground service that does not show a notification within a few
         // seconds of being started is killed, and the system counts from startForegroundService().
-        startInForeground(notification(peerName = "", state = CallState.CONNECTING))
+        if (!startInForeground(notification(peerName = "", state = CallState.CONNECTING))) {
+            // Nothing here is worth taking the process down for. Without the service the call
+            // still works while the app is on screen; it just ends when the screen does.
+            stopSelf()
+            return START_NOT_STICKY
+        }
 
         val running = scope ?: CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate).also { scope = it }
         watcher?.cancel()
@@ -87,20 +93,35 @@ class CallService : Service() {
         super.onDestroy()
     }
 
-    private fun startInForeground(notification: Notification) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            // Declaring both keeps the camera usable when it is switched on mid-call; a call that
-            // started as audio still has to be able to become a video one.
-            startForeground(
-                NOTIFICATION_ID,
-                notification,
-                ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE or
-                    ServiceInfo.FOREGROUND_SERVICE_TYPE_CAMERA,
-            )
-        } else {
-            startForeground(NOTIFICATION_ID, notification)
+    /**
+     * Returns false when the service must not run, rather than throwing.
+     *
+     * A foreground service may only claim a type whose permission has actually been granted. An
+     * audio call never asks for the camera — that is deliberate, "why does my music player want
+     * the camera" being a fair question — so claiming the camera type anyway is a SecurityException
+     * on Android 14 and up, which is to say every voice call killing the app as it connects.
+     *
+     * The rest is caught for the same reason: a start refused because the app was in the
+     * background when the other side picked up is a call without a lock-screen, not a crash.
+     */
+    private fun startInForeground(notification: Notification): Boolean {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+            return runCatching { startForeground(NOTIFICATION_ID, notification) }.isSuccess
         }
+
+        val types = foregroundServiceTypes(
+            microphone = granted(android.Manifest.permission.RECORD_AUDIO),
+            camera = granted(android.Manifest.permission.CAMERA),
+        )
+        if (types == 0) return false
+
+        return runCatching { startForeground(NOTIFICATION_ID, notification, types) }
+            .onFailure { android.util.Log.w(TAG, "could not go foreground", it) }
+            .isSuccess
     }
+
+    private fun granted(permission: String): Boolean =
+        ContextCompat.checkSelfPermission(this, permission) == PackageManager.PERMISSION_GRANTED
 
     private fun notification(peerName: String, state: CallState): Notification {
         val open = PendingIntent.getActivity(
@@ -152,6 +173,7 @@ class CallService : Service() {
         getSystemService(NotificationManager::class.java)
 
     companion object {
+        private const val TAG = "CallService"
         private const val CHANNEL_ID = "auralis_call_channel"
         private const val NOTIFICATION_ID = 42
         private const val ACTION_HANG_UP = "com.auralis.app.call.HANG_UP"

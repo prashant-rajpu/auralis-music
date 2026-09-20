@@ -1,11 +1,18 @@
 # What is left
 
-Everything in v4.0 and v4.1 is merged. This is the ordered list of what remains,
-written so any item can be picked up cold.
+Everything in v4.0 and v4.1 is merged, plus persistent chat, the call, and the
+relay's move off Cloudflare. This is the ordered list of what remains, written
+so any item can be picked up cold — including by someone who is not me.
 
 Companion docs: [`HANDOVER.md`](HANDOVER.md) for what exists and how it was
-verified, [`RELAY.md`](RELAY.md) for the server, [`PRIVACY.md`](PRIVACY.md) for
-what the app knows about you.
+verified, [`RELAY.md`](RELAY.md) for the server, [`CODESPACES.md`](CODESPACES.md)
+for building it in the cloud, [`PRIVACY.md`](PRIVACY.md) for what the app knows
+about you.
+
+**Where it stands.** 345 unit tests on `play`, 63 relay unit tests, 22
+end-to-end relay checks, lint, R8, and APK-level proof that `play` carries no
+scraped-source code — all green. Nothing has run on two phones. That is the
+sentence that matters, and §0 and §1 are about it.
 
 ---
 
@@ -156,6 +163,17 @@ on the Together session's own thread), `CallService` (so a call survives the
 screen going off), `CallOverlay` (ringing, live call, controls), TURN credentials
 minted by the relay, and permissions asked for at the moment someone answers.
 
+- [x] ~~**A voice call crashed the app on Android 14+.**~~ The foreground
+      service claimed the camera service type unconditionally, and the voice
+      button only ever asks for `RECORD_AUDIO` — so `startForeground` threw a
+      `SecurityException` the moment a voice call connected. It now claims only
+      the types whose permission has actually been granted, and a refused start
+      stops the service instead of the process. `CallForegroundTypesTest`.
+- [ ] **The camera toggle does nothing in a voice call.** Turning the camera on
+      mid-call needs `CAMERA`, which an audio call never requested, so
+      `openCamera` fails quietly and the button looks broken. Ask for the
+      permission at that tap, the way answering does — and if it is refused,
+      say so rather than leaving a dead control.
 - [ ] **A call cannot ring a phone that is not in a session.** The invite rides
       the room's WebSocket, and that socket is gone once the app is closed.
       Calling someone who is not already in the room does nothing. This needs a
@@ -283,12 +301,37 @@ All local; nothing leaves the device.
 
 ## The order I would actually go in
 
-1. **§0** — one relay, one URL, the two-phone test. Everything about Together is
-   guesswork until this is done.
-2. **§3 delete the old path** — assuming the relay holds up. Two Together entry
+Before the birthday, in this order, and stop when it works:
+
+1. **§0** — deploy the relay, set the keep-awake secret, turn on TURN, prove it
+   with `check:turn`. An afternoon at most, and nothing else can be trusted
+   until it is done.
+2. **§1 the two-phone test.** Listen together for twenty minutes, write down the
+   drift and round-trip numbers the Together tab shows. Then a call, on both
+   networks, audio first and video second. This is the only test that decides
+   whether the gift works.
+3. **Whatever that test breaks.** Expect something. Keep the logcat.
+
+After the birthday, when it is a project again rather than a deadline:
+
+4. **§3 delete the old path** — assuming the relay held up. Two Together entry
    points is confusing and the ntfy code is dead weight.
-3. **§2 the service rework** — alone, in its own release, tested on a device. It
+5. **§2 the service rework** — alone, in its own release, tested on a device. It
    is the biggest correctness risk left in the app.
-4. **§4 the showpiece player** — the first release since v4.0 that is purely
+6. **§4 the showpiece player** — the first release since v4.0 that is purely
    about how the app feels, and the one that unblocks lyric moments.
-5. Then §5, §6, §7 in order; §8 alongside whatever is in flight.
+7. Then §5, §6, §7 in order; §8 alongside whatever is in flight.
+
+## If you are handing this to someone else
+
+Read in this order: [`HANDOVER.md`](HANDOVER.md) for what exists,
+[`AGENTS.md`](../AGENTS.md) for the six things that will bite you, then §1 here
+for what has and has not been verified. The build is one command and CI runs it
+on every push; [`CODESPACES.md`](CODESPACES.md) gets you an environment without
+installing anything.
+
+The two rules that are not negotiable, because breaking either bricks installs
+or breaks Play compliance: never hand-write migration SQL (change the entity,
+let KSP export the schema, copy the statements from it), and nothing scraped
+ever reaches the `play` flavor — `scripts/verify-play-flavor.sh` checks the
+built APK rather than trusting the source layout.
