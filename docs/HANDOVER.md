@@ -1,7 +1,10 @@
 # Auralis — Handover
 
+**Looking for what to do next?** That is
+[`TODO.md`](TODO.md). This file is what exists and how it was verified.
+
 Everything done, everything left, and how to pick it up on a desktop.
-Accurate as of commit `dbdc05b` on branch `claude/grill-me-c8klg5`.
+Accurate as of `a487287` on `main`.
 
 ---
 
@@ -9,17 +12,20 @@ Accurate as of commit `dbdc05b` on branch `claude/grill-me-c8klg5`.
 
 | | |
 |---|---|
-| Working branch | `claude/grill-me-c8klg5` — **1 commit ahead of `origin/main`** (the relay-address fix) |
-| `main` | `33fef8f` (PR #3, merged — all of v4.1: the relay, the sync layer, encryption, the Together tab and the couple layer) |
-| Open PR | **None.** PR #3 is merged; the one commit on the branch has no PR yet |
+| `main` | `a487287` — everything through PR #6 is merged. All of v4.0 and v4.1: Room v4, the relay, the sync layer, encryption, the Together tab, the couple layer, and the two crash fixes that came out of testing on real phones |
+| Working branch | `claude/grill-me-c8klg5`, restarted from `main`. No open PR |
 | CI | **Green** on every commit |
-| Tests | **274** on `play`, **281** on `plus`, **26** in `relay/`, 0 failures |
+| Tests | **283** on `play`, **290** on `plus`, **26** in `relay/`, plus **17** end-to-end checks against a live relay. 0 failures |
 | Size | ~15,000 lines of Kotlin in `app/src/main` |
 | Editions | `play` (Play-Store-safe) and `plus` (sideload, adds YouTube Music + JioSaavn) |
 
 Nothing is half-finished in the tree. Every commit builds both flavors in
 debug and R8 release, passes lint with zero errors, and passes the `play`
 APK purity check.
+
+Two things outside the tree are unfinished, and both are in
+[`TODO.md`](TODO.md) §0: there are two relays deployed and the app points at
+the older one, and no session has yet been measured on two real phones.
 
 ---
 
