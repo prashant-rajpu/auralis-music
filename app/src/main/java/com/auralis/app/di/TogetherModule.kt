@@ -5,7 +5,9 @@ import com.auralis.app.together.RelayUrlProvider
 import com.auralis.app.together.RelayWebSocketTransport
 import com.auralis.app.data.repository.CoupleRepository
 import com.auralis.app.data.repository.TogetherMailboxRepository
+import com.auralis.app.call.CallKeepAlive
 import com.auralis.app.call.CallMediaEngine
+import com.auralis.app.call.ServiceCallKeepAlive
 import com.auralis.app.call.WebRtcEngine
 import com.auralis.app.together.TogetherMailbox
 import com.auralis.app.together.TogetherPlayer
@@ -63,6 +65,10 @@ abstract class TogetherModule {
     @Binds
     @Singleton
     abstract fun bindCallMediaEngine(engine: WebRtcEngine): CallMediaEngine
+
+    @Binds
+    @Singleton
+    abstract fun bindCallKeepAlive(keepAlive: ServiceCallKeepAlive): CallKeepAlive
 
     companion object {
         /** Injected rather than called directly so a session can be driven by a test clock. */

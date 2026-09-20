@@ -82,6 +82,44 @@ code: there is no room listing and no way to look one up by anything else.
 A room that nobody touches for 30 days deletes itself. The TTL is that long on
 purpose, so a couple's code stays theirs between sessions.
 
+### Chat is also kept on your phone
+
+Messages are written to a database in the app's own storage, in plaintext,
+because that is your phone and the point of chat is that it is still there
+tomorrow. Nothing syncs it anywhere. Uninstalling the app deletes it.
+
+The encryption above is about the relay, not about your device. Anyone who can
+unlock your phone can read the conversation, exactly as they could read your
+messaging app.
+
+## Calls
+
+A call is peer-to-peer WebRTC. The audio and video go directly between the two
+phones whenever the networks allow it, encrypted end to end by DTLS-SRTP, which
+WebRTC does by default and cannot be turned off.
+
+**The relay never learns that a call is happening.** The whole handshake — the
+invite, the session descriptions, every candidate address — rides the same
+encrypted chat channel as everything else. To the relay it is another message
+it cannot read. A candidate list is a list of the addresses your phone can be
+reached at, which is the one genuinely sensitive thing a call produces, and it
+is not sent in the clear.
+
+**When the two networks will not allow a direct connection**, the media is
+relayed through Cloudflare's TURN service instead. A TURN server forwards
+encrypted packets; it does not hold the keys and cannot decrypt the call. It
+does see that two endpoints are talking, and how much.
+
+The credentials for it are minted by the relay and expire, so the app never
+carries a long-lived key. See [`RELAY.md`](RELAY.md).
+
+**The camera and microphone are asked for when you answer a call**, not at
+install, and only for what that call needs — an audio call never asks for the
+camera. While a call runs, a notification says so, because that is what keeps
+Android from taking the microphone back when the screen goes off.
+
+Nothing about a call is recorded. There is no code to record one.
+
 ### Running your own
 
 The relay address is a setting. `wrangler deploy` from the `relay/` folder

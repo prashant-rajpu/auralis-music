@@ -32,6 +32,7 @@ import javax.inject.Singleton
 class CallSession @Inject constructor(
     private val session: TogetherSession,
     private val engine: CallMediaEngine,
+    private val keepAlive: CallKeepAlive,
     private val clock: WallClock,
     @TogetherScope private val scope: CoroutineScope,
 ) {
@@ -114,7 +115,21 @@ class CallSession @Inject constructor(
             }
         }
         _state.value = controller.state
+        keepAlive(controller.state.isLive)
     }
+
+    /**
+     * A call is only allowed to keep the microphone and camera while something says it is running.
+     * Started here rather than when the user presses call, so it covers a call this phone answered
+     * as well as one it placed, and stops the moment the call is over either way.
+     */
+    private fun keepAlive(live: Boolean) {
+        if (live == keepingAlive) return
+        keepingAlive = live
+        keepAlive.setRunning(live)
+    }
+
+    private var keepingAlive = false
 
     /**
      * Where to look for a path to the other phone.

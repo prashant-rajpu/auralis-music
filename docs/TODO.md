@@ -28,6 +28,21 @@ Small, but nothing else about Together can be trusted until they are done.
 - [ ] **Run the two-phone test** and keep the numbers: the Together tab shows
       live drift in ms and the round trip. Those two are what turn the sync
       thresholds from reasoned guesses into measurements.
+- [ ] **Create a TURN key and give it to the relay.** Without it a call has STUN
+      only, which works on most home networks and fails on the awkward ones —
+      and one of the two phones this is for is on a network that restricts
+      consumer VoIP, which is the awkward case. Cloudflare dashboard →
+      Realtime → TURN, then:
+
+      ```bash
+      cd relay
+      npx wrangler secret put TURN_KEY_ID
+      npx wrangler secret put TURN_KEY_API_TOKEN
+      npm run deploy
+      ```
+
+      1,000 GB a month is free; a relayed video call is around 0.5 GB an hour,
+      and only a call that could not connect directly is relayed at all.
 
 ---
 
@@ -35,15 +50,22 @@ Small, but nothing else about Together can be trusted until they are done.
 
 Worth stating plainly before anything below gets planned on top of it.
 
-Machine-checked: compilation, 283 unit tests on `play` / 290 on `plus`, 26 relay
-protocol tests, 17 end-to-end checks against a live relay, lint, R8, and APK-level
-proof that `play` contains no scraped-source code.
+Machine-checked: compilation, 341 unit tests on `play`, 34 relay protocol tests,
+17 end-to-end checks against a live relay, lint, R8, and APK-level proof that
+`play` contains no scraped-source code.
 
 **Not checked by anyone but you:** whether it feels right, whether contrast holds
 on real album art, whether playback resumes correctly after a force-stop, and
 whether two phones actually *sound* together. The last one depends on decode
 latency and Bluetooth output delay (150–300 ms, device-specific) and cannot be
 measured from a container.
+
+**The call has never run.** Every part of it that can be tested without a camera
+is — the state machine, the signalling round trip, candidate holding, the ICE
+servers it is given, the microphone being held for the length of the call. What
+no test here can tell you is whether a real peer connection forms between a
+phone in the UAE and a phone in India, which is the only question that matters
+about it. Test that before the birthday, not on it.
 
 Also untested anywhere: Durable Object hibernation and the 30-day room TTL, both
 of which take real time to observe. `@cloudflare/vitest-pool-workers` would cover
@@ -113,6 +135,36 @@ Bluetooth / Android Auto checklist on a real device before tagging.
 - [ ] **Lyric moments are unreachable** — `TogetherSession.sendLyricMoment` works
       and is tested, but nothing calls it. It needs the full-screen lyrics view
       from §4 to have something to long-press.
+
+### The call: what is built, and what it still cannot do
+
+Built: `WebRtcEngine` (peer connection, mic, camera), `CallSession` (the glue,
+on the Together session's own thread), `CallService` (so a call survives the
+screen going off), `CallOverlay` (ringing, live call, controls), TURN credentials
+minted by the relay, and permissions asked for at the moment someone answers.
+
+- [ ] **A call cannot ring a phone that is not in a session.** The invite rides
+      the room's WebSocket, and that socket is gone once the app is closed.
+      Calling someone who is not already in the room does nothing. This needs a
+      push channel — either FCM, which means a Google dependency in `play` and
+      a `plus` build that cannot use it, or a self-hosted `ntfy` topic per
+      couple, which the repo already knows how to talk to. Decide before
+      promising anyone they can be called.
+- [ ] **Echo on speakerphone.** The music plays on the media stream and the call
+      records on the voice stream, so the platform's echo canceller has nothing
+      to subtract — your microphone picks up the song and sends it back. Fine on
+      headphones, which the session screen now says. A real fix means routing
+      the music through WebRTC's own output, which is a much bigger change.
+- [ ] **Switching the camera on mid-call adds a track after the offer.** It
+      works when the call started with video. Starting audio-only and then
+      turning the camera on needs a renegotiation the controller does not do
+      yet; today the track is added but the other side may not see it until the
+      call is re-placed.
+- [ ] **The APK is now ~49 MB**, up from ~13. WebRTC ships native libraries for
+      four ABIs. An ABI split or an App Bundle would put a phone back at ~20 MB;
+      one APK for both of you is simpler for now.
+- [ ] **No call history.** A call is not written to `jam_events`, so it does not
+      appear in session memories. Cheap to add once the rest is proven.
 
 ---
 

@@ -24,6 +24,7 @@ import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -97,6 +98,15 @@ class CallSessionTest {
         fun connect() = events?.onConnected()
     }
 
+    /** Stands in for the foreground service that stops Android taking the microphone away. */
+    private class RecordingKeepAlive : CallKeepAlive {
+        val calls = mutableListOf<Boolean>()
+        val holding: Boolean get() = calls.lastOrNull() == true
+        override fun setRunning(live: Boolean) {
+            calls += live
+        }
+    }
+
     private class Fixture(
         val transport: FakeTransport = FakeTransport(),
         val player: FakePlayer = FakePlayer(),
@@ -105,6 +115,7 @@ class CallSessionTest {
         val recorder: FakeRecorder = FakeRecorder(),
         val mailbox: FakeMailbox = FakeMailbox(),
         val engine: FakeEngine = FakeEngine(),
+        val keepAlive: RecordingKeepAlive = RecordingKeepAlive(),
         val clock: TestClock = TestClock(),
     )
 
@@ -151,7 +162,7 @@ class CallSessionTest {
     fun `answering a call as host opens the camera and puts an offer on the wire`() = runTest {
         val f = Fixture()
         val session = together(f, backgroundScope)
-        val call = CallSession(session, f.engine, f.clock, backgroundScope)
+        val call = CallSession(session, f.engine, f.keepAlive, f.clock, backgroundScope)
         enter(session, iHost = true)
         runCurrent()
 
@@ -174,7 +185,7 @@ class CallSessionTest {
     fun `a guest that answers says so rather than waiting for a call that never starts`() = runTest {
         val f = Fixture()
         val session = together(f, backgroundScope)
-        val call = CallSession(session, f.engine, f.clock, backgroundScope)
+        val call = CallSession(session, f.engine, f.keepAlive, f.clock, backgroundScope)
         enter(session, iHost = false)
         runCurrent()
 
@@ -198,7 +209,7 @@ class CallSessionTest {
     fun `the call is built with the servers the relay minted, not a guess`() = runTest {
         val f = Fixture()
         val session = together(f, backgroundScope)
-        val call = CallSession(session, f.engine, f.clock, backgroundScope)
+        val call = CallSession(session, f.engine, f.keepAlive, f.clock, backgroundScope)
         enter(session, iHost = true)
         val relayServers = listOf(
             IceServer(urls = listOf("stun:stun.cloudflare.com:3478")),
@@ -229,7 +240,7 @@ class CallSessionTest {
     fun `with no servers from the relay it still tries, rather than refusing to call`() = runTest {
         val f = Fixture()
         val session = together(f, backgroundScope)
-        val call = CallSession(session, f.engine, f.clock, backgroundScope)
+        val call = CallSession(session, f.engine, f.keepAlive, f.clock, backgroundScope)
         enter(session, iHost = true)
         runCurrent()
 
@@ -246,7 +257,7 @@ class CallSessionTest {
     fun `leaving the room ends the call and gives the camera back`() = runTest {
         val f = Fixture()
         val session = together(f, backgroundScope)
-        val call = CallSession(session, f.engine, f.clock, backgroundScope)
+        val call = CallSession(session, f.engine, f.keepAlive, f.clock, backgroundScope)
         enter(session, iHost = true)
         runCurrent()
         session.handle(theirNote(TogetherNote.CallInvite(withVideo = true)))
@@ -268,7 +279,7 @@ class CallSessionTest {
     fun `a candidate that arrives before the offer is held, not thrown away`() = runTest {
         val f = Fixture()
         val session = together(f, backgroundScope)
-        val call = CallSession(session, f.engine, f.clock, backgroundScope)
+        val call = CallSession(session, f.engine, f.keepAlive, f.clock, backgroundScope)
         enter(session, iHost = false)
         runCurrent()
 
@@ -292,7 +303,7 @@ class CallSessionTest {
     fun `muting tells the microphone and the other phone`() = runTest {
         val f = Fixture()
         val session = together(f, backgroundScope)
-        val call = CallSession(session, f.engine, f.clock, backgroundScope)
+        val call = CallSession(session, f.engine, f.keepAlive, f.clock, backgroundScope)
         enter(session, iHost = true)
         runCurrent()
         session.handle(theirNote(TogetherNote.CallInvite(withVideo = false)))
@@ -310,10 +321,33 @@ class CallSessionTest {
     }
 
     @Test
+    fun `the microphone is held for the length of the call and let go after it`() = runTest {
+        val f = Fixture()
+        val session = together(f, backgroundScope)
+        val call = CallSession(session, f.engine, f.keepAlive, f.clock, backgroundScope)
+        enter(session, iHost = true)
+        runCurrent()
+
+        session.handle(theirNote(TogetherNote.CallInvite(withVideo = false)))
+        runCurrent()
+        assertFalse("a ringing call has not opened anything yet", f.keepAlive.holding)
+
+        call.accept()
+        runCurrent()
+        // Without this Android takes the microphone back the moment the screen goes off, which is
+        // exactly when two people falling asleep on a call would notice.
+        assertTrue(f.keepAlive.holding)
+
+        call.hangUp()
+        runCurrent()
+        assertFalse("nothing should keep holding the microphone after a call", f.keepAlive.holding)
+    }
+
+    @Test
     fun `the call handshake never reaches the conversation`() = runTest {
         val f = Fixture()
         val session = together(f, backgroundScope)
-        val call = CallSession(session, f.engine, f.clock, backgroundScope)
+        val call = CallSession(session, f.engine, f.keepAlive, f.clock, backgroundScope)
         enter(session, iHost = true)
         runCurrent()
         session.handle(theirNote(TogetherNote.CallInvite(withVideo = true)))
