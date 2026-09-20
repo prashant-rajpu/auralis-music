@@ -49,6 +49,9 @@ data class TogetherChatMessage(
 /** Thinking of you, from them. Transient, so it is an event rather than state. */
 data class TogetherKnock(val senderId: String, val senderName: String)
 
+/** One step of the call handshake, already decrypted, from the person on the other end. */
+data class CallSignal(val senderId: String, val senderName: String, val note: TogetherNote)
+
 data class TogetherReaction(val senderId: String, val senderName: String, val emoji: String)
 
 data class TogetherUiState(
@@ -111,6 +114,15 @@ class TogetherSession @Inject constructor(
 
     private val _knocks = MutableSharedFlow<TogetherKnock>(extraBufferCapacity = 8)
     val knocks = _knocks.asSharedFlow()
+
+    /**
+     * The call handshake, routed out to whoever is running WebRTC.
+     *
+     * Buffered generously and never replayed: a candidate that arrives before the peer connection
+     * is ready is useless, and one delivered twice is worse than one dropped.
+     */
+    private val _callSignals = MutableSharedFlow<CallSignal>(extraBufferCapacity = 64)
+    val callSignals = _callSignals.asSharedFlow()
 
     private var key: RoomKey? = null
 
@@ -251,6 +263,9 @@ class TogetherSession @Inject constructor(
     }
 
     fun knock() = onSession { sendNote(TogetherNote.Knock) }
+
+    /** Puts one step of the call handshake on the wire, encrypted like everything else. */
+    fun sendCallSignal(note: TogetherNote) = onSession { sendNote(note) }
 
     /**
      * Fade out on both phones at the same moment. Scheduled in room time rather than as a local
@@ -403,15 +418,24 @@ class TogetherSession @Inject constructor(
             is TogetherServerMessage.Chat -> {
                 val entry = ChatEntry(message.senderId, message.serverMs, message.ciphertext)
                 val decrypted = decrypt(entry, _state.value.room?.members.orEmpty())
-                when (val note = decrypted.note) {
+                val note = decrypted.note
+                when {
                     // A knock is a moment, not a line in a transcript.
-                    is TogetherNote.Knock ->
+                    note is TogetherNote.Knock ->
                         if (!decrypted.isMine) {
                             _knocks.tryEmit(TogetherKnock(entry.senderId, decrypted.senderName))
                         }
 
-                    is TogetherNote.Goodnight ->
+                    note is TogetherNote.Goodnight ->
                         _state.update { it.copy(goodnightAtServerMs = note.atServerMs) }
+
+                    // Our own signalling coming back is not an incoming call.
+                    note != null && note.isCallSignalling ->
+                        if (!decrypted.isMine) {
+                            _callSignals.tryEmit(
+                                CallSignal(entry.senderId, decrypted.senderName, note),
+                            )
+                        }
 
                     else -> _state.update { it.copy(chat = (it.chat + decrypted).takeLast(MAX_CHAT)) }
                 }
@@ -653,8 +677,10 @@ class TogetherSession @Inject constructor(
                 TogetherProtocol.toTrack(note.track).id,
             )
             is TogetherNote.Knock -> Triple(TogetherRecorder.EVENT_KNOCK, null, null)
-            // Not a memory: a sleep timer is plumbing.
+            // Not memories: a sleep timer and the handshake for a call are both plumbing. A
+            // session timeline should read back as what the two of you did, not as a packet log.
             is TogetherNote.Goodnight -> return
+            else -> return
         }
         scope.launch {
             runCatching { recorder.recordEvent(id, type, payload, fromMe, trackId) }

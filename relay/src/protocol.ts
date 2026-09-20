@@ -11,10 +11,21 @@
  * unknown fields are rejected rather than ignored, so a new field cannot smuggle one in.
  */
 
-export const MAX_MESSAGE_BYTES = 4096;
+/**
+ * Large enough to carry a WebRTC session description.
+ *
+ * Call signalling rides the encrypted chat channel rather than getting wire types of its own, so
+ * the relay never learns that a call is happening, let alone the candidate addresses inside it.
+ * An SDP offer with a full candidate list runs to several kilobytes once encrypted and base64'd,
+ * which the old 4 KB frame would have cut in half.
+ */
+export const MAX_MESSAGE_BYTES = 16_384;
 export const MAX_MEMBERS = 16;
 export const MAX_CHAT_HISTORY = 50;
 export const MAX_QUEUE_ITEMS = 200;
+
+/** Room for an SDP offer, and still far under the frame cap once base64 and JSON are counted. */
+export const MAX_CIPHERTEXT_CHARS = 12_288;
 
 /** Unambiguous alphabet: no 0/O, no 1/I/L. Codes get read aloud and typed by hand. */
 export const CODE_ALPHABET = "23456789ABCDEFGHJKMNPQRSTUVWXYZ";
@@ -255,7 +266,7 @@ export function validateClientMessage(value: unknown): ClientMessage {
 
     case "chat":
       allowOnly(value, ["type", "ciphertext"], "chat");
-      return { type: "chat", ciphertext: str(value.ciphertext, "ciphertext", 2048) };
+      return { type: "chat", ciphertext: str(value.ciphertext, "ciphertext", MAX_CIPHERTEXT_CHARS) };
 
     case "reaction":
       allowOnly(value, ["type", "emoji"], "reaction");

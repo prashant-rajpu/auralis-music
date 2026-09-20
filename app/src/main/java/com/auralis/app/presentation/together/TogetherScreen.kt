@@ -942,6 +942,12 @@ private fun ChatBubble(message: TogetherChatMessage) {
             }
 
             when (val note = message.note) {
+                null -> Text(
+                    text = "Sent with a different invite, so this phone has no key for it",
+                    fontSize = 12.sp,
+                    color = TextTertiary,
+                )
+
                 is TogetherNote.Text -> Text(note.body, fontSize = 14.sp, color = TextPrimary)
 
                 is TogetherNote.Dedication -> {
@@ -984,15 +990,10 @@ private fun ChatBubble(message: TogetherChatMessage) {
                     )
                 }
 
-                // Neither reaches the transcript, but exhaustiveness is worth keeping.
-                is TogetherNote.Knock, is TogetherNote.Goodnight ->
-                    Text("\u2026", fontSize = 14.sp, color = TextTertiary)
+                // Knocks, sleep timers and call signalling are all routed elsewhere before they
+                // reach here; this branch exists so a new note kind cannot silently show nothing.
+                else -> Text("\u2026", fontSize = 14.sp, color = TextTertiary)
 
-                null -> Text(
-                    text = "Sent with a different invite, so this phone has no key for it",
-                    fontSize = 12.sp,
-                    color = TextTertiary,
-                )
             }
         }
     }

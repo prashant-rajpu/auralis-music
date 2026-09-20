@@ -129,6 +129,19 @@ describe("message parsing", () => {
     expect(parse({ type: "bye" })).toEqual({ type: "bye" });
   });
 
+  it("carries a payload big enough for a WebRTC offer", () => {
+    // Signalling rides the chat channel, so the cap has to fit an encrypted SDP.
+    const sdpSized = "A".repeat(8000);
+    expect(parse({ type: "chat", ciphertext: sdpSized })).toEqual({
+      type: "chat",
+      ciphertext: sdpSized,
+    });
+  });
+
+  it("still refuses a payload past the cap", () => {
+    expect(() => parse({ type: "chat", ciphertext: "A".repeat(20_000) })).toThrow(ValidationError);
+  });
+
   it("keeps chat opaque — the relay only ever sees ciphertext", () => {
     const message = parse({ type: "chat", ciphertext: "AAECAwQ=" });
     expect(message).toEqual({ type: "chat", ciphertext: "AAECAwQ=" });

@@ -46,7 +46,65 @@ sealed interface TogetherNote {
     @Serializable
     @SerialName("goodnight")
     data class Goodnight(val atServerMs: Long) : TogetherNote
+
+    // --- call signalling -------------------------------------------------------------------
+    //
+    // WebRTC needs the two phones to swap a session description and a list of candidate
+    // addresses before any media flows. That exchange rides here, inside the same encryption as
+    // everything else, for two reasons: the relay needs nothing from it, and a candidate list is
+    // a list of the addresses your phone can be reached on. Sending it in the clear would hand
+    // the server the one genuinely sensitive thing a call produces.
+
+    /** "Can we talk?" — sent before any WebRTC work, so the other side can decline cheaply. */
+    @Serializable
+    @SerialName("callInvite")
+    data class CallInvite(val withVideo: Boolean) : TogetherNote
+
+    @Serializable
+    @SerialName("callDecline")
+    data object CallDecline : TogetherNote
+
+    /** The caller's session description. */
+    @Serializable
+    @SerialName("callOffer")
+    data class CallOffer(val sdp: String, val withVideo: Boolean) : TogetherNote
+
+    /** The callee's session description. */
+    @Serializable
+    @SerialName("callAnswer")
+    data class CallAnswer(val sdp: String) : TogetherNote
+
+    /**
+     * One candidate address. These trickle in after the offer rather than arriving with it,
+     * because waiting for the full list before sending anything adds seconds to every call.
+     */
+    @Serializable
+    @SerialName("callIce")
+    data class CallIce(
+        val candidate: String,
+        val sdpMid: String?,
+        val sdpMLineIndex: Int,
+    ) : TogetherNote
+
+    @Serializable
+    @SerialName("callEnd")
+    data class CallEnd(val reason: String = "") : TogetherNote
+
+    /** Camera or microphone toggled mid-call, so the other side can show it. */
+    @Serializable
+    @SerialName("callMedia")
+    data class CallMedia(val audioEnabled: Boolean, val videoEnabled: Boolean) : TogetherNote
 }
+
+/** True for the notes that are call plumbing rather than something a person said. */
+val TogetherNote.isCallSignalling: Boolean
+    get() = this is TogetherNote.CallInvite ||
+        this is TogetherNote.CallDecline ||
+        this is TogetherNote.CallOffer ||
+        this is TogetherNote.CallAnswer ||
+        this is TogetherNote.CallIce ||
+        this is TogetherNote.CallEnd ||
+        this is TogetherNote.CallMedia
 
 object TogetherNotes {
 
