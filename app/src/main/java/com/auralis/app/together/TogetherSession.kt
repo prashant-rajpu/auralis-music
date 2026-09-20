@@ -99,6 +99,7 @@ class TogetherSession @Inject constructor(
     private val player: TogetherPlayer,
     private val repository: MusicRepository,
     private val recorder: TogetherRecorder,
+    private val mailbox: TogetherMailbox,
     private val clock: WallClock,
     @TogetherScope private val scope: CoroutineScope,
 ) {
@@ -282,9 +283,52 @@ class TogetherSession @Inject constructor(
         _state.update { it.copy(goodnightAtServerMs = null) }
     }
 
-    private fun sendNote(note: TogetherNote) {
+    /**
+     * Files the message, then sends it — in that order, and deliberately.
+     *
+     * A message written down before it goes out survives the send failing, the socket being down,
+     * and the app being killed between the two. It stays in the outbox with the exact bytes that
+     * were sealed, so the retry is the identical frame: the copy the relay echoes back carries the
+     * same id and lands on this row rather than beside it.
+     */
+    private suspend fun sendNote(note: TogetherNote) {
         val sealed = key?.let { TogetherNotes.seal(it, note) } ?: return
+        file(sealed, note)
         transport.send(TogetherClientMessage.Chat(sealed))
+    }
+
+    /** Writes an outgoing message to the mailbox as pending. Not for the call handshake. */
+    private suspend fun file(sealed: String, note: TogetherNote) {
+        if (note.storedKind == null) return
+        val room = _state.value.room ?: return
+        runCatching {
+            mailbox.remember(
+                StoredNote(
+                    id = TogetherNotes.idFor(sealed),
+                    roomCode = room.code,
+                    senderId = room.memberId,
+                    senderName = "",
+                    fromMe = true,
+                    note = note,
+                    atMs = clock.nowMs(),
+                    pending = true,
+                    ciphertext = sealed,
+                ),
+            )
+        }
+    }
+
+    /**
+     * Puts back on the wire whatever never made it off this phone.
+     *
+     * Runs on every welcome, so a message typed during a dropped connection goes out the moment
+     * the socket comes back rather than when the user notices and retypes it.
+     */
+    private suspend fun flushOutbox(roomCode: String) {
+        val pending = runCatching { mailbox.outbox(roomCode) }.getOrNull().orEmpty()
+        pending.forEach { stored ->
+            stored.ciphertext?.let { transport.send(TogetherClientMessage.Chat(it)) }
+        }
     }
 
     fun sendReaction(emoji: String) = onSession {
@@ -360,6 +404,10 @@ class TogetherSession @Inject constructor(
                     it.copy(chat = message.state.chat.map { e -> decrypt(e, message.state.members) })
                 }
                 openMemoryIfPartnerIsHere()
+                message.state.chat.forEach { entry ->
+                    fileIncoming(entry, message.state.members)
+                }
+                _state.value.room?.code?.let { flushOutbox(it) }
                 message.state.playback?.let { playback ->
                     remote = RemotePlayback(
                         trackKey = playback.track.key,
@@ -440,6 +488,7 @@ class TogetherSession @Inject constructor(
                     else -> _state.update { it.copy(chat = (it.chat + decrypted).takeLast(MAX_CHAT)) }
                 }
                 decrypted.note?.let { fileNote(it, fromMe = decrypted.isMine) }
+                fileIncoming(entry, _state.value.room?.members.orEmpty())
             }
 
             is TogetherServerMessage.Reaction -> {
@@ -749,6 +798,35 @@ class TogetherSession @Inject constructor(
 
     private fun nameOf(memberId: String): String =
         _state.value.room?.members?.firstOrNull { it.id == memberId }?.name ?: "Them"
+
+    /**
+     * Files a message that came off the wire, whoever sent it.
+     *
+     * Our own messages come back too, and that echo is what turns a pending row into a delivered
+     * one: the relay's stamp is the clock both phones agree on, so it replaces the local guess at
+     * the same time. The insert is idempotent — a rejoin replays the last fifty — and the mark is
+     * harmless on a row that was never pending.
+     */
+    private suspend fun fileIncoming(entry: ChatEntry, members: List<Member>) {
+        val room = _state.value.room ?: return
+        val note = key?.let { TogetherNotes.open(it, entry.ciphertext) } ?: return
+        if (note.storedKind == null) return
+        val id = TogetherNotes.idFor(entry.ciphertext)
+        runCatching {
+            mailbox.remember(
+                StoredNote(
+                    id = id,
+                    roomCode = room.code,
+                    senderId = entry.senderId,
+                    senderName = members.firstOrNull { it.id == entry.senderId }?.name.orEmpty(),
+                    fromMe = isOurs(entry.senderId),
+                    note = note,
+                    atMs = entry.serverMs,
+                ),
+            )
+            mailbox.markDelivered(id, entry.serverMs)
+        }
+    }
 
     private fun decrypt(entry: ChatEntry, members: List<Member>): TogetherChatMessage {
         // A note we cannot open is kept as null and shown as such, rather than dropped: silently

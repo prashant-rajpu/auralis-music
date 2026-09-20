@@ -35,6 +35,7 @@ class TogetherSessionTest {
         val store: FakeStore = FakeStore(),
         val repository: FakeRepository = FakeRepository(),
         val recorder: FakeRecorder = FakeRecorder(),
+        val mailbox: FakeMailbox = FakeMailbox(),
         val clock: TestClock = TestClock(),
     )
 
@@ -44,6 +45,7 @@ class TogetherSessionTest {
         player = f.player,
         repository = f.repository,
         recorder = f.recorder,
+        mailbox = f.mailbox,
         clock = f.clock,
         scope = scope,
     )
@@ -264,6 +266,146 @@ class TogetherSessionTest {
         val chat = f.transport.meaningful.filterIsInstance<TogetherClientMessage.Chat>().single()
         assertFalse(chat.ciphertext.contains("meet me at nine"))
         assertEquals(TogetherNote.Text("meet me at nine"), TogetherNotes.open(key, chat.ciphertext))
+        session.leave()
+        runCurrent()
+    }
+
+    // --- the mailbox: chat that outlives the socket -------------------------------------------
+
+    @Test
+    fun `a message is written down before it is sent, so a failed send does not lose it`() = runTest {
+        val f = Fixture()
+        val session = TestFixtureScope(backgroundScope).session(f)
+        session.join(invite, "Me")
+        runCurrent()
+        session.welcome()
+
+        session.sendChat("meet me at nine")
+        runCurrent()
+
+        val stored = f.mailbox.messagesIn("ABCDEF").single()
+        assertEquals(TogetherNote.Text("meet me at nine"), stored.note)
+        assertTrue("an unacknowledged message should still be pending", stored.pending)
+        assertTrue("the outbox needs the exact bytes to resend", stored.ciphertext != null)
+        session.leave()
+        runCurrent()
+    }
+
+    @Test
+    fun `the relay's echo turns a pending message into a delivered one`() = runTest {
+        val f = Fixture()
+        val session = TestFixtureScope(backgroundScope).session(f)
+        session.join(invite, "Me")
+        runCurrent()
+        session.welcome()
+
+        session.sendChat("meet me at nine")
+        runCurrent()
+        val sealed = f.transport.meaningful.filterIsInstance<TogetherClientMessage.Chat>()
+            .single().ciphertext
+
+        session.handle(TogetherServerMessage.Chat("me", 4_242, sealed))
+
+        val stored = f.mailbox.messagesIn("ABCDEF").single()
+        assertFalse("the echo means the relay has it", stored.pending)
+        // The room clock, not this phone's: it is the one both phones agree on.
+        assertEquals(4_242L, stored.atMs)
+        assertNull("the ciphertext is only needed while it might be resent", stored.ciphertext)
+        session.leave()
+        runCurrent()
+    }
+
+    @Test
+    fun `a rejoin replaying the history does not double the conversation`() = runTest {
+        val f = Fixture()
+        val session = TestFixtureScope(backgroundScope).session(f)
+        session.join(invite, "Me")
+        runCurrent()
+
+        val hers = TogetherNotes.seal(key, TogetherNote.Text("are you awake?"))
+        session.handle(TogetherServerMessage.Chat("them", 900, hers))
+        // Reconnecting hands back the last fifty messages, including the one just seen.
+        session.handle(
+            TogetherServerMessage.Welcome(
+                memberId = "me",
+                hostId = "them",
+                serverMs = 1_000,
+                state = RoomSnapshot(
+                    members = listOf(me, them),
+                    hostId = "them",
+                    chat = listOf(ChatEntry("them", 900, hers)),
+                ),
+            ),
+        )
+        runCurrent()
+
+        assertEquals(1, f.mailbox.messagesIn("ABCDEF").size)
+        session.leave()
+        runCurrent()
+    }
+
+    @Test
+    fun `reconnecting puts back on the wire whatever never left this phone`() = runTest {
+        val f = Fixture()
+        val session = TestFixtureScope(backgroundScope).session(f)
+        session.join(invite, "Me")
+        runCurrent()
+        session.welcome()
+
+        session.sendChat("still awake?")
+        runCurrent()
+        val sealed = f.transport.meaningful.filterIsInstance<TogetherClientMessage.Chat>()
+            .single().ciphertext
+        f.transport.sent.clear()
+
+        // The socket dropped and came back; the relay never acknowledged the message.
+        session.welcome()
+        runCurrent()
+
+        val resent = f.transport.sent.filterIsInstance<TogetherClientMessage.Chat>().single()
+        assertEquals("the retry must be the identical frame", sealed, resent.ciphertext)
+        session.leave()
+        runCurrent()
+    }
+
+    @Test
+    fun `the call handshake is never written to the conversation`() = runTest {
+        val f = Fixture()
+        val session = TestFixtureScope(backgroundScope).session(f)
+        session.join(invite, "Me")
+        runCurrent()
+        session.welcome()
+
+        session.sendCallSignal(TogetherNote.CallOffer("v=0\r\n", withVideo = true))
+        runCurrent()
+        session.handle(
+            TogetherServerMessage.Chat("them", 1_100, TogetherNotes.seal(key, TogetherNote.CallAnswer("v=0"))),
+        )
+        session.goodnightIn(0)
+        runCurrent()
+
+        assertTrue(
+            "signalling and sleep timers are plumbing, not things either of you said",
+            f.mailbox.messagesIn("ABCDEF").isEmpty(),
+        )
+        session.leave()
+        runCurrent()
+    }
+
+    @Test
+    fun `a dedication is kept, and reads back as something she can find again`() = runTest {
+        val f = Fixture()
+        val session = TestFixtureScope(backgroundScope).session(f)
+        session.join(invite, "Me")
+        runCurrent()
+        session.welcome()
+
+        session.dedicate(track(title = "Ye Tune Kya Kiya"), "this one is you")
+        runCurrent()
+
+        val stored = f.mailbox.messagesIn("ABCDEF").single()
+        assertEquals("dedication", stored.note.storedKind)
+        assertEquals("Ye Tune Kya Kiya — this one is you", stored.note.preview)
         session.leave()
         runCurrent()
     }

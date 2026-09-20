@@ -17,9 +17,10 @@ import androidx.room.RoomDatabase
         QueueItemEntity::class,
         PlayerStateEntity::class,
         JamSessionEntity::class,
-        JamEventEntity::class
+        JamEventEntity::class,
+        TogetherMessageEntity::class
     ],
-    version = 4,
+    version = 5,
     exportSchema = true
 )
 abstract class AuralisDatabase : RoomDatabase() {
@@ -29,4 +30,5 @@ abstract class AuralisDatabase : RoomDatabase() {
     abstract val historyDao: HistoryDao
     abstract val playbackStateDao: PlaybackStateDao
     abstract val jamDao: JamDao
+    abstract val togetherMessageDao: TogetherMessageDao
 }

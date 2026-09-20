@@ -3,6 +3,7 @@ package com.auralis.app.together
 import com.auralis.app.domain.model.Provider
 import com.auralis.app.domain.model.Track
 import com.auralis.app.domain.repository.MusicRepository
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 
@@ -161,5 +162,45 @@ class FakeRecorder : TogetherRecorder {
 
     override suspend fun endSession(sessionId: String) {
         ended = true
+    }
+}
+
+/**
+ * An in-memory mailbox.
+ *
+ * Keyed by message id and insert-ignoring, like the real table, because most of what is worth
+ * proving here is about a message arriving twice — once live, once in the history a rejoin
+ * replays — and landing once.
+ */
+class FakeMailbox : TogetherMailbox {
+
+    val stored = linkedMapOf<String, StoredNote>()
+    private val flows = mutableMapOf<String, MutableStateFlow<List<StoredNote>>>()
+
+    override fun messages(roomCode: String): Flow<List<StoredNote>> = flow(roomCode)
+
+    override suspend fun remember(message: StoredNote) {
+        if (message.note.storedKind == null) return
+        if (stored.containsKey(message.id)) return
+        stored[message.id] = message
+        publish(message.roomCode)
+    }
+
+    override suspend fun outbox(roomCode: String): List<StoredNote> =
+        stored.values.filter { it.roomCode == roomCode && it.pending }.sortedBy { it.atMs }
+
+    override suspend fun markDelivered(id: String, atMs: Long) {
+        val existing = stored[id] ?: return
+        stored[id] = existing.copy(pending = false, atMs = atMs, ciphertext = null)
+        publish(existing.roomCode)
+    }
+
+    fun messagesIn(roomCode: String): List<StoredNote> =
+        stored.values.filter { it.roomCode == roomCode }.sortedBy { it.atMs }
+
+    private fun flow(roomCode: String) = flows.getOrPut(roomCode) { MutableStateFlow(emptyList()) }
+
+    private fun publish(roomCode: String) {
+        flow(roomCode).value = messagesIn(roomCode)
     }
 }

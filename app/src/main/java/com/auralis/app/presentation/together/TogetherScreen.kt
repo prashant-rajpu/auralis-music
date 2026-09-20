@@ -42,7 +42,6 @@ import com.auralis.app.together.Member
 import com.auralis.app.together.PartnerClock
 import com.auralis.app.together.QueueEntry
 import com.auralis.app.together.SyncState
-import com.auralis.app.together.TogetherChatMessage
 import com.auralis.app.together.TogetherConnection
 import com.auralis.app.together.TogetherNote
 import com.auralis.app.together.TogetherRoom
@@ -89,6 +88,7 @@ fun TogetherScreen(
 
 @Composable
 private fun StartOrJoin(viewModel: TogetherViewModel) {
+    val conversation by viewModel.conversation.collectAsState()
     val busy by viewModel.busy.collectAsState()
     val error by viewModel.error.collectAsState()
     val lastRoom by viewModel.lastRoom.collectAsState()
@@ -403,6 +403,37 @@ private fun StartOrJoin(viewModel: TogetherViewModel) {
             }
         }
 
+        // The conversation, without having to be in a session to read it. This is most of what
+        // "chat that persists" means in practice: you open the app, and what she said last night
+        // is still there.
+        if (conversation.isNotEmpty()) {
+            item {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = "Between you",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = TextSecondary,
+                        modifier = Modifier.weight(1f),
+                    )
+                    if (conversation.any { it.pending }) {
+                        Text("Waiting to send", fontSize = 11.sp, color = TextTertiary)
+                    }
+                }
+            }
+            items(conversation.takeLast(RECENT_MESSAGES), key = { it.id }) { message ->
+                ChatBubble(
+                    senderName = message.senderName.ifBlank { lastRoom?.partnerName.orEmpty().ifBlank { "Them" } },
+                    isMine = message.fromMe,
+                    note = message.note,
+                    pending = message.pending,
+                )
+            }
+        }
+
         lastRoom?.let { room ->
             item {
                 Row(
@@ -507,6 +538,7 @@ private fun InviteCard(code: String, link: String, onCopy: () -> Unit, onShare: 
 
 @Composable
 private fun LiveSession(state: TogetherUiState, viewModel: TogetherViewModel) {
+    val conversation by viewModel.conversation.collectAsState()
     val room = state.room ?: return
     var knockFrom by remember { mutableStateOf<String?>(null) }
 
@@ -589,10 +621,26 @@ private fun LiveSession(state: TogetherUiState, viewModel: TogetherViewModel) {
 
             item { EncryptionNote(strength = room.encryption) }
 
-            if (state.chat.isNotEmpty()) {
-                items(state.chat, key = { it.senderId + it.serverMs }) { message ->
-                    ChatBubble(message)
-                }
+            // The conversation comes from the mailbox rather than from the live session, so it is
+            // the same thread you were reading before you reconnected — and the same one you can
+            // read tomorrow without starting a session at all.
+            items(conversation, key = { it.id }) { message ->
+                ChatBubble(
+                    senderName = message.senderName.ifBlank { room.partner?.name ?: "Them" },
+                    isMine = message.fromMe,
+                    note = message.note,
+                    pending = message.pending,
+                )
+            }
+
+            // Anything that would not decrypt never reaches the mailbox, so it is shown from the
+            // session instead: silently hiding it would look like she never sent anything.
+            items(state.chat.filter { it.note == null }, key = { it.senderId + it.serverMs }) { message ->
+                ChatBubble(
+                    senderName = message.senderName,
+                    isMine = message.isMine,
+                    note = null,
+                )
             }
         }
 
@@ -919,21 +967,26 @@ private fun SharedQueueRow(entry: QueueEntry, room: TogetherRoom, onRemove: () -
 }
 
 @Composable
-private fun ChatBubble(message: TogetherChatMessage) {
+private fun ChatBubble(
+    senderName: String,
+    isMine: Boolean,
+    note: TogetherNote?,
+    pending: Boolean = false,
+) {
     Row(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = if (message.isMine) Arrangement.End else Arrangement.Start,
+        horizontalArrangement = if (isMine) Arrangement.End else Arrangement.Start,
     ) {
         Column(
             modifier = Modifier
                 .widthIn(max = 300.dp)
                 .clip(RoundedCornerShape(18.dp))
-                .background(if (message.isMine) AccentColorSoft else SurfaceHighest)
+                .background(if (isMine) AccentColorSoft else SurfaceHighest)
                 .padding(horizontal = 14.dp, vertical = 10.dp),
         ) {
-            if (!message.isMine) {
+            if (!isMine) {
                 Text(
-                    text = message.senderName,
+                    text = senderName,
                     fontSize = 11.sp,
                     fontWeight = FontWeight.SemiBold,
                     color = AccentColor,
@@ -941,7 +994,7 @@ private fun ChatBubble(message: TogetherChatMessage) {
                 Spacer(Modifier.height(2.dp))
             }
 
-            when (val note = message.note) {
+            when (note) {
                 null -> Text(
                     text = "Sent with a different invite, so this phone has no key for it",
                     fontSize = 12.sp,
@@ -952,7 +1005,7 @@ private fun ChatBubble(message: TogetherChatMessage) {
 
                 is TogetherNote.Dedication -> {
                     Text(
-                        text = if (message.isMine) "You dedicated" else "Dedicated to you",
+                        text = if (isMine) "You dedicated" else "Dedicated to you",
                         fontSize = 10.sp,
                         letterSpacing = 1.sp,
                         color = TextTertiary,
@@ -994,6 +1047,13 @@ private fun ChatBubble(message: TogetherChatMessage) {
                 // reach here; this branch exists so a new note kind cannot silently show nothing.
                 else -> Text("\u2026", fontSize = 14.sp, color = TextTertiary)
 
+            }
+
+            // Written down but not yet acknowledged by the relay. It will go out by itself the
+            // moment the connection is back, so this is information rather than a thing to act on.
+            if (pending) {
+                Spacer(Modifier.height(4.dp))
+                Text("Sending\u2026", fontSize = 10.sp, color = TextTertiary)
             }
         }
     }
@@ -1097,3 +1157,6 @@ private fun share(context: android.content.Context, text: String) {
     }
     context.startActivity(Intent.createChooser(intent, "Invite them to listen"))
 }
+
+/** Enough of the thread to pick the conversation back up, without becoming the whole screen. */
+private const val RECENT_MESSAGES = 8

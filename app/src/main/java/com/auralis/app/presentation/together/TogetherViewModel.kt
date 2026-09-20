@@ -6,6 +6,7 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.auralis.app.data.repository.CoupleRepository
+import com.auralis.app.data.repository.TogetherMailboxRepository
 import com.auralis.app.domain.model.Track
 import com.auralis.app.playback.PlaybackManager
 import com.auralis.app.together.EncryptionStrength
@@ -15,22 +16,28 @@ import com.auralis.app.together.TogetherInvite
 import com.auralis.app.together.TogetherPlayer
 import com.auralis.app.together.TogetherPreferences
 import com.auralis.app.together.TogetherSession
+import com.auralis.app.together.StoredNote
 import com.auralis.app.together.Streak
 import com.auralis.app.together.TrackRef
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+@OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
 class TogetherViewModel @Inject constructor(
     private val session: TogetherSession,
     private val preferences: TogetherPreferences,
     private val player: TogetherPlayer,
     private val couple: CoupleRepository,
+    private val mailbox: TogetherMailboxRepository,
     private val playback: PlaybackManager,
 ) : ViewModel() {
 
@@ -48,6 +55,17 @@ class TogetherViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     val memories = couple.memories(limit = 20)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /**
+     * Everything the two of you have said in this room, whether or not a session is running.
+     *
+     * Read from the room this phone remembers rather than from the live session, which is the
+     * whole point: the conversation should be there when the app opens, before anyone has
+     * reconnected to anything, and it should still be there tomorrow.
+     */
+    val conversation = preferences.lastRoom
+        .flatMapLatest { room -> room?.let { mailbox.messages(it.code) } ?: flowOf(emptyList()) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList<StoredNote>())
 
     /** The invite for the room this phone created, so it can be shared and scanned. */
     private val _invite = MutableStateFlow<Invite?>(null)

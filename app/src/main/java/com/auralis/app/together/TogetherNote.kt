@@ -2,6 +2,7 @@ package com.auralis.app.together
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import java.security.MessageDigest
 
 /**
  * Everything two people say to each other in a session, as one encrypted channel.
@@ -107,6 +108,22 @@ val TogetherNote.isCallSignalling: Boolean
         this is TogetherNote.CallMedia
 
 object TogetherNotes {
+
+    /**
+     * A stable id for a message, derived from the sealed bytes themselves.
+     *
+     * Every note is sealed under a fresh nonce, so two identical messages produce different
+     * ciphertext and this is unique per message. It is also the same on both phones and the same
+     * whether a message arrives as a live broadcast or inside the history a rejoin replays, which
+     * is exactly what stops a reconnect from repeating the last fifty things you said.
+     *
+     * A digest rather than the ciphertext itself only because it is a sensible length for a key.
+     */
+    fun idFor(ciphertext: String): String =
+        MessageDigest.getInstance("SHA-256")
+            .digest(ciphertext.toByteArray(Charsets.UTF_8))
+            .take(16)
+            .joinToString("") { "%02x".format(it) }
 
     fun seal(key: RoomKey, note: TogetherNote): String =
         TogetherCrypto.seal(key, TogetherJson.encodeToString(TogetherNote.serializer(), note))

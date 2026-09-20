@@ -2,6 +2,7 @@ package com.auralis.app.together
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -81,5 +82,49 @@ class TogetherNoteTest {
         for (junk in listOf("", "not base64 !!", "AAAA")) {
             assertNull(junk, TogetherNotes.open(key, junk))
         }
+    }
+
+    // --- storing a message ---------------------------------------------------------------------
+
+    @Test
+    fun `the id is the same on both phones and stable across a replay`() {
+        val sealed = TogetherNotes.seal(key, TogetherNote.Text("are you awake?"))
+
+        // Both phones derive it from the same bytes, and a rejoin replays those exact bytes.
+        assertEquals(TogetherNotes.idFor(sealed), TogetherNotes.idFor(sealed))
+        assertEquals(32, TogetherNotes.idFor(sealed).length)
+    }
+
+    @Test
+    fun `two messages with identical words still get different ids`() {
+        // A fresh nonce per message is what makes this true, and it is what lets the id double as
+        // the dedupe key: saying "goodnight" twice is two messages, not one repeated.
+        val first = TogetherNotes.seal(key, TogetherNote.Text("goodnight"))
+        val second = TogetherNotes.seal(key, TogetherNote.Text("goodnight"))
+        assertNotEquals(TogetherNotes.idFor(first), TogetherNotes.idFor(second))
+    }
+
+    @Test
+    fun `only the things a person actually said are kept`() {
+        assertEquals("text", TogetherNote.Text("hi").storedKind)
+        assertEquals("dedication", TogetherNote.Dedication(track, "for you").storedKind)
+        assertEquals("lyric", TogetherNote.LyricMoment("a line", track, 0).storedKind)
+        assertEquals("knock", TogetherNote.Knock.storedKind)
+
+        // Plumbing. A candidate list in a chat thread would bury the conversation in it.
+        assertNull(TogetherNote.Goodnight(0).storedKind)
+        assertNull(TogetherNote.CallInvite(withVideo = true).storedKind)
+        assertNull(TogetherNote.CallOffer("v=0", withVideo = true).storedKind)
+        assertNull(TogetherNote.CallIce("candidate:1", "0", 0).storedKind)
+        assertNull(TogetherNote.CallEnd("hung up").storedKind)
+    }
+
+    @Test
+    fun `the preview reads as a line, not as a dump of the payload`() {
+        assertEquals("hi", TogetherNote.Text("hi").preview)
+        assertEquals("Midnight Drive \u2014 for you", TogetherNote.Dedication(track, "for you").preview)
+        assertEquals("Midnight Drive", TogetherNote.Dedication(track, "  ").preview)
+        assertEquals("\u201ca line\u201d", TogetherNote.LyricMoment("a line", track, 0).preview)
+        assertEquals("Thinking of you", TogetherNote.Knock.preview)
     }
 }

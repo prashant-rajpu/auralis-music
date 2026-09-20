@@ -32,6 +32,25 @@ val MIGRATION_3_4 = object : Migration(3, 4) {
     }
 }
 
+/**
+ * Chat stops being something that only exists while a socket is open.
+ *
+ * Additive, like the one before it: one new table, nothing altered. The statements are copied
+ * verbatim from the exported v5 schema for the reason at the top of MIGRATION_3_4 — Room compares
+ * the migrated table against that schema on open and refuses to start if they differ.
+ */
+val MIGRATION_4_5 = object : Migration(4, 5) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        V5_STATEMENTS.forEach(db::execSQL)
+    }
+}
+
+internal val V5_STATEMENTS: List<String> = listOf(
+    CREATE_TOGETHER_MESSAGES,
+    INDEX_TOGETHER_MESSAGES_ROOMCODE_ATMS,
+    INDEX_TOGETHER_MESSAGES_PENDING,
+)
+
 /** Parents before children: playlist_tracks and jam_events carry foreign keys. */
 internal val V4_STATEMENTS: List<String> = listOf(
     CREATE_CATALOG_TRACKS,
@@ -167,3 +186,17 @@ internal const val INDEX_JAM_EVENTS_SESSIONID =
 
 internal const val INDEX_JAM_EVENTS_ATMS =
     "CREATE INDEX IF NOT EXISTS `index_jam_events_atMs` ON `jam_events` (`atMs`)"
+
+internal const val CREATE_TOGETHER_MESSAGES =
+    "CREATE TABLE IF NOT EXISTS `together_messages` (`id` TEXT NOT NULL, `roomCode` TEXT NOT " +
+        "NULL, `senderId` TEXT NOT NULL, `senderName` TEXT NOT NULL, `fromMe` INTEGER NOT NULL, " +
+        "`kind` TEXT NOT NULL, `payload` TEXT NOT NULL, `preview` TEXT NOT NULL, `atMs` INTEGER " +
+        "NOT NULL, `pending` INTEGER NOT NULL, `ciphertext` TEXT, PRIMARY KEY(`id`))"
+
+internal const val INDEX_TOGETHER_MESSAGES_ROOMCODE_ATMS =
+    "CREATE INDEX IF NOT EXISTS `index_together_messages_roomCode_atMs` ON `together_messages` " +
+        "(`roomCode`, `atMs`)"
+
+internal const val INDEX_TOGETHER_MESSAGES_PENDING =
+    "CREATE INDEX IF NOT EXISTS `index_together_messages_pending` ON `together_messages` " +
+        "(`pending`)"

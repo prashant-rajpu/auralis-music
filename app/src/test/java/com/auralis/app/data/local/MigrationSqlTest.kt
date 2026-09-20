@@ -123,4 +123,53 @@ class MigrationSqlTest {
             )
         }
     }
+
+    // --- v5: chat that outlives the socket ---
+
+    @Test
+    fun theV5TableIsCreatedExactlyAsRoomGeneratedIt() {
+        assertEquals(createSql(5, "together_messages"), CREATE_TOGETHER_MESSAGES)
+        indexSql(5, "together_messages").forEach { sql ->
+            assertTrue("MIGRATION_4_5 is missing an index: $sql", V5_STATEMENTS.contains(sql))
+        }
+    }
+
+    @Test
+    fun migrationFourToFiveRunsNothingBeyondTheSchema() {
+        val expected = (listOf(createSql(5, "together_messages")) + indexSql(5, "together_messages")).toSet()
+        val extra = V5_STATEMENTS.toSet() - expected
+        assertTrue("MIGRATION_4_5 runs statements the schema does not describe: $extra", extra.isEmpty())
+        assertEquals("MIGRATION_4_5 has duplicate statements", V5_STATEMENTS.size, V5_STATEMENTS.toSet().size)
+    }
+
+    /**
+     * Same property as v4, one version on: someone upgrading from v4 has a library and a download
+     * folder by now, and none of it may be touched to make room for a chat table.
+     */
+    @Test
+    fun migrationFourToFiveNeverTouchesAnythingThatAlreadyHeldUserData() {
+        V5_STATEMENTS.forEach { sql ->
+            assertTrue("MIGRATION_4_5 runs a non-CREATE statement: $sql", sql.startsWith("CREATE "))
+        }
+        val untouched = listOf("tracks", "stream_cache") + v4Tables
+        untouched.forEach { existing ->
+            V5_STATEMENTS.forEach { sql ->
+                assertFalse(
+                    "MIGRATION_4_5 must not touch the pre-existing '$existing' table: $sql",
+                    sql.contains("`$existing`")
+                )
+            }
+        }
+    }
+
+    @Test
+    fun v5LeavesEveryEarlierTableByteIdentical() {
+        (listOf("tracks", "stream_cache") + v4Tables).forEach { table ->
+            assertEquals(
+                "Table '$table' changed shape between v4 and v5; that needs a real data migration",
+                createSql(4, table),
+                createSql(5, table)
+            )
+        }
+    }
 }
