@@ -86,7 +86,12 @@ npm test          # protocol and validation tests
 npm run typecheck
 npx wrangler login
 npm run deploy
+npm run smoke -- <the url it printed>
 ```
+
+`wrangler login` is interactive, so it has to be you: an agent in a headless
+container cannot complete the browser flow, and handing one an API token to
+work around that is a worse trade than typing one command.
 
 `wrangler deploy` prints the worker URL. It looks like
 `https://auralis-relay.<your-subdomain>.workers.dev` — the subdomain is yours,
@@ -107,6 +112,28 @@ socket error, because a plausible-but-wrong default is worse than none.
 Local development: `npm run dev` runs the worker and the Durable Object in
 Workers' local runtime at `http://localhost:8787`.
 
+## What is configured, and why
+
+`wrangler.toml` turns on Workers Logs and Traces. Without them a session that
+misbehaves on two real phones leaves nothing behind to look at, which is the
+difference between a bug report and a diagnosis.
+
+Room codes come from `crypto.getRandomValues`, not `Math.random`. The code is
+the only thing keeping a room private, and for a session opened by typing the
+code rather than following a link it is also what the chat key is derived
+from — so it has to be unguessable, which `Math.random` is not built to be.
+
+`Room` extends `DurableObject` from `cloudflare:workers` rather than merely
+implementing the interface, so it inherits the runtime behaviour and `this.ctx`
+that the base class provides, and the namespace is typed by the class.
+
+**Not configurable on a `workers.dev` address:** the managed bot challenge in
+front of it. Requests that score badly — anything from a datacenter IP, for
+instance — get an HTML interstitial that no HTTP client can solve. A phone on
+an ordinary network scores fine, and the app now detects the challenge and says
+so rather than retrying into it forever. Turning it off needs a custom domain
+on a zone you control; a `workers.dev` subdomain has no WAF settings.
+
 ## Cost
 
 Workers' free tier is 100,000 requests a day. A WebSocket connection counts as
@@ -123,17 +150,28 @@ someone actually did something.
 
 ## Testing
 
+Two suites, and they cover different halves.
+
 ```bash
-cd relay && npm test
+cd relay
+npm test                                      # the protocol, no runtime needed
+npm run smoke -- https://your-relay.workers.dev   # a real deployment
 ```
 
 `src/protocol.ts` is deliberately pure — no Workers APIs, no I/O — because it
 holds the entire security boundary and is worth testing without a runtime.
+`npm test` covers it.
 
-The Durable Object wiring in `src/room.ts` is **not** covered by automated
-tests. `@cloudflare/vitest-pool-workers`, which would run it in the real
-`workerd` runtime, could not be installed (npm fails resolving its vitest 4
-peer with an internal `edgesOut` error). Until that is fixed, room behaviour —
-host handover, presence, hibernation, the alarm-driven TTL — is exercised only
-by hand against `npm run dev`. The logic that a malicious peer could reach is
-all in `protocol.ts`, which is covered.
+`npm run smoke` covers what a pure test cannot: it creates a room on a live
+relay, connects two clients, and checks presence, the injected server clock,
+the shared queue, opaque chat, and host handover when the host drops. It also
+re-checks the rule that matters against a *running* room rather than a
+function — a frame carrying `mediaUrl` is refused, and never reaches the peer.
+
+It needs a URL because it talks to a real deployment, so it is not part of CI.
+**Run it after every deploy.**
+
+Still uncovered: hibernation and the alarm-driven 30-day TTL, both of which
+take real time to observe. `@cloudflare/vitest-pool-workers` would let those be
+tested in `workerd`, but it cannot be installed here — npm fails resolving its
+vitest 4 peer with an internal `edgesOut` error.

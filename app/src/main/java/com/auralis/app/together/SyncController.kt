@@ -36,6 +36,12 @@ data class SyncConfig(
      * stamp this old would put us hours into a track nobody is playing.
      */
     val staleAfterMs: Long = 30 * 60 * 1000,
+    /**
+     * The only gap worth seeking when the clock itself is only good to a fraction of a second.
+     * Wide enough that measurement error cannot trigger it; narrow enough to still catch a real
+     * desync, like one side having skipped.
+     */
+    val coarseSeekMs: Long = 2_000,
 )
 
 /** What the other side last told us, in room time. */
@@ -111,10 +117,17 @@ class SyncController(private val config: SyncConfig = SyncConfig()) {
         return projected.coerceIn(0L, ceiling)
     }
 
+    /**
+     * [precise] is false when the clock was measured over a link too slow to trust to the
+     * millisecond. The gap is then only worth acting on when it is far larger than the
+     * measurement error, and never worth nudging: a biased offset makes a nudge lean one way and
+     * stay there, which is exactly how one side ends up playing permanently slow.
+     */
     fun decide(
         local: LocalPlayback,
         remote: RemotePlayback,
         nowServerMs: Long,
+        precise: Boolean = true,
     ): SyncDecision {
         if (nowServerMs - remote.atServerMs > config.staleAfterMs) {
             reset()
@@ -162,6 +175,16 @@ class SyncController(private val config: SyncConfig = SyncConfig()) {
         }
 
         val magnitude = abs(drift)
+
+        if (!precise) {
+            reset()
+            return SyncDecision(
+                state = if (magnitude > config.coarseSeekMs) SyncState.CORRECTED else SyncState.IN_SYNC,
+                seekToMs = if (magnitude > config.coarseSeekMs) expected else null,
+                shouldPlay = true,
+                driftMs = drift,
+            )
+        }
 
         val nudgeExpired = nudgeStartedAtMs?.let { nowServerMs - it > config.maxNudgeDurationMs } == true
         if (magnitude > config.hardSeekMs || (nudgeExpired && magnitude >= config.nudgeMs)) {

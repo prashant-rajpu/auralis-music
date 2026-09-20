@@ -284,10 +284,29 @@ export function parseClientMessage(raw: string): ClientMessage {
   return validateClientMessage(parsed);
 }
 
-export function generateRoomCode(random: () => number = Math.random): string {
+/**
+ * A room code from the CSPRNG, not from `Math.random`.
+ *
+ * The code is the only thing keeping a room private — and for a session opened by typing it rather
+ * than following a link, it is also what the chat key is derived from. `Math.random` is seeded
+ * predictably and is not built to resist anyone trying to guess the next value, which makes it the
+ * wrong tool for both jobs.
+ *
+ * Bytes at or above `LIMIT` are discarded rather than folded in with `%`, so every character in
+ * the alphabet is equally likely. 256 is not a multiple of 31, and without this the first eight
+ * characters would come up slightly more often than the rest.
+ */
+export function generateRoomCode(): string {
+  const LIMIT = 256 - (256 % CODE_ALPHABET.length);
   let code = "";
-  for (let i = 0; i < CODE_LENGTH; i++) {
-    code += CODE_ALPHABET[Math.floor(random() * CODE_ALPHABET.length)];
+  const buffer = new Uint8Array(CODE_LENGTH);
+  while (code.length < CODE_LENGTH) {
+    crypto.getRandomValues(buffer);
+    for (const byte of buffer) {
+      if (byte >= LIMIT) continue;
+      code += CODE_ALPHABET[byte % CODE_ALPHABET.length];
+      if (code.length === CODE_LENGTH) break;
+    }
   }
   return code;
 }

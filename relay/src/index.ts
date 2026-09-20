@@ -1,9 +1,10 @@
 import { CODE_LENGTH, generateRoomCode, isValidRoomCode } from "./protocol";
+import { Room } from "./room";
 
-export { Room } from "./room";
+export { Room };
 
 export interface Env {
-  ROOMS: DurableObjectNamespace;
+  ROOMS: DurableObjectNamespace<Room>;
 }
 
 /** Per-IP join budget, so one host cannot mint rooms or hammer join in a loop. */
@@ -72,7 +73,7 @@ export default {
       // rather than silently handing someone else's live room to this caller.
       for (let attempt = 0; attempt < CODE_ATTEMPTS; attempt++) {
         const code = generateRoomCode();
-        const room = env.ROOMS.get(env.ROOMS.idFromName(code));
+        const room = env.ROOMS.getByName(code);
         const created = await room.fetch(
           new Request("https://relay.invalid/create", {
             method: "POST",
@@ -99,7 +100,7 @@ export default {
         return Response.json({ error: "rate_limited" }, { status: 429 });
       }
 
-      const room = env.ROOMS.get(env.ROOMS.idFromName(code));
+      const room = env.ROOMS.getByName(code);
       const forwarded = new URL(request.url);
       forwarded.pathname = "/ws";
       return room.fetch(new Request(forwarded.toString(), request));

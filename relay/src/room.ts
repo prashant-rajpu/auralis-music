@@ -1,3 +1,5 @@
+import { DurableObject } from "cloudflare:workers";
+import type { Env } from "./index";
 import {
   MAX_CHAT_HISTORY,
   MAX_MEMBERS,
@@ -55,17 +57,16 @@ interface Playback {
  * stay open, so an idle room costs nothing. All durable state therefore lives in storage or in the
  * socket attachments, never in instance fields that would not survive eviction.
  */
-export class Room implements DurableObject {
+export class Room extends DurableObject<Env> {
   /**
    * Deliberately not durable. Eviction only happens when a room has been quiet, and a quiet
    * member's bucket would have refilled to capacity anyway, so losing it changes nothing.
    */
   private readonly limiters = new Map<string, RateLimiter>();
 
-  constructor(
-    private readonly state: DurableObjectState,
-    private readonly env: unknown,
-  ) {}
+  constructor(ctx: DurableObjectState, env: Env) {
+    super(ctx, env);
+  }
 
   async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url);
@@ -86,11 +87,11 @@ export class Room implements DurableObject {
     // Room codes are short enough to collide eventually, and a second create must never be able to
     // overwrite a live room's host token — that would hand an existing couple's room to a stranger.
     // The caller retries with a fresh code instead.
-    const existing = await this.state.storage.get<number>("createdAtMs");
+    const existing = await this.ctx.storage.get<number>("createdAtMs");
     if (existing !== undefined) return Response.json({ error: "code_taken" }, { status: 409 });
 
-    await this.state.storage.put("hostToken", hostToken);
-    await this.state.storage.put("createdAtMs", Date.now());
+    await this.ctx.storage.put("hostToken", hostToken);
+    await this.ctx.storage.put("createdAtMs", Date.now());
     await this.touch();
     return Response.json({ ok: true });
   }
@@ -100,10 +101,10 @@ export class Room implements DurableObject {
       return new Response("Expected websocket", { status: 426 });
     }
 
-    const createdAt = await this.state.storage.get<number>("createdAtMs");
+    const createdAt = await this.ctx.storage.get<number>("createdAtMs");
     if (createdAt === undefined) return Response.json({ error: "not_found" }, { status: 404 });
 
-    if (this.state.getWebSockets().length >= MAX_MEMBERS) {
+    if (this.ctx.getWebSockets().length >= MAX_MEMBERS) {
       return Response.json({ error: "room_full" }, { status: 409 });
     }
 
@@ -117,7 +118,7 @@ export class Room implements DurableObject {
     const pair = new WebSocketPair();
     const [client, server] = [pair[0], pair[1]];
 
-    this.state.acceptWebSocket(server);
+    this.ctx.acceptWebSocket(server);
     const attachment: Attachment = {
       memberId,
       name,
@@ -129,14 +130,14 @@ export class Room implements DurableObject {
     server.serializeAttachment(attachment);
 
     // First socket in an empty room hosts it; a returning host reclaims by token.
-    const hostToken = await this.state.storage.get<string>("hostToken");
-    let hostId = await this.state.storage.get<string>("hostId");
+    const hostToken = await this.ctx.storage.get<string>("hostToken");
+    let hostId = await this.ctx.storage.get<string>("hostId");
     if (hostId === undefined || this.memberById(hostId) === null) {
       hostId = memberId;
-      await this.state.storage.put("hostId", hostId);
+      await this.ctx.storage.put("hostId", hostId);
     } else if (hostToken !== undefined && token === hostToken && hostId !== memberId) {
       hostId = memberId;
-      await this.state.storage.put("hostId", hostId);
+      await this.ctx.storage.put("hostId", hostId);
     }
 
     await this.touch();
@@ -202,7 +203,7 @@ export class Room implements DurableObject {
           speed: message.speed,
           atServerMs: serverMs,
         };
-        await this.state.storage.put("playback", playback);
+        await this.ctx.storage.put("playback", playback);
         this.broadcast({
           type: "playback",
           senderId: attachment.memberId,
@@ -216,9 +217,9 @@ export class Room implements DurableObject {
       }
 
       case "seek": {
-        const playback = await this.state.storage.get<Playback>("playback");
+        const playback = await this.ctx.storage.get<Playback>("playback");
         if (playback !== undefined) {
-          await this.state.storage.put("playback", {
+          await this.ctx.storage.put("playback", {
             ...playback,
             positionMs: message.positionMs,
             atServerMs: serverMs,
@@ -234,21 +235,21 @@ export class Room implements DurableObject {
       }
 
       case "queueAdd": {
-        const queue = (await this.state.storage.get<QueueEntry[]>("queue")) ?? [];
+        const queue = (await this.ctx.storage.get<QueueEntry[]>("queue")) ?? [];
         if (queue.length >= MAX_QUEUE_ITEMS) {
           this.send(socket, { type: "error", code: "bad_message", message: "Queue is full" });
           return;
         }
         queue.push({ track: message.track, addedBy: attachment.memberId });
-        await this.state.storage.put("queue", queue);
+        await this.ctx.storage.put("queue", queue);
         this.broadcast({ type: "queue", serverMs, items: queue });
         return;
       }
 
       case "queueRemove": {
-        const queue = (await this.state.storage.get<QueueEntry[]>("queue")) ?? [];
+        const queue = (await this.ctx.storage.get<QueueEntry[]>("queue")) ?? [];
         const next = removeFirstMatch(queue, message.providerId);
-        await this.state.storage.put("queue", next);
+        await this.ctx.storage.put("queue", next);
         this.broadcast({ type: "queue", serverMs, items: next });
         return;
       }
@@ -260,10 +261,10 @@ export class Room implements DurableObject {
       }
 
       case "chat": {
-        const chat = (await this.state.storage.get<RoomSnapshot["chat"]>("chat")) ?? [];
+        const chat = (await this.ctx.storage.get<RoomSnapshot["chat"]>("chat")) ?? [];
         chat.push({ senderId: attachment.memberId, serverMs, ciphertext: message.ciphertext });
         while (chat.length > MAX_CHAT_HISTORY) chat.shift();
-        await this.state.storage.put("chat", chat);
+        await this.ctx.storage.put("chat", chat);
         this.broadcast({
           type: "chat",
           senderId: attachment.memberId,
@@ -301,13 +302,13 @@ export class Room implements DurableObject {
     const goneId = attachment?.memberId;
     if (goneId !== undefined) this.limiters.delete(goneId);
 
-    const hostId = await this.state.storage.get<string>("hostId");
+    const hostId = await this.ctx.storage.get<string>("hostId");
     if (hostId !== undefined && goneId === hostId) {
       // Do not strand the room on a host that left. Hand over immediately to whoever is still here
       // rather than running a grace timer: the original host reclaims with their token the moment
       // they reconnect, which is the same outcome without a window where nobody can drive playback.
       const next = this.members(undefined, goneId)[0];
-      if (next !== undefined) await this.state.storage.put("hostId", next.id);
+      if (next !== undefined) await this.ctx.storage.put("hostId", next.id);
     }
 
     await this.broadcastPresence(undefined, goneId);
@@ -316,20 +317,20 @@ export class Room implements DurableObject {
   /** Called on every interaction; an untouched room expires so old codes do not accumulate. */
   private async touch(): Promise<void> {
     const now = Date.now();
-    const lastSeen = (await this.state.storage.get<number>("lastSeenMs")) ?? 0;
+    const lastSeen = (await this.ctx.storage.get<number>("lastSeenMs")) ?? 0;
     if (now - lastSeen < TOUCH_INTERVAL_MS) return;
-    await this.state.storage.put("lastSeenMs", now);
-    await this.state.storage.setAlarm(now + ROOM_IDLE_TTL_MS);
+    await this.ctx.storage.put("lastSeenMs", now);
+    await this.ctx.storage.setAlarm(now + ROOM_IDLE_TTL_MS);
   }
 
   async alarm(): Promise<void> {
-    const lastSeen = (await this.state.storage.get<number>("lastSeenMs")) ?? 0;
+    const lastSeen = (await this.ctx.storage.get<number>("lastSeenMs")) ?? 0;
     if (Date.now() - lastSeen >= ROOM_IDLE_TTL_MS) {
-      await this.state.storage.deleteAll();
+      await this.ctx.storage.deleteAll();
       return;
     }
     // Touched since this alarm was set: re-arm for the remaining life rather than expiring early.
-    await this.state.storage.setAlarm(lastSeen + ROOM_IDLE_TTL_MS);
+    await this.ctx.storage.setAlarm(lastSeen + ROOM_IDLE_TTL_MS);
   }
 
   private allow(memberId: string): boolean {
@@ -343,7 +344,7 @@ export class Room implements DurableObject {
   }
 
   private attachments(excludeId?: string): Attachment[] {
-    return this.state
+    return this.ctx
       .getWebSockets()
       .map((socket) => socket.deserializeAttachment() as Attachment | null)
       .filter((a): a is Attachment => a !== null && a.memberId !== excludeId);
@@ -371,9 +372,9 @@ export class Room implements DurableObject {
 
   private async snapshot(hostId: string): Promise<RoomSnapshot> {
     const [playback, queue, chat] = await Promise.all([
-      this.state.storage.get<Playback>("playback"),
-      this.state.storage.get<QueueEntry[]>("queue"),
-      this.state.storage.get<RoomSnapshot["chat"]>("chat"),
+      this.ctx.storage.get<Playback>("playback"),
+      this.ctx.storage.get<QueueEntry[]>("queue"),
+      this.ctx.storage.get<RoomSnapshot["chat"]>("chat"),
     ]);
     return {
       members: this.members(hostId),
@@ -385,7 +386,7 @@ export class Room implements DurableObject {
   }
 
   private async broadcastPresence(knownHostId?: string, excludeId?: string): Promise<void> {
-    const hostId = knownHostId ?? (await this.state.storage.get<string>("hostId")) ?? "";
+    const hostId = knownHostId ?? (await this.ctx.storage.get<string>("hostId")) ?? "";
     this.broadcast({
       type: "presence",
       members: this.members(hostId, excludeId),
@@ -396,7 +397,7 @@ export class Room implements DurableObject {
 
   private broadcast(message: ServerMessage): void {
     const payload = JSON.stringify(message);
-    for (const socket of this.state.getWebSockets()) {
+    for (const socket of this.ctx.getWebSockets()) {
       try {
         socket.send(payload);
       } catch {
