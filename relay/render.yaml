@@ -1,10 +1,17 @@
-# Render. The free plan needs no card, and sleeps the service after 15 minutes of no traffic —
-# the first person in then waits through a cold start of roughly a minute. The app reconnects on
-# its own, so it recovers, but it is a poor first impression. Upgrade the plan to stop it sleeping.
+# Render. Free, no card, and it sleeps unless something keeps it awake.
 #
-# The free plan also has no persistent disk, which is why DATA_DIR is empty here: rooms live in
-# memory and codes reset on every deploy. On a paid plan, attach a disk at /data and set
-# DATA_DIR=/data.
+# Two things about the free plan shape everything below.
+#
+# It spins the service down after 15 minutes with no traffic, and the next request then waits
+# about a minute for it to come back. `.github/workflows/relay-keepalive.yml` pings /health every
+# ten minutes to stop that happening, and fails loudly if the relay is down — which is worth more
+# than the ping itself. Note the account-wide budget of 750 instance-hours a month: one service
+# kept awake around the clock uses roughly 730 of them, so this can be the only one.
+#
+# It also has no persistent disk, which is why DATA_DIR is empty here. Rooms live in memory and
+# are forgotten on every deploy — so the relay is left to adopt a code it does not recognise
+# (ADOPT_UNKNOWN_ROOMS defaults to on when there is no disk). Without that, a redeploy would tell
+# the two of you that the room you were using last night does not exist.
 
 services:
   - type: web
@@ -19,3 +26,17 @@ services:
         value: "8787"
       - key: DATA_DIR
         value: ""
+
+      # --- Calls -----------------------------------------------------------------------------
+      # Without TURN a call connects over a home network and fails on a restrictive one. Set
+      # these in the Render dashboard rather than here if the credentials are yours; the values
+      # below are a public test service and are safe to commit.
+      #
+      # Check them before trusting them:  npm run check:turn -- https://<your relay>
+      #
+      # - key: TURN_URLS
+      #   value: "turn:openrelay.metered.ca:80,turn:openrelay.metered.ca:443,turns:openrelay.metered.ca:443?transport=tcp"
+      # - key: TURN_USERNAME
+      #   value: "openrelayproject"
+      # - key: TURN_CREDENTIAL
+      #   value: "openrelayproject"

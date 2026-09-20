@@ -13,22 +13,22 @@ what the app knows about you.
 
 Small, but nothing else about Together can be trusted until they are done.
 
-- [ ] **Deploy the relay somewhere.** It is no longer a Cloudflare Worker — it
-      is a plain Node server in a container, and `relay/` carries a
-      `Dockerfile`, a `fly.toml`, a `render.yaml` and a `docker-compose.yml`.
-      Fly.io in Mumbai is the recommendation: closest region to both of you,
-      never sleeps, a couple of dollars a month.
+- [ ] **Deploy the relay to Render.** It is a container now, not a Worker.
+      Point Render at this repo; `render.yaml` is committed and it builds the
+      `Dockerfile` on the free plan. Then:
 
       ```bash
-      cd relay
-      fly launch --no-deploy --copy-config --name auralis-relay
-      fly volumes create relay_data --region bom --size 1
-      fly deploy
-      npm run smoke -- https://<what it printed>
+      cd relay && npm run build
+      npm run smoke -- https://<your relay>.onrender.com
       ```
+- [ ] **Set `AURALIS_RELAY_URL` as a repository secret.** That switches on
+      `.github/workflows/relay-keepalive.yml`, which pings `/health` every ten
+      minutes so Render never sleeps the service — and emails you when the
+      relay is down, which is the only monitoring this project has.
 
-      `docs/RELAY.md` has the Render and self-hosted paths, and what each one
-      costs you.
+      Two caveats: GitHub's scheduled runs are often minutes late, and GitHub
+      disables them in a repo with no activity for 60 days. If either worries
+      you, point UptimeRobot or cron-job.org at `/health` instead.
 - [ ] **Delete the two Cloudflare relays** and the empty `auralis-music` Pages
       project, so there is one address and no confusion later.
 - [ ] **Put the URL somewhere permanent** — `auralis.relayUrl` in
@@ -37,15 +37,24 @@ Small, but nothing else about Together can be trusted until they are done.
 - [ ] **Run the two-phone test** and keep the numbers: the Together tab shows
       live drift in ms and the round trip. Those two are what turn the sync
       thresholds from reasoned guesses into measurements.
-- [ ] **Set up TURN.** Without it a call has STUN only, which works on most home
-      networks and fails on the awkward ones — and one of the two phones this is
-      for is on a network that restricts consumer VoIP, which is the awkward
-      case. Either point `TURN_URLS` + `TURN_USERNAME`/`TURN_CREDENTIAL` at a
-      hosted provider, or run coturn with `use-auth-secret` and give the relay
-      the same `TURN_SECRET`. `docs/RELAY.md` has a working coturn config.
+- [ ] **Set up TURN, then prove it works.** Without it a call has STUN only,
+      which works on most home networks and fails on the awkward ones — and one
+      of the two phones this is for is on a network that restricts consumer
+      VoIP, which is the awkward case.
 
-      The smoke test tells you which you have: its TURN line names the
-      addresses, and fails if the list comes back without TLS on 443.
+      Start free: Metered's public Open Relay needs no account, and the values
+      are commented into `relay/render.yaml` ready to uncomment.
+
+      Then check it, because a dead TURN address is worse than none:
+
+      ```bash
+      cd relay && npm run build
+      npm run check:turn -- https://<your relay>.onrender.com
+      ```
+
+      It speaks real STUN and TURN and exits non-zero unless a relay address
+      comes back over TLS on 443. Run it from her network too, not just yours —
+      that is the one the answer depends on.
 
 ---
 
@@ -53,7 +62,7 @@ Small, but nothing else about Together can be trusted until they are done.
 
 Worth stating plainly before anything below gets planned on top of it.
 
-Machine-checked: compilation, 341 unit tests on `play`, 52 relay unit tests, 21
+Machine-checked: compilation, 341 unit tests on `play`, 63 relay unit tests, 22
 end-to-end checks against a running relay, lint, R8, and APK-level proof that
 `play` contains no scraped-source code. The relay's end-to-end checks now run in
 CI, because the relay is an ordinary process that CI can start.

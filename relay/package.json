@@ -13,7 +13,8 @@
     "dev": "node --watch --experimental-strip-types src/server.ts",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "smoke": "node scripts/smoke.mjs"
+    "smoke": "node scripts/smoke.mjs",
+    "check:turn": "node dist/check-turn.js"
   },
   "license": "ISC",
   "dependencies": {

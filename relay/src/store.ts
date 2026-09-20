@@ -64,6 +64,11 @@ export class RoomStore {
     return this.rooms.get(code);
   }
 
+  /** True when nothing here outlives a restart, which changes what a missing room means. */
+  get isEphemeral(): boolean {
+    return this.file === null;
+  }
+
   /**
    * Refuses a code that is already taken rather than overwriting it. A collision must never be
    * able to hand a live couple's room to a stranger; the caller retries with a fresh code.

@@ -125,15 +125,43 @@ deliberately off: a relay that is asleep when she opens the app is a relay that
 is not there, and a cold start on the one path that has to feel instant is the
 wrong trade.
 
-### Render — free, but it sleeps
+### Render — free, with two things to know
 
 `render.yaml` is committed. Point Render at the repo and it builds the
-Dockerfile. The free plan needs no card and **sleeps the service after 15
-minutes of no traffic**, so the first person in waits through a cold start of
-around a minute. The app reconnects by itself, so it recovers rather than
-breaking — it is just a poor first impression. The free plan also has no
-persistent disk, which is why `DATA_DIR` is empty there: room codes reset on
-every deploy.
+Dockerfile. No card, no cost. Two properties of the free plan shape how this is
+set up.
+
+**It sleeps after 15 minutes with no traffic**, and the next request then waits
+about a minute while it comes back. `.github/workflows/relay-keepalive.yml`
+pings `/health` every ten minutes so that never happens. Set
+`AURALIS_RELAY_URL` as a repository secret and it starts working; without the
+secret it does nothing rather than failing every run.
+
+That workflow is also the only monitoring this project has: when `/health` does
+not answer, the job fails and GitHub emails you. A relay that is down at 11pm
+her time is the failure that actually matters, and nothing else would tell you.
+
+Two caveats, both GitHub's. Scheduled runs are best-effort and often minutes
+late — ten minutes against a fifteen-minute timer leaves room for that, but not
+much. And GitHub disables scheduled workflows in a repository with no activity
+for 60 days. If that is a risk, point a free uptime monitor at `/health`
+instead: UptimeRobot checks every five minutes, cron-job.org every one, and
+neither cares how long since you last pushed.
+
+Note Render's account-wide budget of **750 instance-hours a month**. One service
+kept awake around the clock uses roughly 730 of them, so this can be the only
+free service in the account.
+
+**It has no persistent disk**, which is why `DATA_DIR` is empty there: rooms
+live in memory and are forgotten on every deploy. On its own that would mean
+the room you were both using last night comes back "not found" because of a
+restart neither of you did — so the relay adopts a code it does not recognise
+when it has no disk (`ADOPT_UNKNOWN_ROOMS`, on by default in that case). The
+first person in hosts it, and the two of you keep your code.
+
+With a disk it stays off: there, a missing room really is missing — expired
+after thirty days, or mistyped — and saying so beats quietly opening an empty
+room to sit in.
 
 ### Your own server
 
@@ -251,7 +279,7 @@ relay elsewhere.
 
 ### A hosted TURN provider
 
-Any of them work; the relay only needs a URL and a credential.
+Any of them work; the relay only needs URLs and a credential.
 
 ```bash
 TURN_URLS=turns:turn.provider.example:443?transport=tcp
@@ -259,13 +287,40 @@ TURN_USERNAME=<from the provider>
 TURN_CREDENTIAL=<from the provider>
 ```
 
-Metered's Open Relay is free and needs no account, which makes it the fastest
-way to find out whether TURN fixes a call that will not connect. Twilio's
-Network Traversal Service is the paid, reliable end. Both offer `turns:` on
-443, which is the only property that matters here.
+**Free, and the quickest way to find out whether TURN fixes a call:** Metered
+runs a public Open Relay whose credentials are published rather than issued,
+so there is nothing to sign up for.
 
-Whichever you use, check the smoke test's TURN line: it fails if the list comes
-back without a TLS address on 443.
+```bash
+TURN_URLS=turn:openrelay.metered.ca:80,turn:openrelay.metered.ca:443,turns:openrelay.metered.ca:443?transport=tcp
+TURN_USERNAME=openrelayproject
+TURN_CREDENTIAL=openrelayproject
+```
+
+It is a shared service with no promises attached: it can be slow, and it can go
+away. Treat it as the thing that proves a call *can* be relayed, then decide
+whether to keep it. A free Metered account gives you your own credentials and a
+monthly allowance; Twilio's Network Traversal Service is the paid, dependable
+end; coturn on a free Oracle Cloud VM is the only option that is both free
+forever and yours.
+
+**Do not trust any of them without checking.** A dead TURN address is worse
+than none, because every one of them is a connection attempt the call waits on
+before giving up:
+
+```bash
+npm run build
+npm run check:turn                          # from TURN_URLS in the environment
+npm run check:turn -- https://your-relay    # or from whatever the relay hands out
+```
+
+That speaks real STUN and TURN — a Binding request, then a full Allocate with
+long-term credential authentication — and tells you, per address, whether a
+relay address actually came back. It exits non-zero unless TURN works over TLS
+on 443, because that is the address that matters here.
+
+Run it from the network you are worried about. Passing on your home wifi says
+the credentials are good; it says nothing about a network that blocks calls.
 
 ## Cost
 
@@ -285,9 +340,10 @@ Three layers, and they cover different things.
 
 ```bash
 cd relay
-npm test                                  # 52 unit tests, no server needed
+npm test                                  # 63 unit tests, no server needed
 npm run build && DATA_DIR="" npm start    # in one terminal
-npm run smoke -- http://localhost:8787    # 21 end-to-end checks, in another
+npm run smoke -- http://localhost:8787    # 22 end-to-end checks, in another
+npm run check:turn -- http://localhost:8787   # and whether calls have a way through
 ```
 
 `src/protocol.ts` is deliberately pure — no I/O, no framework — because it
@@ -302,6 +358,15 @@ opaque chat, the ICE list, history on rejoin, and host handover when the host
 drops. It also re-checks the rule that matters against a *running* room — a
 frame carrying `mediaUrl` is refused, and never reaches the peer.
 
-CI runs all three: it builds the relay, starts it, and points the smoke test at
-it. Run the same smoke test against the deployed address after every deploy —
-that is the only way to catch a host that mangles WebSockets.
+`src/stun.ts` is checked against the official test vectors in RFC 5769, which
+exist because these are the bytes everyone gets wrong. That is not ceremony: a
+bad MESSAGE-INTEGRITY comes back as `401 Unauthorized`, indistinguishable from
+a bad password, so a TURN check built on an unverified codec would confidently
+report the wrong cause. Those vectors caught two real bugs when they were first
+run here.
+
+CI runs the unit tests and the smoke test: it builds the relay, starts it, and
+points the smoke test at the running process. Run the same smoke test against
+the deployed address after every deploy — that is the only way to catch a host
+that mangles WebSockets — and `check:turn` whenever the TURN configuration
+changes.

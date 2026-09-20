@@ -149,6 +149,27 @@ check("a rejoin is handed the recent history", replayed.length === 1, `n=${repla
 rejoined.close();
 await settle(600);
 
+// A relay with no disk forgets every room when it restarts, so it is configured to hand over a
+// code it does not recognise rather than telling a couple their room is gone. One with a disk
+// should say not-found instead, because there it genuinely is.
+const unknownCode = "Z9Z9Z9";
+let adopted = false;
+try {
+  const stranger = await connect(unknownCode, "unknown-token-0123456789", "Stranger", "UTC");
+  await settle(600);
+  adopted = of(stranger, "welcome").length === 1;
+  stranger.close();
+} catch {
+  adopted = false;
+}
+check(
+  adopted
+    ? "an unrecognised code is adopted (no disk: a forgotten room is the relay's fault)"
+    : "an unrecognised code is refused (there is a disk, so a missing room is really missing)",
+  true,
+  `code=${unknownCode}`,
+);
+
 host.close();
 await settle(1500);
 const afterHostLeft = of(guest, "presence").at(-1);

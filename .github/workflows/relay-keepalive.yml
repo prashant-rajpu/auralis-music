@@ -1,0 +1,65 @@
+# Keeps the relay awake, and tells you when it is not.
+#
+# Render's free plan spins a service down after 15 minutes with no traffic, and the next person in
+# then waits about a minute for it to come back. Since the whole point is that she can open the app
+# and be listening with you in seconds, a request every ten minutes is what keeps that true.
+#
+# It doubles as monitoring: if /health does not answer, this job fails and GitHub emails you. That
+# is worth more than the ping — a relay that is down at 11pm her time is the failure that matters,
+# and nothing else would tell you.
+#
+# Set AURALIS_RELAY_URL as a repository secret (Settings → Secrets and variables → Actions).
+# Without it this does nothing rather than failing on every run.
+#
+# Two caveats, both GitHub's rather than ours:
+#   - Scheduled runs are best-effort and are often minutes late under load. Ten minutes against a
+#     fifteen-minute idle timer leaves room for that, but not a lot.
+#   - GitHub disables scheduled workflows in a repository with no activity for 60 days. If this
+#     matters more than that, use an uptime monitor instead — see docs/RELAY.md.
+
+name: Keep the relay awake
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: relay-keepalive
+  cancel-in-progress: false
+
+permissions: {}
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Wake it up and check it is healthy
+        env:
+          RELAY_URL: ${{ secrets.AURALIS_RELAY_URL }}
+        run: |
+          if [ -z "$RELAY_URL" ]; then
+            echo "AURALIS_RELAY_URL is not set; nothing to ping."
+            exit 0
+          fi
+
+          url="${RELAY_URL%/}/health"
+
+          # A cold start takes around a minute, so the first attempt is allowed to be slow and
+          # the retries cover a service that is still on its way up.
+          for attempt in 1 2 3 4 5; do
+            if body=$(curl -fsS --max-time 90 "$url"); then
+              echo "$body"
+              case "$body" in
+                *'"ok":true'*) exit 0 ;;
+                *) echo "answered, but not with ok:true" >&2; exit 1 ;;
+              esac
+            fi
+            echo "attempt $attempt failed; waiting" >&2
+            sleep 20
+          done
+
+          echo "The relay did not answer. Together is down until it does." >&2
+          exit 1

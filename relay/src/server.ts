@@ -45,6 +45,22 @@ const ice = iceConfigFromEnv(process.env);
 const store = new RoomStore(dataDir, ROOM_IDLE_TTL_MS);
 const live = new Map<string, Room>();
 
+/**
+ * Whether someone arriving with a code this relay has never heard of gets the room anyway.
+ *
+ * It turns on by itself when there is no persistent store, and that is the case it exists for.
+ * Without a disk, every redeploy forgets every room — so a code the two of you have been using
+ * all week comes back "not found", and a working room has to be abandoned over a server restart
+ * neither of you did. When the relay cannot know whether a code was live before, refusing it is
+ * a guess, and it is the guess that breaks things.
+ *
+ * With a disk it stays off, because there a missing room really is missing: expired after thirty
+ * days, or mistyped. Saying so is more useful than quietly opening an empty room to sit in.
+ */
+const adoptUnknownRooms =
+  process.env.ADOPT_UNKNOWN_ROOMS === "true" ||
+  (process.env.ADOPT_UNKNOWN_ROOMS !== "false" && store.isEphemeral);
+
 function token(): string {
   return randomBytes(24).toString("hex");
 }
@@ -82,8 +98,16 @@ function rateLimited(ip: string): boolean {
 function roomFor(code: string): Room | null {
   const existing = live.get(code);
   if (existing !== undefined) return existing;
-  const record = store.get(code);
-  if (record === undefined) return null;
+
+  let record = store.get(code);
+  if (record === undefined) {
+    if (!adoptUnknownRooms || store.size >= MAX_ROOMS) return null;
+    // No host token: whoever arrives first hosts it, and nobody can later claim it by token.
+    // Handing out a token here would hand it to whoever asked, which is worse than no token.
+    record = store.create(code, "", Date.now()) ?? undefined;
+    if (record === undefined) return null;
+  }
+
   const room = new Room(record, store, ice);
   live.set(code, room);
   return room;
@@ -214,7 +238,10 @@ sweeper.unref?.();
 
 server.listen(port, () => {
   const turn = ice.turnUrls.length > 0 ? `${ice.turnUrls.length} TURN url(s)` : "STUN only";
-  console.log(`auralis relay listening on :${port} (${turn}, data: ${dataDir ?? "memory"})`);
+  const adopt = adoptUnknownRooms ? ", adopting unknown codes" : "";
+  console.log(
+    `auralis relay listening on :${port} (${turn}, data: ${dataDir ?? "memory"}${adopt})`,
+  );
 });
 
 /** A host that stops a container sends SIGTERM and waits a moment; use it to land the last write. */
