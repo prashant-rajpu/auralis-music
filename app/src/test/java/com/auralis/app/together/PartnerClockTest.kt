@@ -12,6 +12,7 @@ class PartnerClockTest {
 
     private val london = ZoneId.of("Europe/London")
     private val kolkata = "Asia/Kolkata"
+    private val dubai = ZoneId.of("Asia/Dubai")
 
     /** 2026-06-15T20:00:00Z — a summer evening in London, so BST is in force. */
     private val summerEvening = Instant.parse("2026-06-15T20:00:00Z")
@@ -27,24 +28,55 @@ class PartnerClockTest {
         assertNull(PartnerClock.timeFor("", summerEvening))
         assertNull(PartnerClock.timeFor("Middle/Earth", summerEvening))
         assertNull(PartnerClock.offsetLabel("", london, summerEvening))
-        assertNull(PartnerClock.hoursFrom("nonsense", london, summerEvening))
+        assertNull(PartnerClock.minutesFrom("nonsense", london, summerEvening))
     }
 
     @Test
     fun `the offset is worked out from the date, not from a table`() {
-        // In June, London is UTC+1 and Kolkata UTC+5:30, so 4 hours (5:30 - 1:00, truncated).
-        assertEquals(4, PartnerClock.hoursFrom(kolkata, london, summerEvening))
-        // In January, London is UTC+0, so it is 5.
+        // In June, London is UTC+1 and Kolkata UTC+5:30, so 4 hours 30.
+        assertEquals(270, PartnerClock.minutesFrom(kolkata, london, summerEvening))
+        // In January, London is UTC+0, so it is 5 hours 30.
         val winter = Instant.parse("2026-01-15T20:00:00Z")
-        assertEquals(5, PartnerClock.hoursFrom(kolkata, london, winter))
+        assertEquals(330, PartnerClock.minutesFrom(kolkata, london, winter))
+    }
+
+    @Test
+    fun `a half-hour zone keeps its half hour`() {
+        // The pair this was built for: Dubai is UTC+4 all year, Kolkata UTC+5:30. An hour and a
+        // half, not an hour — counting in whole hours threw the 30 minutes away.
+        assertEquals(90, PartnerClock.minutesFrom(kolkata, dubai, summerEvening))
+        assertEquals(
+            "1 hour 30 minutes ahead",
+            PartnerClock.offsetLabel(kolkata, dubai, summerEvening),
+        )
+        assertEquals(
+            "1 hour 30 minutes behind",
+            PartnerClock.offsetLabel("Asia/Dubai", ZoneId.of(kolkata), summerEvening),
+        )
+        // Kolkata sits 4:30 from London in summer, and the label has to say the 30.
+        assertEquals(
+            "4 hours 30 minutes ahead",
+            PartnerClock.offsetLabel(kolkata, london, summerEvening),
+        )
+    }
+
+    @Test
+    fun `a quarter-hour zone keeps its quarter hour`() {
+        // Nepal is UTC+5:45 — 15 minutes past Kolkata, which is the tightest offset in use.
+        assertEquals(15, PartnerClock.minutesFrom("Asia/Kathmandu", ZoneId.of(kolkata), summerEvening))
+        assertEquals(
+            "15 minutes ahead",
+            PartnerClock.offsetLabel("Asia/Kathmandu", ZoneId.of(kolkata), summerEvening),
+        )
     }
 
     @Test
     fun `the label reads like a person wrote it`() {
-        assertEquals("4 hours ahead", PartnerClock.offsetLabel(kolkata, london, summerEvening))
+        // London is on BST in June, so Dubai is three hours up rather than four.
+        assertEquals("3 hours ahead", PartnerClock.offsetLabel("Asia/Dubai", london, summerEvening))
         assertEquals(
-            "4 hours behind",
-            PartnerClock.offsetLabel("Europe/London", ZoneId.of(kolkata), summerEvening),
+            "3 hours behind",
+            PartnerClock.offsetLabel("Europe/London", dubai, summerEvening),
         )
         assertEquals(
             "An hour ahead",

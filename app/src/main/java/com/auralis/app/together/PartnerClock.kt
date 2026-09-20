@@ -6,6 +6,7 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
 import java.util.Locale
+import kotlin.math.abs
 
 /**
  * What time it is where they are.
@@ -27,25 +28,38 @@ object PartnerClock {
     }
 
     /**
-     * How many hours ahead or behind they are. Zero when the zones agree today — which is not the
+     * How many minutes ahead or behind they are. Zero when the zones agree today — which is not the
      * same as the same zone, and is the number that actually matters.
+     *
+     * Minutes rather than hours because plenty of the world is not on a whole hour: India is
+     * UTC+5:30, Nepal UTC+5:45, and parts of Australia UTC+9:30. Rounding those down loses the half
+     * hour entirely and tells you it is 1am there when it is half past.
      */
-    fun hoursFrom(theirZoneId: String, mine: ZoneId = ZoneId.systemDefault(), now: Instant = Instant.now()): Int? {
+    fun minutesFrom(theirZoneId: String, mine: ZoneId = ZoneId.systemDefault(), now: Instant = Instant.now()): Int? {
         val theirs = zoneOrNull(theirZoneId) ?: return null
         val theirOffset = theirs.rules.getOffset(now).totalSeconds
         val myOffset = mine.rules.getOffset(now).totalSeconds
-        return (theirOffset - myOffset) / 3600
+        return (theirOffset - myOffset) / 60
     }
 
-    /** "3 hours ahead", "an hour behind", "same time as you". */
+    /** "3 hours ahead", "1 hour 30 minutes behind", "same time as you". */
     fun offsetLabel(theirZoneId: String, mine: ZoneId = ZoneId.systemDefault(), now: Instant = Instant.now()): String? {
-        val hours = hoursFrom(theirZoneId, mine, now) ?: return null
+        val minutes = minutesFrom(theirZoneId, mine, now) ?: return null
+        if (minutes == 0) return "Same time as you"
+        val direction = if (minutes > 0) "ahead" else "behind"
+        return "${spellOut(abs(minutes))} $direction"
+    }
+
+    /** "An hour", "4 hours", "1 hour 30 minutes", "45 minutes". */
+    private fun spellOut(minutes: Int): String {
+        val hours = minutes / 60
+        val rest = minutes % 60
         return when {
-            hours == 0 -> "Same time as you"
-            hours == 1 -> "An hour ahead"
-            hours == -1 -> "An hour behind"
-            hours > 0 -> "$hours hours ahead"
-            else -> "${-hours} hours behind"
+            hours == 0 -> "$rest minutes"
+            rest == 0 && hours == 1 -> "An hour"
+            rest == 0 -> "$hours hours"
+            hours == 1 -> "1 hour $rest minutes"
+            else -> "$hours hours $rest minutes"
         }
     }
 
