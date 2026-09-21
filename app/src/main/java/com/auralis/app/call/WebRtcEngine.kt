@@ -27,6 +27,7 @@ import org.webrtc.RtpTransceiver
 import org.webrtc.SdpObserver
 import org.webrtc.SessionDescription
 import org.webrtc.SurfaceTextureHelper
+import org.webrtc.VideoSink
 import org.webrtc.VideoSource
 import org.webrtc.VideoTrack
 import org.webrtc.audio.JavaAudioDeviceModule
@@ -64,6 +65,21 @@ class WebRtcEngine @Inject constructor(
     private val _remoteVideo = MutableStateFlow<VideoTrack?>(null)
     val remoteVideo: StateFlow<VideoTrack?> = _remoteVideo.asStateFlow()
 
+    /**
+     * Which renderer is currently drawing which track.
+     *
+     * The engine owns this rather than the screen because of the order things happen in. A
+     * composable detaches its renderer on the main thread, after the next frame; the engine
+     * releases a call on its own thread, immediately. Left to themselves, the track is disposed
+     * while a renderer is still attached to it — a use-after-free down in native code, which is
+     * not an exception and cannot be caught. Holding the pairs here means every sink can be taken
+     * off before anything is disposed.
+     */
+    private val sinks = LinkedHashMap<VideoSink, VideoTrack>()
+
+    /** Set once the peer connection has been disposed; nothing may be asked of it afterwards. */
+    private var closed = true
+
     private var connection: PeerConnection? = null
     private var audioSource: org.webrtc.AudioSource? = null
     private var audioTrack: AudioTrack? = null
@@ -79,6 +95,7 @@ class WebRtcEngine @Inject constructor(
     override fun start(iceServers: List<IceServer>, withVideo: Boolean, events: CallEngineEvents) {
         release()
         this.events = events
+        closed = false
         val era = ++generation
 
         val configuration = PeerConnection.RTCConfiguration(iceServers.map(::toIceServer)).apply {
@@ -105,6 +122,7 @@ class WebRtcEngine @Inject constructor(
     }
 
     override fun createOffer() {
+        if (closed) return
         val connection = this.connection ?: return
         connection.createOffer(
             onCreated { description ->
@@ -116,6 +134,7 @@ class WebRtcEngine @Inject constructor(
     }
 
     override fun acceptOffer(sdp: String, withVideo: Boolean) {
+        if (closed) return
         val connection = this.connection ?: return
         if (withVideo && videoTrack == null) openCamera()
         connection.setRemoteDescription(
@@ -133,6 +152,7 @@ class WebRtcEngine @Inject constructor(
     }
 
     override fun applyAnswer(sdp: String) {
+        if (closed) return
         connection?.setRemoteDescription(
             silentObserver(),
             SessionDescription(SessionDescription.Type.ANSWER, sdp),
@@ -140,11 +160,15 @@ class WebRtcEngine @Inject constructor(
     }
 
     override fun addCandidate(candidate: String, sdpMid: String?, sdpMLineIndex: Int) {
-        connection?.addIceCandidate(IceCandidate(sdpMid, sdpMLineIndex, candidate))
+        // A candidate can arrive moments after the call ended. The object is disposed rather than
+        // null by then, so a null check alone would not save it.
+        if (closed) return
+        runCatching { connection?.addIceCandidate(IceCandidate(sdpMid, sdpMLineIndex, candidate)) }
     }
 
     override fun setMicEnabled(enabled: Boolean) {
-        audioTrack?.setEnabled(enabled)
+        if (closed) return
+        runCatching { audioTrack?.setEnabled(enabled) }
     }
 
     /**
@@ -152,6 +176,7 @@ class WebRtcEngine @Inject constructor(
      * indicator light goes out and the battery stops paying for it.
      */
     override fun setCameraEnabled(enabled: Boolean) {
+        if (closed) return
         if (enabled && videoTrack == null) {
             openCamera()
             videoTrack?.let { track -> connection?.addTrack(track, listOf(STREAM_ID)) }
@@ -162,12 +187,47 @@ class WebRtcEngine @Inject constructor(
     }
 
     override fun switchCamera() {
-        capturer?.switchCamera(null)
+        if (closed) return
+        runCatching { capturer?.switchCamera(null) }
+    }
+
+    /**
+     * Starts drawing [track] into [sink], remembering the pair so it can be undone in time.
+     *
+     * A sink draws one track at a time, so binding it to a new one detaches it from the old.
+     */
+    fun bindSink(track: VideoTrack, sink: VideoSink) {
+        synchronized(sinks) {
+            detachLocked(sink)
+            if (runCatching { track.addSink(sink) }.isSuccess) sinks[sink] = track
+        }
+    }
+
+    fun unbindSink(sink: VideoSink) {
+        synchronized(sinks) { detachLocked(sink) }
+    }
+
+    private fun detachLocked(sink: VideoSink) {
+        val track = sinks.remove(sink) ?: return
+        runCatching { track.removeSink(sink) }
+    }
+
+    private fun detachAllSinks() {
+        synchronized(sinks) {
+            sinks.forEach { (sink, track) -> runCatching { track.removeSink(sink) } }
+            sinks.clear()
+        }
     }
 
     override fun release() {
         generation++
+        closed = true
         events = null
+
+        // Before anything is disposed, and deliberately first: a renderer still attached to a
+        // track that is about to be freed is the one failure here that does not throw.
+        detachAllSinks()
+
         _localVideo.value = null
         _remoteVideo.value = null
 

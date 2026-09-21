@@ -74,10 +74,11 @@ a call is happening, let alone the addresses inside it.
 
 | Limit | Value | Why |
 |---|---|---|
-| Message size | 4 KB | Checked before parsing. |
+| Message size | 16 KB | Enforced twice: by the socket layer, so an oversized frame is refused before it is buffered, and again by the parser. A cap that only the parser knows about is no cap at all — it can measure a message only once the whole thing is in memory. |
 | Members per room | 16 | Built for two; sized for a small group. |
 | Messages per member | 10/s, bursting to 20 | Continuously refilled token bucket, so a burst on a window boundary cannot get through at double rate. |
-| Joins per IP | 30 per minute | Stops room-code mining and join loops. |
+| Joins per IP | 30 per minute | Stops room-code mining and join loops. The address comes from `X-Forwarded-For` counted from the *right*, so a forged prefix cannot borrow someone else's budget — see `TRUSTED_PROXY_HOPS`. |
+| Buffered per socket | 1 MB | A phone that stops reading does not get to grow the server's write queue until the process dies. |
 | Queue | 200 tracks | |
 | Chat history | last 50 | Enough for a rejoin to see context. |
 | Idle room TTL | 30 days | Long enough that a couple's code stays theirs between sessions. |

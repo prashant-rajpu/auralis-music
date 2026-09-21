@@ -2,7 +2,8 @@ import { randomBytes, randomUUID } from "node:crypto";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { WebSocketServer, type WebSocket } from "ws";
 import { iceConfigFromEnv } from "./ice.js";
-import { CODE_LENGTH, generateRoomCode, isValidRoomCode } from "./protocol.js";
+import { clientIpFrom } from "./net.js";
+import { CODE_LENGTH, MAX_MESSAGE_BYTES, generateRoomCode, isValidRoomCode } from "./protocol.js";
 import { Room, type Connection } from "./room.js";
 import { RoomStore } from "./store.js";
 
@@ -39,6 +40,15 @@ const MAX_ROOMS = 50_000;
 /** A socket that stops answering pings is gone, whatever TCP still believes. */
 const HEARTBEAT_MS = 30_000;
 
+/**
+ * How far a client may get ahead of its own socket before it is dropped.
+ *
+ * `ws` buffers whatever it cannot write yet, without limit. A phone that stops reading — asleep,
+ * or on a link that has gone away without closing — would otherwise grow that buffer until the
+ * process is killed, taking everyone else's session with it.
+ */
+const MAX_BUFFERED_BYTES = 1 << 20;
+
 const port = Number.parseInt(process.env.PORT ?? "8787", 10);
 const dataDir = process.env.DATA_DIR === "" ? null : (process.env.DATA_DIR ?? "./data");
 const ice = iceConfigFromEnv(process.env);
@@ -66,14 +76,17 @@ function token(): string {
 }
 
 /**
- * Behind a load balancer the socket address is the balancer's. Every host worth using sets
- * `X-Forwarded-For`; the first entry is the client, the rest are proxies.
+ * How many proxies stand between a caller and this process. One on a hosting platform, which is
+ * the default; set it to 0 when nothing is in front, so a caller cannot invent a header.
  */
+const trustedProxyHops = Number.parseInt(process.env.TRUSTED_PROXY_HOPS ?? "1", 10);
+
 function clientIp(request: IncomingMessage): string {
-  const forwarded = request.headers["x-forwarded-for"];
-  const header = Array.isArray(forwarded) ? forwarded[0] : forwarded;
-  const first = header?.split(",")[0]?.trim();
-  return first || request.socket.remoteAddress || "unknown";
+  return clientIpFrom(
+    request.headers["x-forwarded-for"],
+    request.socket.remoteAddress,
+    Number.isFinite(trustedProxyHops) ? trustedProxyHops : 1,
+  );
 }
 
 const joinAttempts = new Map<string, { count: number; windowStartMs: number }>();
@@ -158,7 +171,13 @@ const server = createServer((request, response) => {
   json(response, 404, { error: "not_found" });
 });
 
-const sockets = new WebSocketServer({ noServer: true });
+// The frame cap belongs here as well as in the parser. `parseClientMessage` can only measure a
+// message once the whole thing has been read into memory, and the default `ws` allows a hundred
+// megabytes — so a single hostile frame would be buffered in full before anything rejected it.
+const sockets = new WebSocketServer({
+  noServer: true,
+  maxPayload: MAX_MESSAGE_BYTES + 1024,
+});
 
 server.on("upgrade", (request, socket, head) => {
   const url = new URL(request.url ?? "/", `http://${request.headers.host ?? "relay.invalid"}`);
@@ -215,6 +234,12 @@ function attach(ws: WebSocket, room: Room, connection: Connection, code: string)
   heartbeat.unref?.();
 
   ws.on("message", (data, isBinary) => {
+    // A client that is not keeping up with what it has already been sent does not get to make
+    // the backlog worse. Dropping it is kinder than running the host out of memory.
+    if (ws.bufferedAmount > MAX_BUFFERED_BYTES) {
+      ws.close(1013, "too_far_behind");
+      return;
+    }
     room.receive(connection, isBinary ? "" : data.toString());
   });
 
@@ -256,3 +281,25 @@ function shutdown(signal: string): void {
 
 process.on("SIGTERM", () => shutdown("SIGTERM"));
 process.on("SIGINT", () => shutdown("SIGINT"));
+
+/**
+ * A rejected promise nobody awaited is not worth ending a session over — a failed TURN mint or a
+ * socket that closed mid-write both land here, and both are survivable.
+ */
+process.on("unhandledRejection", (reason) => {
+  console.error("unhandled rejection", reason);
+});
+
+/**
+ * An uncaught exception is different: the process is in a state nobody reasoned about, and
+ * carrying on serving from it is how one bug becomes corrupted rooms. Write what is known to be
+ * good, then let the host restart a clean one.
+ */
+process.on("uncaughtException", (error) => {
+  console.error("uncaught exception", error);
+  try {
+    store.close();
+  } finally {
+    process.exit(1);
+  }
+});

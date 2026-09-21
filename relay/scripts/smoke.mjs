@@ -149,6 +149,21 @@ check("a rejoin is handed the recent history", replayed.length === 1, `n=${repla
 rejoined.close();
 await settle(600);
 
+// A frame far larger than the cap must be refused by the socket layer, before anything has
+// buffered it. The parser's own check only runs once a whole message is in memory, which on a
+// small host is the difference between rejecting an attack and being killed by it.
+const bigSocket = await connect(room.code, "big-token-0123456789abcd", "Big", "UTC");
+await settle(400);
+let closedForSize = false;
+bigSocket.on("close", (code) => {
+  // 1009 is "message too big"; some stacks report 1006 once the peer has gone.
+  closedForSize = code === 1009 || code === 1006;
+});
+bigSocket.send(JSON.stringify({ type: "chat", ciphertext: "A".repeat(200_000) }));
+await settle(1200);
+check("a frame past the cap closes the socket", closedForSize, `closed=${closedForSize}`);
+check("and the room carries on regardless", of(guest, "welcome").length === 1);
+
 // A relay with no disk forgets every room when it restarts, so it is configured to hand over a
 // code it does not recognise rather than telling a couple their room is gone. One with a disk
 // should say not-found instead, because there it genuinely is.

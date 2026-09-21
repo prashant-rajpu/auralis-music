@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { beforeEach, describe, expect, it } from "vitest";
 import { iceConfigFromEnv, mintIceServers, restCredential } from "../src/ice.js";
+import { clientIpFrom } from "../src/net.js";
 import { Room, type Connection, type Sink } from "../src/room.js";
 import { RoomStore } from "../src/store.js";
 import type { ServerMessage } from "../src/protocol.js";
@@ -264,5 +265,38 @@ describe("ice configuration", () => {
     const config = iceConfigFromEnv({ TURN_URLS: "turn:turn.example.com:3478" });
     const urls = mintIceServers(config, 0).iceServers.flatMap((s) => s.urls);
     expect(urls.some((url) => url.startsWith("turn:"))).toBe(false);
+  });
+});
+
+describe("who is on the other end", () => {
+  it("counts from the right, so a forged header is ignored", () => {
+    // A caller sends "1.2.3.4" hoping to be rate-limited as someone else; the proxy in front
+    // appends what it actually saw. The rightmost entry is the one a proxy wrote.
+    expect(clientIpFrom("1.2.3.4, 9.9.9.9", "10.0.0.1", 1)).toBe("9.9.9.9");
+  });
+
+  it("takes the caller from behind however many proxies are configured", () => {
+    expect(clientIpFrom("9.9.9.9, proxy1", "10.0.0.1", 2)).toBe("9.9.9.9");
+    expect(clientIpFrom("spoof, 9.9.9.9, proxy1", "10.0.0.1", 2)).toBe("9.9.9.9");
+  });
+
+  it("ignores the header entirely when nothing is in front", () => {
+    // Without a proxy the header is pure invention, and the socket is the only honest source.
+    expect(clientIpFrom("1.2.3.4", "10.0.0.1", 0)).toBe("10.0.0.1");
+  });
+
+  it("falls back to the socket rather than to an empty string", () => {
+    expect(clientIpFrom(undefined, "10.0.0.1", 1)).toBe("10.0.0.1");
+    expect(clientIpFrom("  ,  ", "10.0.0.1", 1)).toBe("10.0.0.1");
+    expect(clientIpFrom(undefined, undefined, 1)).toBe("unknown");
+  });
+
+  it("does not run off the start when the chain is shorter than configured", () => {
+    expect(clientIpFrom("9.9.9.9", "10.0.0.1", 3)).toBe("9.9.9.9");
+  });
+
+  it("handles the header arriving more than once", () => {
+    // Node hands back an array when a header is repeated; the chain is the concatenation.
+    expect(clientIpFrom(["spoof", "9.9.9.9, proxy1"], "10.0.0.1", 2)).toBe("9.9.9.9");
   });
 });

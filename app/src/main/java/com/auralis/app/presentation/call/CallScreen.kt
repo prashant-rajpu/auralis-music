@@ -38,7 +38,6 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.auralis.app.together.CallState
 import com.auralis.app.ui.theme.*
 import kotlinx.coroutines.delay
-import org.webrtc.EglBase
 import org.webrtc.RendererCommon
 import org.webrtc.SurfaceViewRenderer
 import org.webrtc.VideoTrack
@@ -132,7 +131,7 @@ private fun LiveCall(viewModel: CallViewModel) {
 
     Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
         if (remote != null && state.media.peerCameraEnabled) {
-            VideoSurface(track = remote, eglBase = viewModel.eglBase, modifier = Modifier.fillMaxSize())
+            VideoSurface(track = remote, viewModel = viewModel, modifier = Modifier.fillMaxSize())
         } else {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -155,7 +154,7 @@ private fun LiveCall(viewModel: CallViewModel) {
         if (local != null && state.media.cameraEnabled) {
             VideoSurface(
                 track = local,
-                eglBase = viewModel.eglBase,
+                viewModel = viewModel,
                 mirror = true,
                 modifier = Modifier
                     .align(Alignment.TopEnd)
@@ -277,10 +276,11 @@ private fun CallButton(
 @Composable
 private fun VideoSurface(
     track: VideoTrack?,
-    eglBase: EglBase,
+    viewModel: CallViewModel,
     modifier: Modifier = Modifier,
     mirror: Boolean = false,
 ) {
+    val eglBase = viewModel.eglBase
     val renderer = remember(eglBase) { mutableStateOf<SurfaceViewRenderer?>(null) }
 
     AndroidView(
@@ -295,6 +295,9 @@ private fun VideoSurface(
             }
         },
         onRelease = { view ->
+            // Detached before the surface is torn down, and through the engine so it also
+            // forgets the pair. A track drawing into a released renderer is a native crash.
+            viewModel.unbindSink(view)
             renderer.value = null
             runCatching { view.release() }
         },
@@ -302,10 +305,8 @@ private fun VideoSurface(
 
     DisposableEffect(track, renderer.value) {
         val view = renderer.value
-        if (view != null && track != null) runCatching { track.addSink(view) }
-        onDispose {
-            if (view != null && track != null) runCatching { track.removeSink(view) }
-        }
+        if (view != null && track != null) viewModel.bindSink(track, view)
+        onDispose { if (view != null) viewModel.unbindSink(view) }
     }
 }
 

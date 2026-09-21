@@ -163,6 +163,12 @@ on the Together session's own thread), `CallService` (so a call survives the
 screen going off), `CallOverlay` (ringing, live call, controls), TURN credentials
 minted by the relay, and permissions asked for at the moment someone answers.
 
+- [x] ~~**A renderer could outlive the track it was drawing.**~~ A composable
+      detaches its sink on the main thread a frame later; the engine released
+      the call on its own thread at once — so a `VideoTrack` was disposed with a
+      renderer still attached, which is a use-after-free in native code and not
+      something a `catch` could ever have seen. The engine owns sink lifetime
+      now and detaches everything before disposing anything.
 - [x] ~~**A voice call crashed the app on Android 14+.**~~ The foreground
       service claimed the camera service type unconditionally, and the voice
       button only ever asks for `RECORD_AUDIO` — so `startForeground` threw a
@@ -286,6 +292,12 @@ All local; nothing leaves the device.
 ---
 
 ## 8. Quality and infrastructure
+
+- [ ] **The call has no test that runs it.** `CallController` and `CallSession`
+      are covered, and `WebRtcEngine` is not — it cannot be, without a device.
+      The crashes found so far were found by reading it. An instrumented test on
+      a real phone, even one that only places a call to itself through a
+      loopback peer connection, would catch the next one earlier.
 
 - [ ] **A drift soak test on real hardware.** `SyncControllerTest` runs an hour of
       simulated ticks; nothing has run an hour of real ones. Log RTT, offset,

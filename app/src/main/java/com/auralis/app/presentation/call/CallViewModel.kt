@@ -4,6 +4,8 @@ import androidx.lifecycle.ViewModel
 import com.auralis.app.call.CallSession
 import com.auralis.app.call.WebRtcEngine
 import dagger.hilt.android.lifecycle.HiltViewModel
+import org.webrtc.VideoSink
+import org.webrtc.VideoTrack
 import javax.inject.Inject
 
 /**
@@ -30,5 +32,16 @@ class CallViewModel @Inject constructor(
     fun setMic(enabled: Boolean) = call.setMic(enabled)
     fun setCamera(enabled: Boolean) = call.setCamera(enabled)
     fun switchCamera() = call.switchCamera()
+
+    /**
+     * Sink lifetime belongs to the engine, not to the composable.
+     *
+     * A renderer is detached when its composable leaves, on the main thread and a frame later;
+     * a call is released on the session's own thread, at once. Letting the screen own that
+     * ordering means disposing a track with a renderer still attached to it.
+     */
+    fun bindSink(track: VideoTrack, sink: VideoSink) = engine.bindSink(track, sink)
+
+    fun unbindSink(sink: VideoSink) = engine.unbindSink(sink)
     fun dismissEnded() = call.dismissEnded()
 }
