@@ -288,7 +288,10 @@ class PlaybackManager @Inject constructor(
      */
     fun ensureMediaServiceStarted() {
         try {
+            // Marked as ours: the service answers it by taking the foreground slot itself rather
+            // than waiting on Media3, which does not always foreground it in time.
             val intent = Intent(context, AuralisMediaSessionService::class.java)
+                .putExtra(AuralisMediaSessionService.EXTRA_FROM_APP, true)
             androidx.core.content.ContextCompat.startForegroundService(context, intent)
         } catch (e: Exception) {
             Log.e("PlaybackManager", "Failed to start AuralisMediaSessionService", e)

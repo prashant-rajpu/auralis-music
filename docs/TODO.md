@@ -163,6 +163,26 @@ on the Together session's own thread), `CallService` (so a call survives the
 screen going off), `CallOverlay` (ringing, live call, controls), TURN credentials
 minted by the relay, and permissions asked for at the moment someone answers.
 
+- [x] ~~**The media service could be killed ten seconds after it started.**~~
+      `startForegroundService()` carries a deadline: call `startForeground()`
+      within ~10 s or Android kills the app. Media3 does it only when it has a
+      session registered and the player is playing or buffering. Neither held:
+      nothing binds a `MediaController` (the player lives in the UI process), so
+      the plain start intent matched none of the cases in which Media3's
+      `onStartCommand` adds a session — and a partner's *paused* state arriving
+      over Together starts the service and then pauses the player. Either way no
+      notification, then the kill. It also meant no media notification at all.
+      The service now registers the session in `onCreate` and holds the
+      foreground slot itself with a placeholder that Media3's notification
+      replaces in place. **Verified by reading Media3's bytecode, not by running
+      it** — see §2, whose service rework removes this whole class.
+- [x] ~~**Notification permission could become impossible to grant.**~~ It was
+      requested once at startup and the answer ignored. Android shows the dialog
+      at most twice; after that `requestPermissions` returns instantly without
+      showing anything, so the permission looked broken and nothing in the app
+      said why. A banner now appears once something is loaded, and its button
+      re-asks while that still works and opens the app's notification settings
+      once it does not. `NotificationPromptTest`.
 - [x] ~~**A renderer could outlive the track it was drawing.**~~ A composable
       detaches its sink on the main thread a frame later; the engine released
       the call on its own thread at once — so a `VideoTrack` was disposed with a

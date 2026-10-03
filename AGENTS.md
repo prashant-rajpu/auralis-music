@@ -54,8 +54,14 @@ real phones talk to a relay you are editing.
    change without a real migration means the app will not open.
 4. **`app/schemas/` is committed on purpose** — the migration tests read it.
 5. **The foreground media service must post a notification within ~10 s** of
-   `startForegroundService()`, and Media3 only does so once playback actually
-   starts. Never start it speculatively; see `stopMediaServiceIfIdle`.
+   `startForegroundService()`, or Android kills the whole app. Media3 will not
+   reliably do it: it only foregrounds a service whose player is playing or
+   buffering, and it only knows about a session that something has registered —
+   nothing binds a controller here. So `AuralisMediaSessionService` registers
+   the session itself and holds the foreground slot with a placeholder the
+   moment it is started (`ForegroundHold`). Still never start it speculatively —
+   it would flash a notification for nothing — and keep going through
+   `ensureMediaServiceStarted`, which marks the intent the service answers.
 6. **Secrets never enter the repo.** `keystore.properties`, `*.jks` and
    `local.properties` are gitignored. The Jamendo client id comes from
    `auralis.jamendoClientId` in `~/.gradle/gradle.properties` or the

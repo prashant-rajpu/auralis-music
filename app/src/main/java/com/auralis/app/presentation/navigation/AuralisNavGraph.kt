@@ -45,6 +45,7 @@ import com.auralis.app.presentation.player.rememberExpandPlayer
 import com.auralis.app.presentation.player.rememberPlayerSheetState
 import com.auralis.app.presentation.settings.SettingsScreen
 import com.auralis.app.presentation.call.CallOverlay
+import com.auralis.app.presentation.common.NotificationsBanner
 import com.auralis.app.presentation.together.TogetherScreen
 import com.auralis.app.together.Invite
 import com.auralis.app.ui.theme.*
@@ -176,6 +177,17 @@ fun AuralisNavGraph(
                 )
             }
         }
+
+        // Only once something is loaded to play: that is when the missing media notification
+        // starts to matter, and a banner about it before then is just noise. It also makes the
+        // first-launch permission request, since it owns the whole flow.
+        NotificationsBanner(
+            showWhen = hasTrack && showsBottomChrome,
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .statusBarsPadding()
+                .padding(top = 8.dp),
+        )
 
         // Last, so it is over everything including the player sheet. A call is the one thing in
         // this app that should not be behind anything else. It draws nothing when idle.

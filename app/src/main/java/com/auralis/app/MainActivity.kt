@@ -1,7 +1,6 @@
 package com.auralis.app
 
 import android.content.Intent
-import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -32,12 +31,10 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
 
-        // Request notification permission on Android 13+ (One UI 8.5) so lockscreen & notification shade media controls are displayed
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            if (checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
-                requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 101)
-            }
-        }
+        // Notification permission is asked for by NotificationsBanner, not here. A bare
+        // requestPermissions at startup ignores the answer: after two denials Android stops
+        // showing the dialog and the call returns instantly, leaving a permission that cannot be
+        // granted and nothing in the app to say why.
 
         pendingInvite.value = inviteFrom(intent)
 
